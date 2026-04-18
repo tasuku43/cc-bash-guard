@@ -1,0 +1,50 @@
+---
+title: "cmdguard init"
+status: proposed
+date: 2026-04-18
+---
+
+# cmdguard init
+
+## Purpose
+
+`cmdguard init` bootstraps a local `cmdguard` setup without silently modifying
+existing user configuration in unsafe ways.
+
+## v1 Responsibilities
+
+`cmdguard init` may:
+
+- create a starter `.cmdguard.yml` when one does not exist
+- explain where user-wide config lives
+- detect compatible Claude Code settings files
+- print the hook snippet needed to register `cmdguard eval`
+
+## Safety Principle
+
+v1 `init` should optimize for idempotence and non-destructive setup.
+
+- If `.cmdguard.yml` already exists, do not overwrite it
+- If Claude Code hook registration already exists or settings are non-trivial,
+  prefer reporting status and proposed changes over blind mutation
+- If automatic mutation is supported, it should be conservative and explicit
+
+## Recommended Starter Config
+
+The starter config should:
+
+- use schema version `1`
+- include at least one sample deny rule
+- demonstrate both `block_examples` and `allow_examples`
+- be valid under `cmdguard test`
+
+## Output
+
+Default output should clearly separate:
+
+- what was created
+- what was detected
+- what still requires manual action
+
+This is especially important because `init` often runs once, long before a user
+debugs hook behavior later.
