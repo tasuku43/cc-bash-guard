@@ -30,14 +30,24 @@ rules:
       - "git diff HEAD~1"
       - "gh pr diff"
   - id: no-shell-dash-c
-    pattern: '^\s*(bash|sh)\s+-c\b'
-    message: "bash -c / sh -c はコマンド連結ガードの抜け道になるため禁止。cd は単独実行し、その後コマンドを実行してください。"
+    pattern: '^\s*((env|command|exec)\s+)?((/[^[:space:]]+/)?(bash|sh|zsh|dash|ksh))\s+-c\b|^\s*/usr/bin/env\s+(bash|sh|zsh|dash|ksh)\s+-c\b'
+    message: "shell -c はコマンド連結ガードの抜け道になるため禁止。cd は単独実行し、その後コマンドを実行してください。"
     block_examples:
       - "bash -c 'git status && git diff'"
       - "sh -c 'echo hi'"
+      - "/bin/bash -c 'git status'"
+      - "/bin/sh -c 'echo hi'"
+      - "env bash -c 'git status'"
+      - "/usr/bin/env bash -c 'git status'"
+      - "command bash -c 'git status'"
+      - "exec sh -c 'echo hi'"
+      - "zsh -c 'echo hi'"
+      - "dash -c 'echo hi'"
     allow_examples:
       - "bash script.sh"
+      - "sh script.sh"
       - "git status"
+      - "env bash script.sh"
   - id: no-aws-profile-flag
     pattern: '(^|[^A-Za-z0-9_-])aws\s+[^|;&]*--profile[ =]'
     message: "aws --profile は禁止。AWS_PROFILE=<profile> aws ... の形で実行してください（例: AWS_PROFILE=read-only-profile aws s3 ls）。"
@@ -55,7 +65,7 @@ rules:
       - "  aws sts get-caller-identity"
     allow_examples:
       - "AWS_PROFILE=read-only-profile aws s3 ls"
-      - "kubectl get pods"
+      - "AWS_PROFILE=dev-profile aws sts get-caller-identity"
   - id: no-cd-one-liner
     pattern: '^\s*cd\s+[^&;|]+\s*(&&|;|\|)'
     message: "cd で始まるワンライナー（cd path && command 等）は禁止。permission が先頭マッチのため allow/ask ルールをすり抜けてしまう。cd は単独実行し、その後に次のコマンドを実行してください。"
@@ -243,6 +253,13 @@ func TestRunCheckFullGuardDenyCases(t *testing.T) {
 		{name: "cd pipe", command: "cd repo | cat", wantRuleID: "no-cd-one-liner"},
 		{name: "bash dash c", command: "bash -c 'git status && git diff'", wantRuleID: "no-shell-dash-c"},
 		{name: "sh dash c", command: "sh -c 'echo hi'", wantRuleID: "no-shell-dash-c"},
+		{name: "bin bash dash c", command: "/bin/bash -c 'git status'", wantRuleID: "no-shell-dash-c"},
+		{name: "usr bin env bash dash c", command: "/usr/bin/env bash -c 'git status'", wantRuleID: "no-shell-dash-c"},
+		{name: "env bash dash c", command: "env bash -c 'git status'", wantRuleID: "no-shell-dash-c"},
+		{name: "command bash dash c", command: "command bash -c 'git status'", wantRuleID: "no-shell-dash-c"},
+		{name: "exec sh dash c", command: "exec sh -c 'echo hi'", wantRuleID: "no-shell-dash-c"},
+		{name: "zsh dash c", command: "zsh -c 'echo hi'", wantRuleID: "no-shell-dash-c"},
+		{name: "dash dash c", command: "dash -c 'echo hi'", wantRuleID: "no-shell-dash-c"},
 		{name: "aws profile flag", command: "aws --profile read-only-profile s3 ls", wantRuleID: "no-aws-profile-flag"},
 		{name: "bare aws", command: "aws s3 ls", wantRuleID: "require-aws-profile-env"},
 	}
@@ -282,8 +299,11 @@ func TestRunCheckFullGuardAllowCases(t *testing.T) {
 		"cd repo",
 		"git status",
 		"AWS_PROFILE=read-only-profile aws s3 ls",
+		"AWS_PROFILE=dev-profile aws sts get-caller-identity",
 		"gh pr diff",
 		"bash script.sh",
+		"sh script.sh",
+		"env bash script.sh",
 	}
 
 	for _, command := range tests {
