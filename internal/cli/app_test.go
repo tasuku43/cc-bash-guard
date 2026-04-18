@@ -40,21 +40,21 @@ rules:
       - "git status"
   - id: no-aws-profile-flag
     pattern: '(^|[^A-Za-z0-9_-])aws\s+[^|;&]*--profile[ =]'
-    message: "aws --profile は禁止。AWS_PROFILE=<profile> aws ... の形で実行してください（例: AWS_PROFILE=cw-read-only-sso aws s3 ls）。"
+    message: "aws --profile は禁止。AWS_PROFILE=<profile> aws ... の形で実行してください（例: AWS_PROFILE=read-only-profile aws s3 ls）。"
     block_examples:
-      - "aws s3 ls --profile cw-read-only-sso"
-      - "aws --profile cw-read-only-sso s3 ls"
+      - "aws s3 ls --profile read-only-profile"
+      - "aws --profile read-only-profile s3 ls"
     allow_examples:
-      - "AWS_PROFILE=cw-read-only-sso aws s3 ls"
+      - "AWS_PROFILE=read-only-profile aws s3 ls"
       - "echo docs mention profile flag"
   - id: require-aws-profile-env
     pattern: '^\s*aws\s'
-    message: "aws は先頭で AWS_PROFILE=<profile> を指定してください（例: AWS_PROFILE=cw-read-only-sso aws s3 ls）。"
+    message: "aws は先頭で AWS_PROFILE=<profile> を指定してください（例: AWS_PROFILE=read-only-profile aws s3 ls）。"
     block_examples:
       - "aws s3 ls"
       - "  aws sts get-caller-identity"
     allow_examples:
-      - "AWS_PROFILE=cw-read-only-sso aws s3 ls"
+      - "AWS_PROFILE=read-only-profile aws s3 ls"
       - "kubectl get pods"
   - id: no-cd-one-liner
     pattern: '^\s*cd\s+[^&;|]+\s*(&&|;|\|)'
@@ -192,7 +192,7 @@ func TestRunCheckFullGuardDenyCases(t *testing.T) {
 		{name: "cd pipe", command: "cd repo | cat", wantRuleID: "no-cd-one-liner"},
 		{name: "bash dash c", command: "bash -c 'git status && git diff'", wantRuleID: "no-shell-dash-c"},
 		{name: "sh dash c", command: "sh -c 'echo hi'", wantRuleID: "no-shell-dash-c"},
-		{name: "aws profile flag", command: "aws --profile cw-read-only-sso s3 ls", wantRuleID: "no-aws-profile-flag"},
+		{name: "aws profile flag", command: "aws --profile read-only-profile s3 ls", wantRuleID: "no-aws-profile-flag"},
 		{name: "bare aws", command: "aws s3 ls", wantRuleID: "require-aws-profile-env"},
 	}
 
@@ -230,7 +230,7 @@ func TestRunCheckFullGuardAllowCases(t *testing.T) {
 	tests := []string{
 		"cd repo",
 		"git status",
-		"AWS_PROFILE=cw-read-only-sso aws s3 ls",
+		"AWS_PROFILE=read-only-profile aws s3 ls",
 		"gh pr diff",
 		"bash script.sh",
 	}
