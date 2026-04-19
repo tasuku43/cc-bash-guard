@@ -9,13 +9,13 @@ date: 2026-04-18
 ## 1. Scope
 
 This document defines the intended compatibility and distribution stance for
-`cmdproxy` v1.
+`cmdproxy` v2-style rule files.
 
 ## 2. Rule Schema Stability
 
-v1 commits to the stability of schema `version: 1`.
+The current rule schema is `version: 2`.
 
-- New features must not silently change the meaning of valid v1 rule files
+- New features must not silently change the meaning of valid v2 rule files
 - Breaking schema changes require a new version number
 
 ## 3. Runtime Expectations

@@ -9,29 +9,33 @@ import (
 	"testing"
 )
 
-const fullUserConfig = `version: 1
+const fullUserConfig = `version: 2
 rules:
   - id: no-git-dash-c
     match:
       command: git
       args_contains:
         - "-C"
-    message: "git -C is blocked. Change into the target directory and rerun the command."
-    block_examples:
-      - "git -C repos/foo status"
-      - "  git -C . log"
-    allow_examples:
-      - "git status"
-      - "# git -C in comment"
+    reject:
+      message: "git -C is blocked. Change into the target directory and rerun the command."
+      test:
+        expect:
+          - "git -C repos/foo status"
+          - "  git -C . log"
+        pass:
+          - "git status"
+          - "# git -C in comment"
   - id: no-git-diff-three-dot
     pattern: '^\s*git\s+diff\s+.*\.\.\.'
-    message: "git diff <base>...<head> is blocked because it can produce very large output. Use gh pr diff instead."
-    block_examples:
-      - "git diff main...HEAD"
-      - "git diff origin/main...feature"
-    allow_examples:
-      - "git diff HEAD~1"
-      - "gh pr diff"
+    reject:
+      message: "git diff <base>...<head> is blocked because it can produce very large output. Use gh pr diff instead."
+      test:
+        expect:
+          - "git diff main...HEAD"
+          - "git diff origin/main...feature"
+        pass:
+          - "git diff HEAD~1"
+          - "gh pr diff"
   - id: no-shell-dash-c
     match:
       command_in:
@@ -42,84 +46,95 @@ rules:
         - ksh
       args_contains:
         - "-c"
-    message: "shell -c is blocked because it can bypass command chaining guards. Run cd separately, then run the next command."
-    block_examples:
-      - "bash -c 'git status && git diff'"
-      - "sh -c 'echo hi'"
-      - "/bin/bash -c 'git status'"
-      - "/bin/sh -c 'echo hi'"
-      - "env bash -c 'git status'"
-      - "/usr/bin/env bash -c 'git status'"
-      - "command bash -c 'git status'"
-      - "exec sh -c 'echo hi'"
-      - "sudo bash -c 'git status'"
-      - "sudo -u root bash -c 'git status'"
-      - "nohup bash -c 'git status'"
-      - "timeout 10 bash -c 'git status'"
-      - "timeout --signal TERM 10 bash -c 'git status'"
-      - "busybox sh -c 'echo hi'"
-      - "zsh -c 'echo hi'"
-      - "dash -c 'echo hi'"
-    allow_examples:
-      - "bash script.sh"
-      - "sh script.sh"
-      - "git status"
-      - "env bash script.sh"
+    reject:
+      message: "shell -c is blocked because it can bypass command chaining guards. Run cd separately, then run the next command."
+      test:
+        expect:
+          - "bash -c 'git status && git diff'"
+          - "sh -c 'echo hi'"
+          - "/bin/bash -c 'git status'"
+          - "/bin/sh -c 'echo hi'"
+          - "env bash -c 'git status'"
+          - "/usr/bin/env bash -c 'git status'"
+          - "command bash -c 'git status'"
+          - "exec sh -c 'echo hi'"
+          - "sudo bash -c 'git status'"
+          - "sudo -u root bash -c 'git status'"
+          - "nohup bash -c 'git status'"
+          - "timeout 10 bash -c 'git status'"
+          - "timeout --signal TERM 10 bash -c 'git status'"
+          - "busybox sh -c 'echo hi'"
+          - "zsh -c 'echo hi'"
+          - "dash -c 'echo hi'"
+        pass:
+          - "bash script.sh"
+          - "sh script.sh"
+          - "git status"
+          - "env bash script.sh"
   - id: no-aws-profile-flag
     pattern: '(^|[^A-Za-z0-9_-])aws\s+[^|;&]*--profile[ =]'
-    message: "aws --profile is blocked. Use AWS_PROFILE=<profile> aws ... instead, for example AWS_PROFILE=read-only-profile aws s3 ls."
-    block_examples:
-      - "aws s3 ls --profile read-only-profile"
-      - "aws --profile read-only-profile s3 ls"
-    allow_examples:
-      - "AWS_PROFILE=read-only-profile aws s3 ls"
-      - "echo docs mention profile flag"
+    reject:
+      message: "aws --profile is blocked. Use AWS_PROFILE=<profile> aws ... instead, for example AWS_PROFILE=read-only-profile aws s3 ls."
+      test:
+        expect:
+          - "aws s3 ls --profile read-only-profile"
+          - "aws --profile read-only-profile s3 ls"
+        pass:
+          - "AWS_PROFILE=read-only-profile aws s3 ls"
+          - "echo docs mention profile flag"
   - id: require-aws-profile-env
     match:
       command: aws
       env_missing:
         - AWS_PROFILE
-    message: "aws commands must start with AWS_PROFILE=<profile>, for example AWS_PROFILE=read-only-profile aws s3 ls."
-    block_examples:
-      - "aws s3 ls"
-      - "  aws sts get-caller-identity"
-    allow_examples:
-      - "AWS_PROFILE=read-only-profile aws s3 ls"
-      - "AWS_PROFILE=dev-profile aws sts get-caller-identity"
+    reject:
+      message: "aws commands must start with AWS_PROFILE=<profile>, for example AWS_PROFILE=read-only-profile aws s3 ls."
+      test:
+        expect:
+          - "aws s3 ls"
+          - "  aws sts get-caller-identity"
+        pass:
+          - "AWS_PROFILE=read-only-profile aws s3 ls"
+          - "AWS_PROFILE=dev-profile aws sts get-caller-identity"
   - id: no-cd-one-liner
     pattern: '^\s*cd\s+[^&;|]+\s*(&&|;|\|)'
-    message: "One-liners that start with cd are blocked because prefix-based permission rules can miss the chained command. Run cd separately, then run the next command."
-    block_examples:
-      - "cd repo && git status"
-      - "cd repo; make test"
-      - "cd repo | cat"
-    allow_examples:
-      - "cd repo"
-      - "git status"
+    reject:
+      message: "One-liners that start with cd are blocked because prefix-based permission rules can miss the chained command. Run cd separately, then run the next command."
+      test:
+        expect:
+          - "cd repo && git status"
+          - "cd repo; make test"
+          - "cd repo | cat"
+        pass:
+          - "cd repo"
+          - "git status"
   - id: no-git-git-dir
     match:
       command: git
       args_prefixes:
         - "--git-dir"
-    message: "git --git-dir is blocked. Change into the target directory and rerun the command."
-    block_examples:
-      - "git --git-dir=.git status"
-      - "git --git-dir ../repo/.git log"
-    allow_examples:
-      - "git status"
-      - "git --version"
+    reject:
+      message: "git --git-dir is blocked. Change into the target directory and rerun the command."
+      test:
+        expect:
+          - "git --git-dir=.git status"
+          - "git --git-dir ../repo/.git log"
+        pass:
+          - "git status"
+          - "git --version"
 `
 
 func TestRunEvalJSONDeny(t *testing.T) {
 	home := t.TempDir()
-	writeUserConfig(t, home, `version: 1
+	writeUserConfig(t, home, `version: 2
 rules:
   - id: no-git-dash-c
     pattern: '^\s*git\s+-C\b'
     reject:
       message: "git -C is blocked. Change into the target directory and rerun the command."
-    block_examples: ["git -C foo status"]
-    allow_examples: ["git status"]
+      test:
+        expect: ["git -C foo status"]
+        pass: ["git status"]
 `)
 
 	var stdout, stderr bytes.Buffer
@@ -146,7 +161,7 @@ rules:
 
 func TestRunEvalJSONRewrite(t *testing.T) {
 	home := t.TempDir()
-	writeUserConfig(t, home, `version: 1
+	writeUserConfig(t, home, `version: 2
 rules:
   - id: unwrap-shell-dash-c
     match:
@@ -154,8 +169,11 @@ rules:
       args_contains: ["-c"]
     rewrite:
       unwrap_shell_dash_c: true
-    block_examples: ["bash -c 'git status'"]
-    allow_examples: ["bash script.sh"]
+      test:
+        expect:
+          - in: "bash -c 'git status'"
+            out: "git status"
+        pass: ["bash script.sh"]
 `)
 
 	var stdout, stderr bytes.Buffer
@@ -179,7 +197,7 @@ rules:
 
 func TestRunEvalJSONMoveFlagToEnvRewrite(t *testing.T) {
 	home := t.TempDir()
-	writeUserConfig(t, home, `version: 1
+	writeUserConfig(t, home, `version: 2
 rules:
   - id: aws-profile-to-env
     match:
@@ -189,8 +207,11 @@ rules:
       move_flag_to_env:
         flag: "--profile"
         env: "AWS_PROFILE"
-    block_examples: ["aws --profile read-only-profile s3 ls"]
-    allow_examples: ["AWS_PROFILE=read-only-profile aws s3 ls"]
+      test:
+        expect:
+          - in: "aws --profile read-only-profile s3 ls"
+            out: "AWS_PROFILE=read-only-profile aws s3 ls"
+        pass: ["AWS_PROFILE=read-only-profile aws s3 ls"]
 `)
 
 	var stdout, stderr bytes.Buffer
@@ -214,7 +235,7 @@ rules:
 
 func TestRunEvalJSONMoveEnvToFlagRewrite(t *testing.T) {
 	home := t.TempDir()
-	writeUserConfig(t, home, `version: 1
+	writeUserConfig(t, home, `version: 2
 rules:
   - id: aws-env-to-profile
     match:
@@ -224,8 +245,11 @@ rules:
       move_env_to_flag:
         env: "AWS_PROFILE"
         flag: "--profile"
-    block_examples: ["AWS_PROFILE=read-only-profile aws s3 ls"]
-    allow_examples: ["aws --profile read-only-profile s3 ls"]
+      test:
+        expect:
+          - in: "AWS_PROFILE=read-only-profile aws s3 ls"
+            out: "aws --profile read-only-profile s3 ls"
+        pass: ["aws --profile read-only-profile s3 ls"]
 `)
 
 	var stdout, stderr bytes.Buffer
@@ -249,15 +273,18 @@ rules:
 
 func TestRunEvalJSONUnwrapWrapperRewrite(t *testing.T) {
 	home := t.TempDir()
-	writeUserConfig(t, home, `version: 1
+	writeUserConfig(t, home, `version: 2
 rules:
   - id: unwrap-safe-wrappers
     pattern: '^\s*(env|command|exec)\b'
     rewrite:
       unwrap_wrapper:
         wrappers: ["env", "command", "exec"]
-    block_examples: ["env AWS_PROFILE=dev command exec aws s3 ls"]
-    allow_examples: ["AWS_PROFILE=dev aws s3 ls"]
+      test:
+        expect:
+          - in: "env AWS_PROFILE=dev command exec aws s3 ls"
+            out: "AWS_PROFILE=dev aws s3 ls"
+        pass: ["AWS_PROFILE=dev aws s3 ls"]
 `)
 
 	var stdout, stderr bytes.Buffer
@@ -281,13 +308,15 @@ rules:
 
 func TestRunCheckAllow(t *testing.T) {
 	home := t.TempDir()
-	writeUserConfig(t, home, `version: 1
+	writeUserConfig(t, home, `version: 2
 rules:
   - id: no-git-dash-c
     pattern: '^\s*git\s+-C\b'
-    message: "git -C is blocked. Change into the target directory and rerun the command."
-    block_examples: ["git -C foo status"]
-    allow_examples: ["git status"]
+    reject:
+      message: "git -C is blocked. Change into the target directory and rerun the command."
+      test:
+        expect: ["git -C foo status"]
+        pass: ["git status"]
 `)
 
 	var stdout, stderr bytes.Buffer
@@ -306,13 +335,15 @@ rules:
 
 func TestRunTest(t *testing.T) {
 	home := t.TempDir()
-	writeUserConfig(t, home, `version: 1
+	writeUserConfig(t, home, `version: 2
 rules:
   - id: no-git-dash-c
     pattern: '^\s*git\s+-C\b'
-    message: "git -C is blocked. Change into the target directory and rerun the command."
-    block_examples: ["git -C foo status"]
-    allow_examples: ["git status"]
+    reject:
+      message: "git -C is blocked. Change into the target directory and rerun the command."
+      test:
+        expect: ["git -C foo status"]
+        pass: ["git status"]
 `)
 
 	var stdout, stderr bytes.Buffer
@@ -324,7 +355,7 @@ rules:
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s", code, stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "ok: 1 rules, 2 examples checked") {
+	if !strings.Contains(stdout.String(), "ok: 1 rules, 2 tests checked") {
 		t.Fatalf("stdout=%q", stdout.String())
 	}
 }
@@ -345,7 +376,7 @@ func TestRunInitCreatesStarterConfig(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
-	if !strings.Contains(string(data), "version: 1") {
+	if !strings.Contains(string(data), "version: 2") {
 		t.Fatalf("config=%q", string(data))
 	}
 }

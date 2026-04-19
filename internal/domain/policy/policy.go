@@ -14,18 +14,16 @@ import (
 var ruleIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
 
 type RuleSpec struct {
-	ID            string      `yaml:"id"`
-	Pattern       string      `yaml:"pattern"`
-	Matcher       MatchSpec   `yaml:"match"`
-	Message       string      `yaml:"message"`
-	Reject        RejectSpec  `yaml:"reject"`
-	Rewrite       RewriteSpec `yaml:"rewrite"`
-	BlockExamples []string    `yaml:"block_examples"`
-	AllowExamples []string    `yaml:"allow_examples"`
+	ID      string      `yaml:"id"`
+	Pattern string      `yaml:"pattern"`
+	Matcher MatchSpec   `yaml:"match"`
+	Reject  RejectSpec  `yaml:"reject"`
+	Rewrite RewriteSpec `yaml:"rewrite"`
 }
 
 type RejectSpec struct {
-	Message string `yaml:"message" json:"message,omitempty"`
+	Message string         `yaml:"message" json:"message,omitempty"`
+	Test    RejectTestSpec `yaml:"test" json:"test,omitempty"`
 }
 
 type RewriteSpec struct {
@@ -33,6 +31,7 @@ type RewriteSpec struct {
 	UnwrapWrapper    UnwrapWrapperSpec `yaml:"unwrap_wrapper" json:"unwrap_wrapper,omitempty"`
 	MoveFlagToEnv    MoveFlagToEnvSpec `yaml:"move_flag_to_env" json:"move_flag_to_env,omitempty"`
 	MoveEnvToFlag    MoveEnvToFlagSpec `yaml:"move_env_to_flag" json:"move_env_to_flag,omitempty"`
+	Test             RewriteTestSpec   `yaml:"test" json:"test,omitempty"`
 }
 
 type MoveFlagToEnvSpec struct {
@@ -47,6 +46,21 @@ type MoveEnvToFlagSpec struct {
 
 type UnwrapWrapperSpec struct {
 	Wrappers []string `yaml:"wrappers" json:"wrappers,omitempty"`
+}
+
+type RejectTestSpec struct {
+	Expect []string `yaml:"expect" json:"expect,omitempty"`
+	Pass   []string `yaml:"pass" json:"pass,omitempty"`
+}
+
+type RewriteTestSpec struct {
+	Expect []RewriteExpectCase `yaml:"expect" json:"expect,omitempty"`
+	Pass   []string            `yaml:"pass" json:"pass,omitempty"`
+}
+
+type RewriteExpectCase struct {
+	In  string `yaml:"in" json:"in,omitempty"`
+	Out string `yaml:"out" json:"out,omitempty"`
 }
 
 type MatchSpec struct {
@@ -178,17 +192,18 @@ func ValidateRuleMatcher(prefix string, pattern string, match MatchSpec) []strin
 	return issues
 }
 
-func ValidateDirective(prefix string, message string, reject RejectSpec, rewrite RewriteSpec) []string {
-	hasMessage := strings.TrimSpace(message) != ""
+func ValidateDirective(prefix string, reject RejectSpec, rewrite RewriteSpec) []string {
 	hasReject := strings.TrimSpace(reject.Message) != ""
 	hasRewrite := !IsZeroRewriteSpec(rewrite)
 	switch {
-	case countDirectiveKinds(hasMessage, hasReject, hasRewrite) > 1:
+	case countDirectiveKinds(hasReject, hasRewrite) > 1:
 		return []string{prefix + " must set exactly one directive kind"}
-	case countDirectiveKinds(hasMessage, hasReject, hasRewrite) == 0:
+	case countDirectiveKinds(hasReject, hasRewrite) == 0:
 		return []string{prefix + " must set one directive"}
 	case hasRewrite:
 		return ValidateRewrite(prefix+".rewrite", rewrite)
+	case hasReject:
+		return ValidateReject(prefix+".reject", reject)
 	default:
 		return nil
 	}
@@ -228,6 +243,16 @@ func ValidateRewrite(prefix string, rewrite RewriteSpec) []string {
 	case primitiveCount > 1:
 		issues = append(issues, prefix+" must set exactly one rewrite primitive")
 	}
+	issues = append(issues, ValidateRewriteTest(prefix+".test", rewrite.Test)...)
+	return issues
+}
+
+func ValidateReject(prefix string, reject RejectSpec) []string {
+	var issues []string
+	if strings.TrimSpace(reject.Message) == "" {
+		issues = append(issues, prefix+".message must be non-empty")
+	}
+	issues = append(issues, ValidateRejectTest(prefix+".test", reject.Test)...)
 	return issues
 }
 
@@ -263,13 +288,7 @@ func ValidateRules(rules []RuleSpec) []string {
 		}
 		seen[r.ID] = struct{}{}
 		issues = append(issues, ValidateRuleMatcher(prefix, r.Pattern, r.Matcher)...)
-		issues = append(issues, ValidateDirective(prefix, r.Message, r.Reject, r.Rewrite)...)
-		if len(r.BlockExamples) == 0 {
-			issues = append(issues, prefix+".block_examples must be non-empty")
-		}
-		if len(r.AllowExamples) == 0 {
-			issues = append(issues, prefix+".allow_examples must be non-empty")
-		}
+		issues = append(issues, ValidateDirective(prefix, r.Reject, r.Rewrite)...)
 	}
 	return issues
 }
@@ -305,10 +324,7 @@ func ErrorStrings(errs []error) []string {
 }
 
 func (r Rule) RejectMessage() string {
-	if strings.TrimSpace(r.Reject.Message) != "" {
-		return r.Reject.Message
-	}
-	return r.Message
+	return r.Reject.Message
 }
 
 func (r Rule) RewriteCommand(command string) (string, bool) {
@@ -356,11 +372,8 @@ func IsZeroUnwrapWrapperSpec(spec UnwrapWrapperSpec) bool {
 	return len(spec.Wrappers) == 0
 }
 
-func countDirectiveKinds(hasMessage bool, hasReject bool, hasRewrite bool) int {
+func countDirectiveKinds(hasReject bool, hasRewrite bool) int {
 	n := 0
-	if hasMessage {
-		n++
-	}
 	if hasReject {
 		n++
 	}
@@ -368,6 +381,39 @@ func countDirectiveKinds(hasMessage bool, hasReject bool, hasRewrite bool) int {
 		n++
 	}
 	return n
+}
+
+func ValidateRejectTest(prefix string, test RejectTestSpec) []string {
+	var issues []string
+	if len(test.Expect) == 0 {
+		issues = append(issues, prefix+".expect must be non-empty")
+	}
+	if len(test.Pass) == 0 {
+		issues = append(issues, prefix+".pass must be non-empty")
+	}
+	issues = append(issues, validateNonEmptyStrings(prefix+".expect", test.Expect)...)
+	issues = append(issues, validateNonEmptyStrings(prefix+".pass", test.Pass)...)
+	return issues
+}
+
+func ValidateRewriteTest(prefix string, test RewriteTestSpec) []string {
+	var issues []string
+	if len(test.Expect) == 0 {
+		issues = append(issues, prefix+".expect must be non-empty")
+	}
+	if len(test.Pass) == 0 {
+		issues = append(issues, prefix+".pass must be non-empty")
+	}
+	for i, c := range test.Expect {
+		if strings.TrimSpace(c.In) == "" {
+			issues = append(issues, fmt.Sprintf("%s.expect[%d].in must be non-empty", prefix, i))
+		}
+		if strings.TrimSpace(c.Out) == "" {
+			issues = append(issues, fmt.Sprintf("%s.expect[%d].out must be non-empty", prefix, i))
+		}
+	}
+	issues = append(issues, validateNonEmptyStrings(prefix+".pass", test.Pass)...)
+	return issues
 }
 
 func validateNonEmptyStrings(prefix string, values []string) []string {

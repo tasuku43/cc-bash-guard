@@ -38,7 +38,7 @@ func Run(loaded config.Loaded, home string) Report {
 			Check{ID: "config.schema", Category: "config", Status: StatusPass, Message: "configuration schema is valid"},
 			Check{ID: "rules.unique-id", Category: "rules", Status: StatusPass, Message: "rule IDs are unique"},
 			Check{ID: "rules.matcher-validate", Category: "rules", Status: StatusPass, Message: "rule matchers are valid"},
-			Check{ID: "rules.examples-present", Category: "rules", Status: StatusPass, Message: "examples are present"},
+			Check{ID: "rules.tests-present", Category: "rules", Status: StatusPass, Message: "directive tests are present"},
 		)
 	} else {
 		msg := strings.Join(policy.ErrorStrings(loaded.Errors), "; ")
@@ -47,18 +47,18 @@ func Run(loaded config.Loaded, home string) Report {
 			Check{ID: "config.schema", Category: "config", Status: StatusFail, Message: msg},
 			Check{ID: "rules.unique-id", Category: "rules", Status: StatusFail, Message: msg},
 			Check{ID: "rules.matcher-validate", Category: "rules", Status: StatusFail, Message: msg},
-			Check{ID: "rules.examples-present", Category: "rules", Status: StatusFail, Message: msg},
+			Check{ID: "rules.tests-present", Category: "rules", Status: StatusFail, Message: msg},
 		)
 	}
 
 	if len(loaded.Errors) == 0 {
-		if err := examplesPass(loaded.Rules); err != nil {
-			checks = append(checks, Check{ID: "rules.examples-pass", Category: "rules", Status: StatusFail, Message: err.Error()})
+		if err := testsPass(loaded.Rules); err != nil {
+			checks = append(checks, Check{ID: "rules.tests-pass", Category: "rules", Status: StatusFail, Message: err.Error()})
 		} else {
-			checks = append(checks, Check{ID: "rules.examples-pass", Category: "rules", Status: StatusPass, Message: "examples match expectations"})
+			checks = append(checks, Check{ID: "rules.tests-pass", Category: "rules", Status: StatusPass, Message: "directive tests match expectations"})
 		}
 	} else {
-		checks = append(checks, Check{ID: "rules.examples-pass", Category: "rules", Status: StatusFail, Message: "skipped because configuration is invalid"})
+		checks = append(checks, Check{ID: "rules.tests-pass", Category: "rules", Status: StatusFail, Message: "skipped because configuration is invalid"})
 	}
 
 	if warning := broadnessWarning(loaded.Rules); warning != "" {
@@ -103,24 +103,45 @@ func HasFailures(report Report) bool {
 	return false
 }
 
-func examplesPass(rules []policy.Rule) error {
+func testsPass(rules []policy.Rule) error {
 	for _, r := range rules {
-		for _, ex := range r.BlockExamples {
-			matched, err := r.Match(ex)
+		if strings.TrimSpace(r.Reject.Message) != "" {
+			for _, ex := range r.Reject.Test.Expect {
+				decision, err := policy.Evaluate([]policy.Rule{r}, ex)
+				if err != nil {
+					return err
+				}
+				if decision.Outcome != "reject" {
+					return &exampleError{RuleID: r.ID, Kind: "reject", Example: ex}
+				}
+			}
+			for _, ex := range r.Reject.Test.Pass {
+				decision, err := policy.Evaluate([]policy.Rule{r}, ex)
+				if err != nil {
+					return err
+				}
+				if decision.Outcome != "pass" {
+					return &exampleError{RuleID: r.ID, Kind: "pass", Example: ex}
+				}
+			}
+			continue
+		}
+		for _, ex := range r.Rewrite.Test.Expect {
+			decision, err := policy.Evaluate([]policy.Rule{r}, ex.In)
 			if err != nil {
 				return err
 			}
-			if !matched {
-				return &exampleError{RuleID: r.ID, Kind: "block", Example: ex}
+			if decision.Outcome != "rewrite" || decision.Command != ex.Out {
+				return &exampleError{RuleID: r.ID, Kind: "rewrite", Example: ex.In}
 			}
 		}
-		for _, ex := range r.AllowExamples {
-			matched, err := r.Match(ex)
+		for _, ex := range r.Rewrite.Test.Pass {
+			decision, err := policy.Evaluate([]policy.Rule{r}, ex)
 			if err != nil {
 				return err
 			}
-			if matched {
-				return &exampleError{RuleID: r.ID, Kind: "allow", Example: ex}
+			if decision.Outcome != "pass" {
+				return &exampleError{RuleID: r.ID, Kind: "pass", Example: ex}
 			}
 		}
 	}
@@ -152,8 +173,20 @@ func broadnessWarning(rules []policy.Rule) string {
 func shadowingWarning(rules []policy.Rule) string {
 	for i := 0; i < len(rules); i++ {
 		for j := i + 1; j < len(rules); j++ {
-			for _, ex := range rules[j].BlockExamples {
-				matched, err := rules[i].Match(ex)
+			if strings.TrimSpace(rules[j].Reject.Message) != "" {
+				for _, ex := range rules[j].Reject.Test.Expect {
+					matched, err := rules[i].Match(ex)
+					if err != nil {
+						continue
+					}
+					if matched {
+						return "rule " + rules[i].ID + " likely shadows later rule " + rules[j].ID
+					}
+				}
+				continue
+			}
+			for _, ex := range rules[j].Rewrite.Test.Expect {
+				matched, err := rules[i].Match(ex.In)
 				if err != nil {
 					continue
 				}

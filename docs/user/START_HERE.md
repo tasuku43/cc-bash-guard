@@ -54,11 +54,14 @@ evaluate the final command shape.
 
 ## Current Rule Model
 
-The current config format is still `version: 1`.
+The current config format is `version: 2`.
 
 - rules use `match` or `pattern`
 - rules use one directive: `rewrite` or `reject`
-- examples are still written as `block_examples` and `allow_examples`
+- tests live under the directive
+- `rewrite.test.expect` uses `in` / `out`
+- `reject.test.expect` uses string inputs
+- both directive kinds use `test.pass`
 
 If you are contributing to the implementation, start from
 `docs/dev/README.md` instead.

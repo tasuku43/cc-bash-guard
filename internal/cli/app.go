@@ -119,18 +119,22 @@ func runTest(args []string, streams Streams, env Env) int {
 
 	report := doctor.Run(loaded, env.Home)
 	for _, check := range report.Checks {
-		if check.ID == "rules.examples-pass" && check.Status == doctor.StatusFail {
+		if check.ID == "rules.tests-pass" && check.Status == doctor.StatusFail {
 			writeErr(streams.Stderr, check.Message)
 			return exitError
 		}
 	}
 
 	ruleCount := len(loaded.Rules)
-	exampleCount := 0
+	testCount := 0
 	for _, r := range loaded.Rules {
-		exampleCount += len(r.BlockExamples) + len(r.AllowExamples)
+		if strings.TrimSpace(r.Reject.Message) != "" {
+			testCount += len(r.Reject.Test.Expect) + len(r.Reject.Test.Pass)
+			continue
+		}
+		testCount += len(r.Rewrite.Test.Expect) + len(r.Rewrite.Test.Pass)
 	}
-	fmt.Fprintf(streams.Stdout, "ok: %d rules, %d examples checked\n", ruleCount, exampleCount)
+	fmt.Fprintf(streams.Stdout, "ok: %d rules, %d tests checked\n", ruleCount, testCount)
 	return exitAllow
 }
 
@@ -303,7 +307,7 @@ Declarative, testable command policy for AI-agent shell commands.
 
 Typical workflow:
   1. Edit ~/.config/cmdproxy/cmdproxy.yml
-  2. Add block_examples and allow_examples for every rule
+  2. Add directive tests under rewrite.test or reject.test
   3. Run cmdproxy test
   4. Use cmdproxy check for spot checks
   5. Let Claude Code call cmdproxy eval from PreToolUse
@@ -354,8 +358,8 @@ Usage:
   cmdproxy test
 
 What it checks:
-  - every block_examples entry matches its rule matcher
-  - every allow_examples entry does not match its rule matcher
+  - every directive test expect case produces the expected result
+  - every directive test pass case remains pass
 
 Typical use:
   $EDITOR ~/.config/cmdproxy/cmdproxy.yml
@@ -424,17 +428,18 @@ func userConfigBase(home string, xdgConfigHome string) string {
 	return filepath.Join(home, ".config")
 }
 
-const starterConfig = `version: 1
+const starterConfig = `version: 2
 rules:
   - id: no-git-dash-c
     match:
       command: git
       args_contains:
         - "-C"
-    message: "git -C is blocked. Change into the target directory and rerun the command."
-    block_examples:
-      - "git -C repos/foo status"
-    allow_examples:
-      - "git status"
-      - "# git -C in comment"
+    reject:
+      message: "git -C is blocked. Change into the target directory and rerun the command."
+      test:
+        expect:
+          - "git -C repos/foo status"
+        pass:
+          - "git status"
 `

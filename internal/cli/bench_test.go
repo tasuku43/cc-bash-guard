@@ -73,27 +73,32 @@ func BenchmarkEvaluateRequestWithLargeConfig(b *testing.B) {
 
 func benchmarkConfig(ruleCount, examplesPerRule int) string {
 	var buf bytes.Buffer
-	buf.WriteString("version: 1\nrules:\n")
+	buf.WriteString("version: 2\nrules:\n")
 	for i := 0; i < ruleCount; i++ {
 		fmt.Fprintf(&buf, "  - id: bench-rule-%d\n", i)
 		if i == ruleCount-1 {
 			buf.WriteString("    pattern: '^\\s*git\\s+-C\\b'\n")
-			buf.WriteString("    message: \"git -C is blocked. cd into the repo first.\"\n")
 		} else {
 			fmt.Fprintf(&buf, "    pattern: '^command-%d\\b'\n", i)
-			fmt.Fprintf(&buf, "    message: \"command-%d is blocked. use a safer alternative instead.\"\n", i)
 		}
-		buf.WriteString("    block_examples:\n")
+		buf.WriteString("    reject:\n")
+		if i == ruleCount-1 {
+			buf.WriteString("      message: \"git -C is blocked. cd into the repo first.\"\n")
+		} else {
+			fmt.Fprintf(&buf, "      message: \"command-%d is blocked. use a safer alternative instead.\"\n", i)
+		}
+		buf.WriteString("      test:\n")
+		buf.WriteString("        expect:\n")
 		for j := 0; j < examplesPerRule; j++ {
 			if i == ruleCount-1 && j == 0 {
-				buf.WriteString("      - \"git -C repos/foo status\"\n")
+				buf.WriteString("          - \"git -C repos/foo status\"\n")
 				continue
 			}
-			fmt.Fprintf(&buf, "      - \"command-%d example-%d\"\n", i, j)
+			fmt.Fprintf(&buf, "          - \"command-%d example-%d\"\n", i, j)
 		}
-		buf.WriteString("    allow_examples:\n")
+		buf.WriteString("        pass:\n")
 		for j := 0; j < examplesPerRule; j++ {
-			fmt.Fprintf(&buf, "      - \"safe-command-%d-%d\"\n", i, j)
+			fmt.Fprintf(&buf, "          - \"safe-command-%d-%d\"\n", i, j)
 		}
 	}
 	return buf.String()

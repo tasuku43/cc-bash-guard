@@ -34,14 +34,11 @@ type evalFile struct {
 }
 
 type evalRuleSpec struct {
-	ID              string
-	Pattern         string
-	Match           policy.MatchSpec
-	Message         string
-	Reject          policy.RejectSpec
-	Rewrite         policy.RewriteSpec
-	BlockExampleLen int
-	AllowExampleLen int
+	ID      string
+	Pattern string
+	Match   policy.MatchSpec
+	Reject  policy.RejectSpec
+	Rewrite policy.RewriteSpec
 }
 
 type evalCacheFile struct {
@@ -56,7 +53,6 @@ type evalCachedRule struct {
 	ID      string             `json:"id"`
 	Pattern string             `json:"pattern"`
 	Match   policy.MatchSpec   `json:"match,omitempty"`
-	Message string             `json:"message"`
 	Reject  policy.RejectSpec  `json:"reject,omitempty"`
 	Rewrite policy.RewriteSpec `json:"rewrite,omitempty"`
 }
@@ -171,7 +167,6 @@ func LoadFileForEvalIfPresent(src Source, cachePath string) ([]policy.Rule, erro
 			ID:      spec.ID,
 			Pattern: spec.Pattern,
 			Matcher: spec.Match,
-			Message: spec.Message,
 			Reject:  spec.Reject,
 			Rewrite: spec.Rewrite,
 		}
@@ -180,7 +175,6 @@ func LoadFileForEvalIfPresent(src Source, cachePath string) ([]policy.Rule, erro
 			ID:      spec.ID,
 			Pattern: spec.Pattern,
 			Match:   spec.Match,
-			Message: spec.Message,
 			Reject:  spec.Reject,
 			Rewrite: spec.Rewrite,
 		})
@@ -303,11 +297,6 @@ func decodeEvalRule(src Source, idx int, node *yaml.Node) (evalRuleSpec, error) 
 				return evalRuleSpec{}, err
 			}
 			spec.Match = match
-		case "message":
-			if val.Kind != yaml.ScalarNode {
-				return evalRuleSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].message must be a string", src.Layer, src.Path, idx)
-			}
-			spec.Message = val.Value
 		case "reject":
 			reject, err := decodeEvalReject(src, idx, val)
 			if err != nil {
@@ -320,16 +309,6 @@ func decodeEvalRule(src Source, idx int, node *yaml.Node) (evalRuleSpec, error) 
 				return evalRuleSpec{}, err
 			}
 			spec.Rewrite = rewrite
-		case "block_examples":
-			if val.Kind != yaml.SequenceNode {
-				return evalRuleSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].block_examples must be a sequence", src.Layer, src.Path, idx)
-			}
-			spec.BlockExampleLen = len(val.Content)
-		case "allow_examples":
-			if val.Kind != yaml.SequenceNode {
-				return evalRuleSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].allow_examples must be a sequence", src.Layer, src.Path, idx)
-			}
-			spec.AllowExampleLen = len(val.Content)
 		default:
 			return evalRuleSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].%s not allowed", src.Layer, src.Path, idx, key.Value)
 		}
@@ -367,6 +346,12 @@ func decodeEvalRewrite(src Source, idx int, node *yaml.Node) (policy.RewriteSpec
 				return policy.RewriteSpec{}, err
 			}
 			rewrite.MoveEnvToFlag = spec
+		case "test":
+			spec, err := decodeEvalRewriteTest(src, idx, val)
+			if err != nil {
+				return policy.RewriteSpec{}, err
+			}
+			rewrite.Test = spec
 		case "unwrap_wrapper":
 			spec, err := decodeEvalUnwrapWrapper(src, idx, val)
 			if err != nil {
@@ -468,11 +453,106 @@ func decodeEvalReject(src Source, idx int, node *yaml.Node) (policy.RejectSpec, 
 				return policy.RejectSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].reject.message must be a string", src.Layer, src.Path, idx)
 			}
 			reject.Message = val.Value
+		case "test":
+			spec, err := decodeEvalRejectTest(src, idx, val)
+			if err != nil {
+				return policy.RejectSpec{}, err
+			}
+			reject.Test = spec
 		default:
 			return policy.RejectSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].reject.%s not allowed", src.Layer, src.Path, idx, key.Value)
 		}
 	}
 	return reject, nil
+}
+
+func decodeEvalRejectTest(src Source, idx int, node *yaml.Node) (policy.RejectTestSpec, error) {
+	if node.Kind != yaml.MappingNode {
+		return policy.RejectTestSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].reject.test must be a mapping", src.Layer, src.Path, idx)
+	}
+	var test policy.RejectTestSpec
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i]
+		val := node.Content[i+1]
+		switch key.Value {
+		case "expect":
+			values, err := decodeStringSequence(src, idx, "reject.test.expect", val)
+			if err != nil {
+				return policy.RejectTestSpec{}, err
+			}
+			test.Expect = values
+		case "pass":
+			values, err := decodeStringSequence(src, idx, "reject.test.pass", val)
+			if err != nil {
+				return policy.RejectTestSpec{}, err
+			}
+			test.Pass = values
+		default:
+			return policy.RejectTestSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].reject.test.%s not allowed", src.Layer, src.Path, idx, key.Value)
+		}
+	}
+	return test, nil
+}
+
+func decodeEvalRewriteTest(src Source, idx int, node *yaml.Node) (policy.RewriteTestSpec, error) {
+	if node.Kind != yaml.MappingNode {
+		return policy.RewriteTestSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.test must be a mapping", src.Layer, src.Path, idx)
+	}
+	var test policy.RewriteTestSpec
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i]
+		val := node.Content[i+1]
+		switch key.Value {
+		case "expect":
+			cases, err := decodeEvalRewriteExpectCases(src, idx, val)
+			if err != nil {
+				return policy.RewriteTestSpec{}, err
+			}
+			test.Expect = cases
+		case "pass":
+			values, err := decodeStringSequence(src, idx, "rewrite.test.pass", val)
+			if err != nil {
+				return policy.RewriteTestSpec{}, err
+			}
+			test.Pass = values
+		default:
+			return policy.RewriteTestSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.test.%s not allowed", src.Layer, src.Path, idx, key.Value)
+		}
+	}
+	return test, nil
+}
+
+func decodeEvalRewriteExpectCases(src Source, idx int, node *yaml.Node) ([]policy.RewriteExpectCase, error) {
+	if node.Kind != yaml.SequenceNode {
+		return nil, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.test.expect must be a sequence", src.Layer, src.Path, idx)
+	}
+	cases := make([]policy.RewriteExpectCase, 0, len(node.Content))
+	for caseIdx, item := range node.Content {
+		if item.Kind != yaml.MappingNode {
+			return nil, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.test.expect[%d] must be a mapping", src.Layer, src.Path, idx, caseIdx)
+		}
+		var c policy.RewriteExpectCase
+		for i := 0; i < len(item.Content); i += 2 {
+			key := item.Content[i]
+			val := item.Content[i+1]
+			switch key.Value {
+			case "in":
+				if val.Kind != yaml.ScalarNode {
+					return nil, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.test.expect[%d].in must be a string", src.Layer, src.Path, idx, caseIdx)
+				}
+				c.In = val.Value
+			case "out":
+				if val.Kind != yaml.ScalarNode {
+					return nil, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.test.expect[%d].out must be a string", src.Layer, src.Path, idx, caseIdx)
+				}
+				c.Out = val.Value
+			default:
+				return nil, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.test.expect[%d].%s not allowed", src.Layer, src.Path, idx, caseIdx, key.Value)
+			}
+		}
+		cases = append(cases, c)
+	}
+	return cases, nil
 }
 
 func decodeEvalMatch(src Source, idx int, node *yaml.Node) (policy.MatchSpec, error) {
@@ -547,8 +627,8 @@ func decodeStringSequence(src Source, idx int, field string, node *yaml.Node) ([
 
 func validateFile(file File) []string {
 	var issues []string
-	if file.Version != 1 {
-		issues = append(issues, "version must be 1")
+	if file.Version != 2 {
+		issues = append(issues, "version must be 2")
 	}
 	if len(file.Rules) == 0 {
 		issues = append(issues, "rules must be non-empty")
@@ -559,8 +639,8 @@ func validateFile(file File) []string {
 
 func validateEvalFile(file evalFile) []string {
 	var issues []string
-	if file.Version != 1 {
-		issues = append(issues, "version must be 1")
+	if file.Version != 2 {
+		issues = append(issues, "version must be 2")
 	}
 	if len(file.Rules) == 0 {
 		issues = append(issues, "rules must be non-empty")
@@ -576,13 +656,7 @@ func validateEvalFile(file evalFile) []string {
 		}
 		seen[r.ID] = struct{}{}
 		issues = append(issues, policy.ValidateRuleMatcher(prefix, r.Pattern, r.Match)...)
-		issues = append(issues, policy.ValidateDirective(prefix, r.Message, r.Reject, r.Rewrite)...)
-		if r.BlockExampleLen == 0 {
-			issues = append(issues, prefix+".block_examples must be non-empty")
-		}
-		if r.AllowExampleLen == 0 {
-			issues = append(issues, prefix+".allow_examples must be non-empty")
-		}
+		issues = append(issues, policy.ValidateDirective(prefix, r.Reject, r.Rewrite)...)
 	}
 	return issues
 }
@@ -610,7 +684,6 @@ func loadEvalCache(src Source, cachePath string, info os.FileInfo) ([]policy.Rul
 			ID:      spec.ID,
 			Pattern: spec.Pattern,
 			Matcher: spec.Match,
-			Message: spec.Message,
 			Reject:  spec.Reject,
 			Rewrite: spec.Rewrite,
 		}, src))

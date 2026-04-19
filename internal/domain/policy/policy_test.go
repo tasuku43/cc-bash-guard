@@ -4,8 +4,8 @@ import "testing"
 
 func TestEvaluateFirstMatchWins(t *testing.T) {
 	rules := []Rule{
-		NewRule(RuleSpec{ID: "first", Pattern: "^git", Message: "first"}, Source{}),
-		NewRule(RuleSpec{ID: "second", Pattern: "status$", Message: "second"}, Source{}),
+		NewRule(RuleSpec{ID: "first", Pattern: "^git", Reject: RejectSpec{Message: "first", Test: RejectTestSpec{Expect: []string{"git status"}, Pass: []string{"echo ok"}}}}, Source{}),
+		NewRule(RuleSpec{ID: "second", Pattern: "status$", Reject: RejectSpec{Message: "second", Test: RejectTestSpec{Expect: []string{"git status"}, Pass: []string{"echo ok"}}}}, Source{}),
 	}
 
 	got, err := Evaluate(rules, "git status")
@@ -25,7 +25,13 @@ func TestEvaluatePredicateRule(t *testing.T) {
 				CommandIn:    []string{"bash", "sh"},
 				ArgsContains: []string{"-c"},
 			},
-			Message: "blocked",
+			Reject: RejectSpec{
+				Message: "blocked",
+				Test: RejectTestSpec{
+					Expect: []string{"bash -c 'echo hi'"},
+					Pass:   []string{"bash script.sh"},
+				},
+			},
 		}, Source{}),
 	}
 
@@ -48,9 +54,11 @@ func TestEvaluateRewriteRule(t *testing.T) {
 			},
 			Rewrite: RewriteSpec{
 				UnwrapShellDashC: true,
+				Test: RewriteTestSpec{
+					Expect: []RewriteExpectCase{{In: "bash -c 'git status'", Out: "git status"}},
+					Pass:   []string{"bash script.sh"},
+				},
 			},
-			BlockExamples: []string{"bash -c 'git status'"},
-			AllowExamples: []string{"bash script.sh"},
 		}, Source{}),
 	}
 
@@ -76,9 +84,11 @@ func TestEvaluateMoveFlagToEnvRewriteRule(t *testing.T) {
 					Flag: "--profile",
 					Env:  "AWS_PROFILE",
 				},
+				Test: RewriteTestSpec{
+					Expect: []RewriteExpectCase{{In: "aws --profile read-only-profile s3 ls", Out: "AWS_PROFILE=read-only-profile aws s3 ls"}},
+					Pass:   []string{"AWS_PROFILE=read-only-profile aws s3 ls"},
+				},
 			},
-			BlockExamples: []string{"aws --profile read-only-profile s3 ls"},
-			AllowExamples: []string{"AWS_PROFILE=read-only-profile aws s3 ls"},
 		}, Source{}),
 	}
 
@@ -104,9 +114,11 @@ func TestEvaluateMoveEnvToFlagRewriteRule(t *testing.T) {
 					Env:  "AWS_PROFILE",
 					Flag: "--profile",
 				},
+				Test: RewriteTestSpec{
+					Expect: []RewriteExpectCase{{In: "AWS_PROFILE=read-only-profile aws s3 ls", Out: "aws --profile read-only-profile s3 ls"}},
+					Pass:   []string{"aws --profile read-only-profile s3 ls"},
+				},
 			},
-			BlockExamples: []string{"AWS_PROFILE=read-only-profile aws s3 ls"},
-			AllowExamples: []string{"aws --profile read-only-profile s3 ls"},
 		}, Source{}),
 	}
 
@@ -122,15 +134,17 @@ func TestEvaluateMoveEnvToFlagRewriteRule(t *testing.T) {
 func TestEvaluateUnwrapWrapperRewriteRule(t *testing.T) {
 	rules := []Rule{
 		NewRule(RuleSpec{
-			ID: "unwrap-safe-wrappers",
+			ID:      "unwrap-safe-wrappers",
 			Pattern: `^\s*(env|command|exec)\b`,
 			Rewrite: RewriteSpec{
 				UnwrapWrapper: UnwrapWrapperSpec{
 					Wrappers: []string{"env", "command", "exec"},
 				},
+				Test: RewriteTestSpec{
+					Expect: []RewriteExpectCase{{In: "env AWS_PROFILE=dev command exec aws s3 ls", Out: "AWS_PROFILE=dev aws s3 ls"}},
+					Pass:   []string{"AWS_PROFILE=dev aws s3 ls"},
+				},
 			},
-			BlockExamples: []string{"env AWS_PROFILE=dev command exec aws s3 ls"},
-			AllowExamples: []string{"AWS_PROFILE=dev aws s3 ls"},
 		}, Source{}),
 	}
 
@@ -144,7 +158,7 @@ func TestEvaluateUnwrapWrapperRewriteRule(t *testing.T) {
 }
 
 func TestValidateDirectiveKinds(t *testing.T) {
-	issues := ValidateDirective("rules[0]", "legacy", RejectSpec{Message: "new"}, RewriteSpec{})
+	issues := ValidateDirective("rules[0]", RejectSpec{Message: "new"}, RewriteSpec{UnwrapShellDashC: true})
 	if len(issues) != 1 {
 		t.Fatalf("issues = %#v", issues)
 	}
@@ -156,6 +170,10 @@ func TestValidateRewriteRejectsMultiplePrimitives(t *testing.T) {
 		MoveFlagToEnv: MoveFlagToEnvSpec{
 			Flag: "--profile",
 			Env:  "AWS_PROFILE",
+		},
+		Test: RewriteTestSpec{
+			Expect: []RewriteExpectCase{{In: "aws --profile prod s3 ls", Out: "AWS_PROFILE=prod aws s3 ls"}},
+			Pass:   []string{"AWS_PROFILE=prod aws s3 ls"},
 		},
 	})
 	if len(issues) != 1 || issues[0] != "rules[0].rewrite must set exactly one rewrite primitive" {

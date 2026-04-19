@@ -36,8 +36,8 @@ Today, the codebase already supports:
 - ordered first-match evaluation
 - `cmdproxy test`, `cmdproxy check`, `cmdproxy doctor`, and `cmdproxy eval`
 
-The current on-disk config format is still `version: 1` and still uses
-`block_examples` / `allow_examples` for rule tests.
+The current on-disk config format is `version: 2` and uses directive-local
+tests under `rewrite.test` or `reject.test`.
 
 ## Typical Workflow
 
@@ -83,7 +83,7 @@ hook-side processing.
 The currently implemented config file looks like this:
 
 ```yaml
-version: 1
+version: 2
 rules:
   - id: aws-profile-to-env
     match:
@@ -94,10 +94,12 @@ rules:
       move_flag_to_env:
         flag: "--profile"
         env: "AWS_PROFILE"
-    block_examples:
-      - "aws --profile read-only-profile s3 ls"
-    allow_examples:
-      - "AWS_PROFILE=read-only-profile aws s3 ls"
+      test:
+        expect:
+          - in: "aws --profile read-only-profile s3 ls"
+            out: "AWS_PROFILE=read-only-profile aws s3 ls"
+        pass:
+          - "AWS_PROFILE=read-only-profile aws s3 ls"
 
   - id: unwrap-safe-wrappers
     pattern: '^\s*(env|command|exec)\b'
@@ -107,10 +109,12 @@ rules:
           - "env"
           - "command"
           - "exec"
-    block_examples:
-      - "env AWS_PROFILE=dev command exec aws s3 ls"
-    allow_examples:
-      - "AWS_PROFILE=dev aws s3 ls"
+      test:
+        expect:
+          - in: "env AWS_PROFILE=dev command exec aws s3 ls"
+            out: "AWS_PROFILE=dev aws s3 ls"
+        pass:
+          - "AWS_PROFILE=dev aws s3 ls"
 
   - id: no-shell-dash-c
     match:
@@ -124,10 +128,11 @@ rules:
         - "-c"
     reject:
       message: "shell -c must not pass through unchanged. Run the command directly instead."
-    block_examples:
-      - "bash -c 'git status && git diff'"
-    allow_examples:
-      - "git status"
+      test:
+        expect:
+          - "bash -c 'git status && git diff'"
+        pass:
+          - "git status"
 ```
 
 ## Design Direction

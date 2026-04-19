@@ -8,57 +8,11 @@ date: 2026-04-19
 
 ## 1. Scope
 
-This document defines the target directive-based YAML schema for `cmdproxy`.
+This document defines the directive-based YAML schema for `cmdproxy`.
 
-## 2. Transitional Implemented Shape
+## 2. Top-Level Shape
 
-The currently implemented on-disk configuration shape is:
-
-```yaml
-version: 1
-rules:
-  - id: aws-profile-to-env
-    match:
-      command: aws
-      args_contains:
-        - "--profile"
-    rewrite:
-      move_flag_to_env:
-        flag: "--profile"
-        env: "AWS_PROFILE"
-    block_examples:
-      - "aws --profile prod s3 ls"
-    allow_examples:
-      - "AWS_PROFILE=prod aws s3 ls"
-
-  - id: unwrap-safe-wrappers
-    pattern: '^\s*(env|command|exec)\b'
-    rewrite:
-      unwrap_wrapper:
-        wrappers: ["env", "command", "exec"]
-    block_examples:
-      - "env AWS_PROFILE=dev command exec aws s3 ls"
-    allow_examples:
-      - "AWS_PROFILE=dev aws s3 ls"
-
-  - id: no-shell-dash-c
-    match:
-      command_in: ["bash", "sh", "zsh", "dash", "ksh"]
-      args_contains: ["-c"]
-    reject:
-      message: "shell -c must not pass through unchanged."
-    block_examples:
-      - "bash -c 'git status && git diff'"
-    allow_examples:
-      - "git status"
-```
-
-This transitional shape keeps `version: 1` and still uses
-`block_examples` / `allow_examples`.
-
-## 3. Target Shape
-
-The target configuration shape is:
+The current target configuration shape is:
 
 ```yaml
 version: 2
@@ -72,9 +26,12 @@ rules:
       move_flag_to_env:
         flag: "--profile"
         env: "AWS_PROFILE"
-    examples:
-      - in: "aws --profile prod s3 ls"
-        out: "AWS_PROFILE=prod aws s3 ls"
+      test:
+        expect:
+          - in: "aws --profile prod s3 ls"
+            out: "AWS_PROFILE=prod aws s3 ls"
+        pass:
+          - "AWS_PROFILE=prod aws s3 ls"
 
   - id: no-shell-dash-c
     match:
@@ -82,36 +39,37 @@ rules:
       args_contains: ["-c"]
     reject:
       message: "shell -c must not pass through unchanged."
-    examples:
-      - in: "bash -c 'git status && git diff'"
-        reject: true
+      test:
+        expect:
+          - "bash -c 'git status && git diff'"
+        pass:
+          - "bash script.sh"
 ```
 
-## 4. Top-Level Fields
+## 3. Top-Level Fields
 
-- `version`: required integer, currently `1`, target value `2`
+- `version`: required integer, value `2`
 - `rules`: required non-empty array of rule objects
 
 Unknown top-level keys are invalid.
 
-## 5. Rule Fields
+## 4. Rule Fields
 
 Each rule object must contain:
 
 - `id`: required string
 - exactly one of `match` or `pattern`
 - exactly one of `rewrite` or `reject`
-- examples, currently as `block_examples` and `allow_examples`
 
 Unknown rule-level keys are invalid.
 
-## 6. Matcher Fields
+## 5. Matcher Fields
 
 ### `match`
 
 `match` is the preferred matcher model.
 
-Target fields:
+Supported fields:
 
 - `command`
 - `command_in`
@@ -132,68 +90,79 @@ not yet well represented by structured matchers.
 - Matches against the raw command string
 - Should be used sparingly where structured matching is insufficient
 
-## 7. Directive Fields
+## 6. Directive Fields
 
 ### `rewrite`
 
-`rewrite` contains a typed rewrite primitive.
+`rewrite` contains exactly one typed rewrite primitive plus a required `test`
+section.
 
-Initial target primitives are intentionally narrow, for example:
-
-- `move_flag_to_env`
-- `move_env_to_flag`
-- `unwrap_shell_dash_c`
-- `unwrap_wrapper`
-
-The currently implemented primitives are:
+Currently implemented primitives:
 
 - `move_flag_to_env`
 - `move_env_to_flag`
 - `unwrap_shell_dash_c`
 - `unwrap_wrapper`
 
-Each primitive should have a dedicated structured payload. Free-form string
-templates are out of scope.
+Free-form string templates are out of scope.
 
 ### `reject`
 
 `reject` contains:
 
 - `message`: required string
+- `test`: required object
 
-Future metadata is possible, but the minimal contract is a stable human-readable
-explanation.
+## 7. Directive Tests
 
-## 8. Examples
+Directive tests are mandatory and live under the directive itself.
 
-Examples validate rule intent at the directive level.
+### `rewrite.test`
 
-Today, examples are stored as:
+```yaml
+rewrite:
+  move_flag_to_env:
+    flag: "--profile"
+    env: "AWS_PROFILE"
+  test:
+    expect:
+      - in: "aws --profile prod s3 ls"
+        out: "AWS_PROFILE=prod aws s3 ls"
+    pass:
+      - "AWS_PROFILE=prod aws s3 ls"
+```
 
-- `block_examples`
-- `allow_examples`
+- `expect`: required non-empty array of `{in, out}`
+- `pass`: required non-empty string array
 
-Each example should describe one of:
+### `reject.test`
 
-- `in` + `out` for rewrite behavior
-- `in` + `reject: true` for reject behavior
-- `in` + `pass: true` when a non-match example is useful
+```yaml
+reject:
+  message: "shell -c must not pass through unchanged."
+  test:
+    expect:
+      - "bash -c 'git status && git diff'"
+    pass:
+      - "bash script.sh"
+```
 
-The exact final example schema may still evolve, but examples remain mandatory.
+- `expect`: required non-empty string array
+- `pass`: required non-empty string array
 
-## 9. Validation Model
+## 8. Validation Model
 
 Validation is strict and aggregate.
 
 - parsing should report all discovered schema issues in one run
 - invalid matcher combinations are validation errors
 - invalid directive payloads are validation errors
-- missing examples are validation errors
+- missing tests are validation errors
 - empty or ambiguous rules are validation errors
 
-## 10. Out Of Scope
+## 9. Out Of Scope
 
-The following remain out of scope for the target initial model:
+The following remain out of scope for the current model:
 
 - arbitrary shell templating
 - user-defined rewrite plugins

@@ -13,13 +13,15 @@ func TestLoadEffectiveUsesUserConfig(t *testing.T) {
 	if err := os.MkdirAll(filepath.Dir(userPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	body := `version: 1
+	body := `version: 2
 rules:
   - id: user-rule
     pattern: "^echo"
-    message: "user"
-    block_examples: ["echo hi"]
-    allow_examples: ["git status"]
+    reject:
+      message: "user"
+      test:
+        expect: ["echo hi"]
+        pass: ["git status"]
 `
 	if err := os.WriteFile(userPath, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
@@ -38,7 +40,7 @@ func TestLoadFileForEvalIfPresentSupportsRewriteDirective(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cmdproxy.yml")
 	cachePath := filepath.Join(t.TempDir(), "eval-cache-v1.json")
-	body := `version: 1
+	body := `version: 2
 rules:
   - id: unwrap-shell-dash-c
     match:
@@ -46,8 +48,11 @@ rules:
       args_contains: ["-c"]
     rewrite:
       unwrap_shell_dash_c: true
-    block_examples: ["bash -c 'git status'"]
-    allow_examples: ["bash script.sh"]
+      test:
+        expect:
+          - in: "bash -c 'git status'"
+            out: "git status"
+        pass: ["bash script.sh"]
 `
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
@@ -67,7 +72,7 @@ func TestLoadFileForEvalIfPresentSupportsMoveFlagToEnv(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cmdproxy.yml")
 	cachePath := filepath.Join(t.TempDir(), "eval-cache-v1.json")
-	body := `version: 1
+	body := `version: 2
 rules:
   - id: aws-profile-to-env
     match:
@@ -77,8 +82,11 @@ rules:
       move_flag_to_env:
         flag: "--profile"
         env: "AWS_PROFILE"
-    block_examples: ["aws --profile read-only-profile s3 ls"]
-    allow_examples: ["AWS_PROFILE=read-only-profile aws s3 ls"]
+      test:
+        expect:
+          - in: "aws --profile read-only-profile s3 ls"
+            out: "AWS_PROFILE=read-only-profile aws s3 ls"
+        pass: ["AWS_PROFILE=read-only-profile aws s3 ls"]
 `
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
@@ -98,7 +106,7 @@ func TestLoadFileForEvalIfPresentSupportsMoveEnvToFlag(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cmdproxy.yml")
 	cachePath := filepath.Join(t.TempDir(), "eval-cache-v1.json")
-	body := `version: 1
+	body := `version: 2
 rules:
   - id: aws-env-to-profile
     match:
@@ -108,8 +116,11 @@ rules:
       move_env_to_flag:
         env: "AWS_PROFILE"
         flag: "--profile"
-    block_examples: ["AWS_PROFILE=read-only-profile aws s3 ls"]
-    allow_examples: ["aws --profile read-only-profile s3 ls"]
+      test:
+        expect:
+          - in: "AWS_PROFILE=read-only-profile aws s3 ls"
+            out: "aws --profile read-only-profile s3 ls"
+        pass: ["aws --profile read-only-profile s3 ls"]
 `
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
@@ -129,15 +140,18 @@ func TestLoadFileForEvalIfPresentSupportsUnwrapWrapper(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cmdproxy.yml")
 	cachePath := filepath.Join(t.TempDir(), "eval-cache-v1.json")
-	body := `version: 1
+	body := `version: 2
 rules:
   - id: unwrap-safe-wrappers
     pattern: '^\s*(env|command|exec)\b'
     rewrite:
       unwrap_wrapper:
         wrappers: ["env", "command", "exec"]
-    block_examples: ["env AWS_PROFILE=dev command exec aws s3 ls"]
-    allow_examples: ["AWS_PROFILE=dev aws s3 ls"]
+      test:
+        expect:
+          - in: "env AWS_PROFILE=dev command exec aws s3 ls"
+            out: "AWS_PROFILE=dev aws s3 ls"
+        pass: ["AWS_PROFILE=dev aws s3 ls"]
 `
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
@@ -156,15 +170,17 @@ rules:
 func TestLoadFileIfPresentRejectsPatternAndMatchTogether(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "cmdproxy.yml")
-	body := `version: 1
+	body := `version: 2
 rules:
   - id: bad-rule
     pattern: "^git"
     match:
       command: git
-    message: "bad"
-    block_examples: ["git status"]
-    allow_examples: ["echo ok"]
+    reject:
+      message: "bad"
+      test:
+        expect: ["git status"]
+        pass: ["echo ok"]
 `
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
