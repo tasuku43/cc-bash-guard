@@ -18,7 +18,10 @@ The v1 configuration file is a single YAML document with this shape:
 version: 1
 rules:
   - id: no-git-dash-c
-    pattern: '^\s*git\s+-C\b'
+    match:
+      command: git
+      args_contains:
+        - "-C"
     message: "git -C is blocked. Change into the target directory and rerun the command."
     block_examples:
       - "git -C repos/foo status"
@@ -38,7 +41,7 @@ Unknown top-level keys are invalid in v1.
 Each rule object must contain:
 
 - `id`: required string
-- `pattern`: required string
+- exactly one of `match` or `pattern`
 - `message`: required string
 - `block_examples`: required non-empty array of strings
 - `allow_examples`: required non-empty array of strings
@@ -53,10 +56,30 @@ Unknown rule-level keys are invalid in v1.
 - Must be unique across all loaded layers
 - Should remain stable over time so tests and runtime output can refer to it
 
+### `match`
+
+`match` is the recommended matcher for new rules.
+
+Supported fields in v1:
+
+- `command`: exact executable basename match
+- `command_in`: executable basename must be one of these values
+- `subcommand`: first argument after the executable must match exactly
+- `args_contains`: each listed argument token must be present exactly
+- `args_prefixes`: each listed prefix must match at least one argument token
+- `env_requires`: each listed environment variable must be present in command
+  prefixes such as `AWS_PROFILE=dev aws s3 ls`
+- `env_missing`: each listed environment variable must be absent from command
+  prefixes
+
+The matcher is evaluated against `cmdguard`'s internal command parsing, not
+against the raw input string directly.
+
 ### `pattern`
 
 - Must compile as a Go RE2 regular expression
 - Is evaluated against the full command string as provided by the caller
+- Is kept as an escape hatch when `match` is not expressive enough
 - v1 does not define capture-group semantics or replacement behavior
 
 ### `message`
@@ -68,12 +91,12 @@ Unknown rule-level keys are invalid in v1.
 ### `block_examples`
 
 - Must contain at least one example
-- Every example must match the rule's `pattern`
+- Every example must match the rule's matcher
 
 ### `allow_examples`
 
 - Must contain at least one example
-- Every example must not match the rule's `pattern`
+- Every example must not match the rule's matcher
 
 ## 6. Validation Model
 
@@ -81,6 +104,7 @@ Validation is strict and aggregate.
 
 - Parsing should report all discovered schema issues in one run
 - Regex compilation failures are validation errors
+- Invalid or empty `match` objects are validation errors
 - Missing required fields are validation errors
 - Empty example arrays are validation errors
 
@@ -95,6 +119,7 @@ The following are intentionally out of scope for v1:
 - rule priority fields
 - file includes or remote rule packs
 - structured message metadata
+- custom parser plugins or external matcher hooks
 
 If these capabilities are needed later, they should be added as new schema
 features rather than inferred from v1 fields.

@@ -15,13 +15,18 @@ rules and selects a deny decision.
 
 v1 uses a deny-only rule model.
 
-- A rule contains a regular expression pattern and a deny message
+- A rule contains either a structured `match` predicate or a regular
+  expression `pattern`, plus a deny message
 - If a rule matches the command string, the command is denied
 - If no rule matches, the command is allowed
 - v1 does not support allow rules, explicit exceptions, or rule priority
 
 This keeps the runtime contract small and deterministic. More expressive policy
 features are post-v1 work.
+
+`cmdguard` keeps the caller contract simple: callers pass a raw command string.
+Inside `cmdguard`, predicate-based rules are evaluated against an internal
+parsed representation of that command string.
 
 ## 3. Supported Input
 

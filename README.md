@@ -22,7 +22,10 @@ through a command it used to block fails CI, not production.
 version: 1
 rules:
   - id: no-git-dash-c
-    pattern: '^\s*git\s+-C\b'
+    match:
+      command: git
+      args_contains:
+        - "-C"
     message: "git -C is blocked. Change into the target directory and rerun the command."
     block_examples:
       - "git -C repos/foo status"
@@ -31,10 +34,15 @@ rules:
       - "# git -C in comment"
 ```
 
+Rules may use either:
+
+- `match`: structured predicate matching, recommended for new rules
+- `pattern`: a raw RE2 regular expression, kept as an escape hatch
+
 ## Non-goals
 
 - LLM-assisted rule authoring and transcript mining live in a separate
-  [`cmdguard-claude-plugin`] repository, so the core CLI has no LLM
+  `cmdguard-claude-plugin` repository, so the core CLI has no LLM
   dependency.
 - Non-`exec` action types (`write`, `fetch`, `mcp_call`) are post-v1.
 
@@ -49,6 +57,95 @@ brew install tasuku43/tap/cmdguard
 # or
 go install github.com/tasuku43/cmdguard/cmd/cmdguard@latest
 ```
+
+## Setup
+
+### 1. Initialize the user config
+
+```sh
+cmdguard init
+```
+
+This creates the default rule file at:
+
+```text
+~/.config/cmdguard/cmdguard.yml
+```
+
+### 2. Edit rules
+
+Update `~/.config/cmdguard/cmdguard.yml` directly.
+For every rule, keep both:
+
+- `block_examples`
+- `allow_examples`
+
+### 3. Validate changes
+
+Run the main authoring command after every rule edit:
+
+```sh
+cmdguard test
+```
+
+Use `cmdguard check` for spot checks against concrete commands:
+
+```sh
+cmdguard check --format json 'git -C repo status'
+cmdguard check --format json 'AWS_PROFILE=read-only-profile aws s3 ls'
+```
+
+## Claude Code Hook Setup
+
+Register `cmdguard eval` as a `PreToolUse` hook for `Bash`.
+
+Example:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "cmdguard eval" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+### Hook ordering with other tools
+
+If you also use another `PreToolUse` Bash hook such as `rtk hook claude`,
+register `cmdguard eval` first.
+
+Recommended order:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "cmdguard eval" }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "rtk hook claude" }
+        ]
+      }
+    ]
+  }
+}
+```
+
+This keeps `cmdguard` as the first deny gate before other hook-side behavior
+runs.
 
 ## License
 

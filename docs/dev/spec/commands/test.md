@@ -15,8 +15,8 @@ embedded examples.
 
 For every loaded rule, `cmdguard test` must verify:
 
-- every `block_examples` entry matches the rule's `pattern`
-- every `allow_examples` entry does not match the rule's `pattern`
+- every `block_examples` entry matches the rule's matcher
+- every `allow_examples` entry does not match the rule's matcher
 
 If all checks pass, the command exits successfully.
 
@@ -35,8 +35,8 @@ v1 `cmdguard test` verifies rule-local claims, not full merged runtime behavior.
 Specifically, it does:
 
 - parse and validate loaded config
-- compile patterns
-- check example truth against the rule's own pattern
+- validate rule matchers
+- check example truth against the rule's own matcher
 
 It does not:
 

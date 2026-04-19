@@ -16,7 +16,7 @@ configuration validity, rule quality, and installation state.
 v1 doctor checks should be grouped into these categories:
 
 - `config`: file presence, parseability, schema validity
-- `rules`: regex compilation, examples present, examples pass
+- `rules`: matcher validation, examples present, examples pass
 - `diagnostics`: quality warnings such as likely shadowing or broad patterns
 - `install`: binary and supported hook integration checks
 
@@ -27,7 +27,7 @@ At minimum, doctor should cover:
 - config parsing for every discovered layer
 - schema validation for every loaded rule
 - duplicate rule IDs
-- regex compilation
+- matcher validation
 - example presence
 - example pass/fail status
 - Claude Code hook registration presence, when that environment exists
