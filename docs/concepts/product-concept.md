@@ -91,6 +91,8 @@ examples are:
 
 - `unwrap_shell_dash_c`
 - `move_flag_to_env`
+- `move_env_to_flag`
+- `unwrap_wrapper`
 
 These primitives are intended as policy-preserving canonicalization, not as
 free-form command templating.

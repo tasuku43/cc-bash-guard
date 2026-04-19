@@ -212,6 +212,73 @@ rules:
 	}
 }
 
+func TestRunEvalJSONMoveEnvToFlagRewrite(t *testing.T) {
+	home := t.TempDir()
+	writeUserConfig(t, home, `version: 1
+rules:
+  - id: aws-env-to-profile
+    match:
+      command: aws
+      env_requires: ["AWS_PROFILE"]
+    rewrite:
+      move_env_to_flag:
+        env: "AWS_PROFILE"
+        flag: "--profile"
+    block_examples: ["AWS_PROFILE=read-only-profile aws s3 ls"]
+    allow_examples: ["aws --profile read-only-profile s3 ls"]
+`)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"eval", "--format", "json"}, Streams{
+		Stdin:  strings.NewReader(`{"action":"exec","command":"AWS_PROFILE=read-only-profile aws s3 ls"}`),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{Cwd: t.TempDir(), Home: home})
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("json error: %v", err)
+	}
+	if payload["decision"] != "rewrite" || payload["command"] != "aws --profile read-only-profile s3 ls" {
+		t.Fatalf("payload = %+v", payload)
+	}
+}
+
+func TestRunEvalJSONUnwrapWrapperRewrite(t *testing.T) {
+	home := t.TempDir()
+	writeUserConfig(t, home, `version: 1
+rules:
+  - id: unwrap-safe-wrappers
+    pattern: '^\s*(env|command|exec)\b'
+    rewrite:
+      unwrap_wrapper:
+        wrappers: ["env", "command", "exec"]
+    block_examples: ["env AWS_PROFILE=dev command exec aws s3 ls"]
+    allow_examples: ["AWS_PROFILE=dev aws s3 ls"]
+`)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"eval", "--format", "json"}, Streams{
+		Stdin:  strings.NewReader(`{"action":"exec","command":"env AWS_PROFILE=dev command exec aws s3 ls"}`),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{Cwd: t.TempDir(), Home: home})
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("json error: %v", err)
+	}
+	if payload["decision"] != "rewrite" || payload["command"] != "AWS_PROFILE=dev aws s3 ls" {
+		t.Fatalf("payload = %+v", payload)
+	}
+}
+
 func TestRunCheckAllow(t *testing.T) {
 	home := t.TempDir()
 	writeUserConfig(t, home, `version: 1

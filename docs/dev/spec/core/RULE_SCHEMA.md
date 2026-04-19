@@ -31,6 +31,16 @@ rules:
     allow_examples:
       - "AWS_PROFILE=prod aws s3 ls"
 
+  - id: unwrap-safe-wrappers
+    pattern: '^\s*(env|command|exec)\b'
+    rewrite:
+      unwrap_wrapper:
+        wrappers: ["env", "command", "exec"]
+    block_examples:
+      - "env AWS_PROFILE=dev command exec aws s3 ls"
+    allow_examples:
+      - "AWS_PROFILE=dev aws s3 ls"
+
   - id: no-shell-dash-c
     match:
       command_in: ["bash", "sh", "zsh", "dash", "ksh"]
@@ -131,13 +141,16 @@ not yet well represented by structured matchers.
 Initial target primitives are intentionally narrow, for example:
 
 - `move_flag_to_env`
+- `move_env_to_flag`
 - `unwrap_shell_dash_c`
-- `strip_wrapper`
+- `unwrap_wrapper`
 
 The currently implemented primitives are:
 
 - `move_flag_to_env`
+- `move_env_to_flag`
 - `unwrap_shell_dash_c`
+- `unwrap_wrapper`
 
 Each primitive should have a dedicated structured payload. Free-form string
 templates are out of scope.

@@ -31,6 +31,8 @@ Today, the codebase already supports:
 - `reject` directives
 - `rewrite.unwrap_shell_dash_c`
 - `rewrite.move_flag_to_env`
+- `rewrite.move_env_to_flag`
+- `rewrite.unwrap_wrapper`
 - ordered first-match evaluation
 - `cmdproxy test`, `cmdproxy check`, `cmdproxy doctor`, and `cmdproxy eval`
 
@@ -96,6 +98,19 @@ rules:
       - "aws --profile read-only-profile s3 ls"
     allow_examples:
       - "AWS_PROFILE=read-only-profile aws s3 ls"
+
+  - id: unwrap-safe-wrappers
+    pattern: '^\s*(env|command|exec)\b'
+    rewrite:
+      unwrap_wrapper:
+        wrappers:
+          - "env"
+          - "command"
+          - "exec"
+    block_examples:
+      - "env AWS_PROFILE=dev command exec aws s3 ls"
+    allow_examples:
+      - "AWS_PROFILE=dev aws s3 ls"
 
   - id: no-shell-dash-c
     match:

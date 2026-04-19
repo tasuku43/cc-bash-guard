@@ -1,4 +1,4 @@
-package rule
+package invocation
 
 import (
 	"path/filepath"
@@ -6,28 +6,28 @@ import (
 	"unicode"
 )
 
-type ParsedCommand struct {
+type Parsed struct {
 	EnvAssignments map[string]string
 	Command        string
 	Subcommand     string
 	Args           []string
 }
 
-func ParseCommand(command string) ParsedCommand {
-	tokens := tokenizeCommand(command)
+func Parse(command string) Parsed {
+	tokens := Tokens(command)
 	envAssignments := map[string]string{}
 
 	i := 0
-	for i < len(tokens) && isEnvAssignment(tokens[i]) {
+	for i < len(tokens) && IsEnvAssignment(tokens[i]) {
 		name, value, _ := strings.Cut(tokens[i], "=")
 		envAssignments[name] = value
 		i++
 	}
 
 	commandToken, args := unwrapCommand(tokens[i:])
-	parsed := ParsedCommand{
+	parsed := Parsed{
 		EnvAssignments: envAssignments,
-		Command:        basenameCommand(commandToken),
+		Command:        BaseCommand(commandToken),
 		Args:           args,
 	}
 	if len(args) > 0 {
@@ -36,7 +36,15 @@ func ParseCommand(command string) ParsedCommand {
 	return parsed
 }
 
-func tokenizeCommand(command string) []string {
+func Tokens(command string) []string {
+	return tokenize(command)
+}
+
+func Join(tokens []string) string {
+	return strings.Join(tokens, " ")
+}
+
+func tokenize(command string) []string {
 	var tokens []string
 	var current strings.Builder
 	inSingle := false
@@ -97,14 +105,14 @@ func unwrapCommand(tokens []string) (string, []string) {
 
 	i := 0
 	for i < len(tokens) {
-		token := basenameCommand(tokens[i])
+		token := BaseCommand(tokens[i])
 		switch token {
 		case "command", "exec", "nohup":
 			i++
 			continue
 		case "env":
 			i++
-			for i < len(tokens) && isEnvAssignment(tokens[i]) {
+			for i < len(tokens) && IsEnvAssignment(tokens[i]) {
 				i++
 			}
 			continue
@@ -126,13 +134,47 @@ func unwrapCommand(tokens []string) (string, []string) {
 	return "", nil
 }
 
+func basenameCommand(token string) string {
+	if token == "" {
+		return ""
+	}
+	return filepath.Base(token)
+}
+
+func BaseCommand(token string) string {
+	return basenameCommand(token)
+}
+
+func isEnvAssignment(token string) bool {
+	name, value, ok := strings.Cut(token, "=")
+	if !ok || name == "" || value == "" {
+		return false
+	}
+	for i, r := range name {
+		if i == 0 {
+			if r != '_' && !unicode.IsLetter(r) {
+				return false
+			}
+			continue
+		}
+		if r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+			return false
+		}
+	}
+	return true
+}
+
+func IsEnvAssignment(token string) bool {
+	return isEnvAssignment(token)
+}
+
 func skipSudoWrapper(tokens []string, i int) int {
 	for i < len(tokens) {
 		token := tokens[i]
 		if token == "--" {
 			return i + 1
 		}
-		if isEnvAssignment(token) {
+		if IsEnvAssignment(token) {
 			i++
 			continue
 		}
@@ -187,7 +229,7 @@ func timeoutOptionConsumesValue(token string) bool {
 }
 
 func isShellCommand(token string) bool {
-	switch basenameCommand(token) {
+	switch BaseCommand(token) {
 	case "bash", "sh", "zsh", "dash", "ksh":
 		return true
 	default:
@@ -195,28 +237,23 @@ func isShellCommand(token string) bool {
 	}
 }
 
-func basenameCommand(token string) string {
-	if token == "" {
-		return ""
-	}
-	return filepath.Base(token)
+func IsShellCommand(token string) bool {
+	return isShellCommand(token)
 }
 
-func isEnvAssignment(token string) bool {
-	name, value, ok := strings.Cut(token, "=")
-	if !ok || name == "" || value == "" {
+func isSafeSingleCommand(command string) bool {
+	if command == "" {
 		return false
 	}
-	for i, r := range name {
-		if i == 0 {
-			if r != '_' && !unicode.IsLetter(r) {
-				return false
-			}
-			continue
-		}
-		if r != '_' && !unicode.IsLetter(r) && !unicode.IsDigit(r) {
+	disallowed := []string{"&&", ";", "|", "$(", "`", "\n"}
+	for _, token := range disallowed {
+		if strings.Contains(command, token) {
 			return false
 		}
 	}
 	return true
+}
+
+func IsSafeSingleCommand(command string) bool {
+	return isSafeSingleCommand(command)
 }

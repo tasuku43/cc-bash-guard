@@ -42,6 +42,8 @@ The current implementation already supports rewrite outcomes for:
 
 - `rewrite.unwrap_shell_dash_c`
 - `rewrite.move_flag_to_env`
+- `rewrite.move_env_to_flag`
+- `rewrite.unwrap_wrapper`
 
 If a rewrite primitive matches but cannot safely rewrite the invocation,
 evaluation continues and the original command may still pass unless a later

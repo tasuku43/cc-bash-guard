@@ -92,7 +92,9 @@ Examples:
 The currently implemented rewrite primitives are:
 
 - `rewrite.move_flag_to_env`
+- `rewrite.move_env_to_flag`
 - `rewrite.unwrap_shell_dash_c`
+- `rewrite.unwrap_wrapper`
 
 If a rewrite directive matches but cannot safely transform the invocation, the
 default target behavior is **no-op pass**, not implicit reject.

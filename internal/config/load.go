@@ -1,4 +1,4 @@
-package rule
+package config
 
 import (
 	"encoding/json"
@@ -7,40 +7,25 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strings"
 
+	"github.com/tasuku43/cmdproxy/internal/domain/policy"
 	"gopkg.in/yaml.v3"
 )
 
-const (
-	LayerUser = "user"
-)
-
-var ruleIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`)
+const LayerUser = "user"
 
 type File struct {
-	Version int        `yaml:"version"`
-	Rules   []RuleSpec `yaml:"rules"`
+	Version int               `yaml:"version"`
+	Rules   []policy.RuleSpec `yaml:"rules"`
 }
 
-type RuleSpec struct {
-	ID            string    `yaml:"id"`
-	Pattern       string    `yaml:"pattern"`
-	Matcher       MatchSpec `yaml:"match"`
-	Message       string    `yaml:"message"`
-	BlockExamples []string  `yaml:"block_examples"`
-	AllowExamples []string  `yaml:"allow_examples"`
-}
+type Source = policy.Source
 
-type MatchSpec struct {
-	Command      string   `yaml:"command" json:"command,omitempty"`
-	CommandIn    []string `yaml:"command_in" json:"command_in,omitempty"`
-	Subcommand   string   `yaml:"subcommand" json:"subcommand,omitempty"`
-	ArgsContains []string `yaml:"args_contains" json:"args_contains,omitempty"`
-	ArgsPrefixes []string `yaml:"args_prefixes" json:"args_prefixes,omitempty"`
-	EnvRequires  []string `yaml:"env_requires" json:"env_requires,omitempty"`
-	EnvMissing   []string `yaml:"env_missing" json:"env_missing,omitempty"`
+type Loaded struct {
+	Rules  []policy.Rule
+	Files  []Source
+	Errors []error
 }
 
 type evalFile struct {
@@ -51,8 +36,10 @@ type evalFile struct {
 type evalRuleSpec struct {
 	ID              string
 	Pattern         string
-	Match           MatchSpec
+	Match           policy.MatchSpec
 	Message         string
+	Reject          policy.RejectSpec
+	Rewrite         policy.RewriteSpec
 	BlockExampleLen int
 	AllowExampleLen int
 }
@@ -66,35 +53,12 @@ type evalCacheFile struct {
 }
 
 type evalCachedRule struct {
-	ID      string    `json:"id"`
-	Pattern string    `json:"pattern"`
-	Match   MatchSpec `json:"match,omitempty"`
-	Message string    `json:"message"`
-}
-
-type Source struct {
-	Layer string `json:"layer"`
-	Path  string `json:"path"`
-}
-
-type Rule struct {
-	RuleSpec
-	Source Source `json:"source"`
-	re     *regexp.Regexp
-}
-
-type Loaded struct {
-	Rules  []Rule
-	Files  []Source
-	Errors []error
-}
-
-type ValidationError struct {
-	Issues []string
-}
-
-func (e *ValidationError) Error() string {
-	return strings.Join(e.Issues, "; ")
+	ID      string             `json:"id"`
+	Pattern string             `json:"pattern"`
+	Match   policy.MatchSpec   `json:"match,omitempty"`
+	Message string             `json:"message"`
+	Reject  policy.RejectSpec  `json:"reject,omitempty"`
+	Rewrite policy.RewriteSpec `json:"rewrite,omitempty"`
 }
 
 func ConfigPaths(home string, xdgConfigHome string) []Source {
@@ -116,18 +80,18 @@ func CachePath(home string, xdgCacheHome string) string {
 	return filepath.Join(cacheBase, "cmdproxy", "eval-cache-v1.json")
 }
 
-func LoadEffective(cwd string, home string, xdgConfigHome string) Loaded {
+func LoadEffective(home string, xdgConfigHome string) Loaded {
 	return loadEffectiveWithLoader(home, xdgConfigHome, LoadFileIfPresent)
 }
 
 func LoadEffectiveForEval(home string, xdgConfigHome string, xdgCacheHome string) Loaded {
-	loader := func(src Source) ([]Rule, error) {
+	loader := func(src Source) ([]policy.Rule, error) {
 		return LoadFileForEvalIfPresent(src, CachePath(home, xdgCacheHome))
 	}
 	return loadEffectiveWithLoader(home, xdgConfigHome, loader)
 }
 
-func loadEffectiveWithLoader(home string, xdgConfigHome string, loader func(Source) ([]Rule, error)) Loaded {
+func loadEffectiveWithLoader(home string, xdgConfigHome string, loader func(Source) ([]policy.Rule, error)) Loaded {
 	var loaded Loaded
 	for _, src := range ConfigPaths(home, xdgConfigHome) {
 		rules, err := loader(src)
@@ -141,13 +105,11 @@ func loadEffectiveWithLoader(home string, xdgConfigHome string, loader func(Sour
 		loaded.Files = append(loaded.Files, src)
 		loaded.Rules = append(loaded.Rules, rules...)
 	}
-
-	dupErrs := validateDuplicateIDs(loaded.Rules)
-	loaded.Errors = append(loaded.Errors, dupErrs...)
+	loaded.Errors = append(loaded.Errors, policy.ValidateDuplicateIDs(loaded.Rules)...)
 	return loaded
 }
 
-func LoadFileIfPresent(src Source) ([]Rule, error) {
+func LoadFileIfPresent(src Source) ([]policy.Rule, error) {
 	data, err := readConfigFile(src)
 	if err != nil {
 		return nil, err
@@ -159,23 +121,21 @@ func LoadFileIfPresent(src Source) ([]Rule, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	issues := validateFile(file)
 	if len(issues) > 0 {
 		for i := range issues {
 			issues[i] = fmt.Sprintf("%s config %s: %s", src.Layer, src.Path, issues[i])
 		}
-		return nil, &ValidationError{Issues: issues}
+		return nil, &policy.ValidationError{Issues: issues}
 	}
-
-	rules := make([]Rule, 0, len(file.Rules))
+	rules := make([]policy.Rule, 0, len(file.Rules))
 	for _, spec := range file.Rules {
-		rules = append(rules, newRule(spec, src))
+		rules = append(rules, policy.NewRule(spec, src))
 	}
 	return rules, nil
 }
 
-func LoadFileForEvalIfPresent(src Source, cachePath string) ([]Rule, error) {
+func LoadFileForEvalIfPresent(src Source, cachePath string) ([]policy.Rule, error) {
 	info, err := os.Stat(src.Path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
@@ -186,7 +146,6 @@ func LoadFileForEvalIfPresent(src Source, cachePath string) ([]Rule, error) {
 	if rules, ok := loadEvalCache(src, cachePath, info); ok {
 		return rules, nil
 	}
-
 	data, err := readConfigFile(src)
 	if err != nil {
 		return nil, err
@@ -198,30 +157,32 @@ func LoadFileForEvalIfPresent(src Source, cachePath string) ([]Rule, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	issues := validateEvalFile(file)
 	if len(issues) > 0 {
 		for i := range issues {
 			issues[i] = fmt.Sprintf("%s config %s: %s", src.Layer, src.Path, issues[i])
 		}
-		return nil, &ValidationError{Issues: issues}
+		return nil, &policy.ValidationError{Issues: issues}
 	}
-
-	rules := make([]Rule, 0, len(file.Rules))
+	rules := make([]policy.Rule, 0, len(file.Rules))
 	cached := make([]evalCachedRule, 0, len(file.Rules))
 	for _, spec := range file.Rules {
-		ruleSpec := RuleSpec{
+		ruleSpec := policy.RuleSpec{
 			ID:      spec.ID,
 			Pattern: spec.Pattern,
 			Matcher: spec.Match,
 			Message: spec.Message,
+			Reject:  spec.Reject,
+			Rewrite: spec.Rewrite,
 		}
-		rules = append(rules, newRule(ruleSpec, src))
+		rules = append(rules, policy.NewRule(ruleSpec, src))
 		cached = append(cached, evalCachedRule{
 			ID:      spec.ID,
 			Pattern: spec.Pattern,
 			Match:   spec.Match,
 			Message: spec.Message,
+			Reject:  spec.Reject,
+			Rewrite: spec.Rewrite,
 		})
 	}
 	writeEvalCache(cachePath, evalCacheFile{
@@ -251,7 +212,6 @@ func readConfigFile(src Source) (string, error) {
 func decodeFullFile(src Source, data string) (File, error) {
 	dec := yaml.NewDecoder(strings.NewReader(data))
 	dec.KnownFields(true)
-
 	var file File
 	if err := dec.Decode(&file); err != nil {
 		return File{}, fmt.Errorf("%s config %s is invalid: %w", src.Layer, src.Path, err)
@@ -271,7 +231,6 @@ func decodeEvalFile(src Source, data string) (evalFile, error) {
 	if doc.Kind != yaml.MappingNode {
 		return evalFile{}, fmt.Errorf("%s config %s is invalid: top-level must be a mapping", src.Layer, src.Path)
 	}
-
 	file := evalFile{}
 	seenTopLevel := map[string]struct{}{}
 	for i := 0; i < len(doc.Content); i += 2 {
@@ -324,11 +283,9 @@ func decodeEvalRules(src Source, node *yaml.Node) ([]evalRuleSpec, error) {
 
 func decodeEvalRule(src Source, idx int, node *yaml.Node) (evalRuleSpec, error) {
 	var spec evalRuleSpec
-	seenFields := map[string]struct{}{}
 	for i := 0; i < len(node.Content); i += 2 {
 		key := node.Content[i]
 		val := node.Content[i+1]
-		seenFields[key.Value] = struct{}{}
 		switch key.Value {
 		case "id":
 			if val.Kind != yaml.ScalarNode {
@@ -351,6 +308,18 @@ func decodeEvalRule(src Source, idx int, node *yaml.Node) (evalRuleSpec, error) 
 				return evalRuleSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].message must be a string", src.Layer, src.Path, idx)
 			}
 			spec.Message = val.Value
+		case "reject":
+			reject, err := decodeEvalReject(src, idx, val)
+			if err != nil {
+				return evalRuleSpec{}, err
+			}
+			spec.Reject = reject
+		case "rewrite":
+			rewrite, err := decodeEvalRewrite(src, idx, val)
+			if err != nil {
+				return evalRuleSpec{}, err
+			}
+			spec.Rewrite = rewrite
 		case "block_examples":
 			if val.Kind != yaml.SequenceNode {
 				return evalRuleSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].block_examples must be a sequence", src.Layer, src.Path, idx)
@@ -368,57 +337,195 @@ func decodeEvalRule(src Source, idx int, node *yaml.Node) (evalRuleSpec, error) 
 	return spec, nil
 }
 
-func decodeEvalMatch(src Source, idx int, node *yaml.Node) (MatchSpec, error) {
+func decodeEvalRewrite(src Source, idx int, node *yaml.Node) (policy.RewriteSpec, error) {
 	if node.Kind != yaml.MappingNode {
-		return MatchSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].match must be a mapping", src.Layer, src.Path, idx)
+		return policy.RewriteSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite must be a mapping", src.Layer, src.Path, idx)
 	}
-	var match MatchSpec
+	var rewrite policy.RewriteSpec
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i]
+		val := node.Content[i+1]
+		switch key.Value {
+		case "unwrap_shell_dash_c":
+			if val.Kind != yaml.ScalarNode {
+				return policy.RewriteSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.unwrap_shell_dash_c must be a boolean", src.Layer, src.Path, idx)
+			}
+			var enabled bool
+			if err := val.Decode(&enabled); err != nil {
+				return policy.RewriteSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.unwrap_shell_dash_c must be a boolean", src.Layer, src.Path, idx)
+			}
+			rewrite.UnwrapShellDashC = enabled
+		case "move_flag_to_env":
+			spec, err := decodeEvalMoveFlagToEnv(src, idx, val)
+			if err != nil {
+				return policy.RewriteSpec{}, err
+			}
+			rewrite.MoveFlagToEnv = spec
+		case "move_env_to_flag":
+			spec, err := decodeEvalMoveEnvToFlag(src, idx, val)
+			if err != nil {
+				return policy.RewriteSpec{}, err
+			}
+			rewrite.MoveEnvToFlag = spec
+		case "unwrap_wrapper":
+			spec, err := decodeEvalUnwrapWrapper(src, idx, val)
+			if err != nil {
+				return policy.RewriteSpec{}, err
+			}
+			rewrite.UnwrapWrapper = spec
+		default:
+			return policy.RewriteSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.%s not allowed", src.Layer, src.Path, idx, key.Value)
+		}
+	}
+	return rewrite, nil
+}
+
+func decodeEvalMoveFlagToEnv(src Source, idx int, node *yaml.Node) (policy.MoveFlagToEnvSpec, error) {
+	if node.Kind != yaml.MappingNode {
+		return policy.MoveFlagToEnvSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.move_flag_to_env must be a mapping", src.Layer, src.Path, idx)
+	}
+	var spec policy.MoveFlagToEnvSpec
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i]
+		val := node.Content[i+1]
+		switch key.Value {
+		case "flag":
+			if val.Kind != yaml.ScalarNode {
+				return policy.MoveFlagToEnvSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.move_flag_to_env.flag must be a string", src.Layer, src.Path, idx)
+			}
+			spec.Flag = val.Value
+		case "env":
+			if val.Kind != yaml.ScalarNode {
+				return policy.MoveFlagToEnvSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.move_flag_to_env.env must be a string", src.Layer, src.Path, idx)
+			}
+			spec.Env = val.Value
+		default:
+			return policy.MoveFlagToEnvSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.move_flag_to_env.%s not allowed", src.Layer, src.Path, idx, key.Value)
+		}
+	}
+	return spec, nil
+}
+
+func decodeEvalMoveEnvToFlag(src Source, idx int, node *yaml.Node) (policy.MoveEnvToFlagSpec, error) {
+	if node.Kind != yaml.MappingNode {
+		return policy.MoveEnvToFlagSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.move_env_to_flag must be a mapping", src.Layer, src.Path, idx)
+	}
+	var spec policy.MoveEnvToFlagSpec
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i]
+		val := node.Content[i+1]
+		switch key.Value {
+		case "env":
+			if val.Kind != yaml.ScalarNode {
+				return policy.MoveEnvToFlagSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.move_env_to_flag.env must be a string", src.Layer, src.Path, idx)
+			}
+			spec.Env = val.Value
+		case "flag":
+			if val.Kind != yaml.ScalarNode {
+				return policy.MoveEnvToFlagSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.move_env_to_flag.flag must be a string", src.Layer, src.Path, idx)
+			}
+			spec.Flag = val.Value
+		default:
+			return policy.MoveEnvToFlagSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.move_env_to_flag.%s not allowed", src.Layer, src.Path, idx, key.Value)
+		}
+	}
+	return spec, nil
+}
+
+func decodeEvalUnwrapWrapper(src Source, idx int, node *yaml.Node) (policy.UnwrapWrapperSpec, error) {
+	if node.Kind != yaml.MappingNode {
+		return policy.UnwrapWrapperSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.unwrap_wrapper must be a mapping", src.Layer, src.Path, idx)
+	}
+	var spec policy.UnwrapWrapperSpec
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i]
+		val := node.Content[i+1]
+		switch key.Value {
+		case "wrappers":
+			values, err := decodeStringSequence(src, idx, "rewrite.unwrap_wrapper.wrappers", val)
+			if err != nil {
+				return policy.UnwrapWrapperSpec{}, err
+			}
+			spec.Wrappers = values
+		default:
+			return policy.UnwrapWrapperSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].rewrite.unwrap_wrapper.%s not allowed", src.Layer, src.Path, idx, key.Value)
+		}
+	}
+	return spec, nil
+}
+
+func decodeEvalReject(src Source, idx int, node *yaml.Node) (policy.RejectSpec, error) {
+	if node.Kind != yaml.MappingNode {
+		return policy.RejectSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].reject must be a mapping", src.Layer, src.Path, idx)
+	}
+	var reject policy.RejectSpec
+	for i := 0; i < len(node.Content); i += 2 {
+		key := node.Content[i]
+		val := node.Content[i+1]
+		switch key.Value {
+		case "message":
+			if val.Kind != yaml.ScalarNode {
+				return policy.RejectSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].reject.message must be a string", src.Layer, src.Path, idx)
+			}
+			reject.Message = val.Value
+		default:
+			return policy.RejectSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].reject.%s not allowed", src.Layer, src.Path, idx, key.Value)
+		}
+	}
+	return reject, nil
+}
+
+func decodeEvalMatch(src Source, idx int, node *yaml.Node) (policy.MatchSpec, error) {
+	if node.Kind != yaml.MappingNode {
+		return policy.MatchSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].match must be a mapping", src.Layer, src.Path, idx)
+	}
+	var match policy.MatchSpec
 	for i := 0; i < len(node.Content); i += 2 {
 		key := node.Content[i]
 		val := node.Content[i+1]
 		switch key.Value {
 		case "command":
 			if val.Kind != yaml.ScalarNode {
-				return MatchSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].match.command must be a string", src.Layer, src.Path, idx)
+				return policy.MatchSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].match.command must be a string", src.Layer, src.Path, idx)
 			}
 			match.Command = val.Value
 		case "command_in":
 			values, err := decodeStringSequence(src, idx, "match.command_in", val)
 			if err != nil {
-				return MatchSpec{}, err
+				return policy.MatchSpec{}, err
 			}
 			match.CommandIn = values
 		case "subcommand":
 			if val.Kind != yaml.ScalarNode {
-				return MatchSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].match.subcommand must be a string", src.Layer, src.Path, idx)
+				return policy.MatchSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].match.subcommand must be a string", src.Layer, src.Path, idx)
 			}
 			match.Subcommand = val.Value
 		case "args_contains":
 			values, err := decodeStringSequence(src, idx, "match.args_contains", val)
 			if err != nil {
-				return MatchSpec{}, err
+				return policy.MatchSpec{}, err
 			}
 			match.ArgsContains = values
 		case "args_prefixes":
 			values, err := decodeStringSequence(src, idx, "match.args_prefixes", val)
 			if err != nil {
-				return MatchSpec{}, err
+				return policy.MatchSpec{}, err
 			}
 			match.ArgsPrefixes = values
 		case "env_requires":
 			values, err := decodeStringSequence(src, idx, "match.env_requires", val)
 			if err != nil {
-				return MatchSpec{}, err
+				return policy.MatchSpec{}, err
 			}
 			match.EnvRequires = values
 		case "env_missing":
 			values, err := decodeStringSequence(src, idx, "match.env_missing", val)
 			if err != nil {
-				return MatchSpec{}, err
+				return policy.MatchSpec{}, err
 			}
 			match.EnvMissing = values
 		default:
-			return MatchSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].match.%s not allowed", src.Layer, src.Path, idx, key.Value)
+			return policy.MatchSpec{}, fmt.Errorf("%s config %s is invalid: rules[%d].match.%s not allowed", src.Layer, src.Path, idx, key.Value)
 		}
 	}
 	return match, nil
@@ -446,29 +553,7 @@ func validateFile(file File) []string {
 	if len(file.Rules) == 0 {
 		issues = append(issues, "rules must be non-empty")
 	}
-
-	seen := map[string]struct{}{}
-	for i, r := range file.Rules {
-		prefix := fmt.Sprintf("rules[%d]", i)
-		if !ruleIDPattern.MatchString(r.ID) {
-			issues = append(issues, prefix+".id must match [a-z0-9][a-z0-9-]*")
-		}
-		if _, ok := seen[r.ID]; ok && r.ID != "" {
-			issues = append(issues, prefix+".id duplicates another rule in the same file")
-		}
-		seen[r.ID] = struct{}{}
-		issues = append(issues, validateRuleMatcher(prefix, r.Pattern, r.Matcher)...)
-		if strings.TrimSpace(r.Message) == "" {
-			issues = append(issues, prefix+".message must be non-empty")
-		}
-		if len(r.BlockExamples) == 0 {
-			issues = append(issues, prefix+".block_examples must be non-empty")
-		}
-		if len(r.AllowExamples) == 0 {
-			issues = append(issues, prefix+".allow_examples must be non-empty")
-		}
-	}
-
+	issues = append(issues, policy.ValidateRules(file.Rules)...)
 	return issues
 }
 
@@ -480,21 +565,18 @@ func validateEvalFile(file evalFile) []string {
 	if len(file.Rules) == 0 {
 		issues = append(issues, "rules must be non-empty")
 	}
-
 	seen := map[string]struct{}{}
 	for i, r := range file.Rules {
 		prefix := fmt.Sprintf("rules[%d]", i)
-		if !ruleIDPattern.MatchString(r.ID) {
+		if !regexp.MustCompile(`^[a-z0-9][a-z0-9-]*$`).MatchString(r.ID) {
 			issues = append(issues, prefix+".id must match [a-z0-9][a-z0-9-]*")
 		}
 		if _, ok := seen[r.ID]; ok && r.ID != "" {
 			issues = append(issues, prefix+".id duplicates another rule in the same file")
 		}
 		seen[r.ID] = struct{}{}
-		issues = append(issues, validateRuleMatcher(prefix, r.Pattern, r.Match)...)
-		if strings.TrimSpace(r.Message) == "" {
-			issues = append(issues, prefix+".message must be non-empty")
-		}
+		issues = append(issues, policy.ValidateRuleMatcher(prefix, r.Pattern, r.Match)...)
+		issues = append(issues, policy.ValidateDirective(prefix, r.Message, r.Reject, r.Rewrite)...)
 		if r.BlockExampleLen == 0 {
 			issues = append(issues, prefix+".block_examples must be non-empty")
 		}
@@ -502,176 +584,10 @@ func validateEvalFile(file evalFile) []string {
 			issues = append(issues, prefix+".allow_examples must be non-empty")
 		}
 	}
-
 	return issues
 }
 
-func (r Rule) Match(command string) (bool, error) {
-	if !isZeroMatchSpec(r.Matcher) {
-		return r.Matcher.matches(ParseCommand(command)), nil
-	}
-	if r.re != nil {
-		return r.re.MatchString(command), nil
-	}
-	compiled, err := regexp.Compile(r.Pattern)
-	if err != nil {
-		return false, err
-	}
-	return compiled.MatchString(command), nil
-}
-
-func (m MatchSpec) matches(parsed ParsedCommand) bool {
-	if parsed.Command == "" {
-		return false
-	}
-	if m.Command != "" && parsed.Command != m.Command {
-		return false
-	}
-	if len(m.CommandIn) > 0 && !containsString(m.CommandIn, parsed.Command) {
-		return false
-	}
-	if m.Subcommand != "" && parsed.Subcommand != m.Subcommand {
-		return false
-	}
-	for _, arg := range m.ArgsContains {
-		if !containsString(parsed.Args, arg) {
-			return false
-		}
-	}
-	for _, prefix := range m.ArgsPrefixes {
-		if !containsPrefix(parsed.Args, prefix) {
-			return false
-		}
-	}
-	for _, env := range m.EnvRequires {
-		if _, ok := parsed.EnvAssignments[env]; !ok {
-			return false
-		}
-	}
-	for _, env := range m.EnvMissing {
-		if _, ok := parsed.EnvAssignments[env]; ok {
-			return false
-		}
-	}
-	return true
-}
-
-func validateRuleMatcher(prefix string, pattern string, match MatchSpec) []string {
-	var issues []string
-	hasPattern := strings.TrimSpace(pattern) != ""
-	hasMatch := !isZeroMatchSpec(match)
-
-	switch {
-	case hasPattern && hasMatch:
-		issues = append(issues, prefix+" must not set both pattern and match")
-	case !hasPattern && !hasMatch:
-		issues = append(issues, prefix+" must set exactly one of pattern or match")
-	case hasPattern:
-		if _, err := regexp.Compile(pattern); err != nil {
-			issues = append(issues, prefix+".pattern failed to compile: "+err.Error())
-		}
-	case hasMatch:
-		issues = append(issues, validateMatchSpec(prefix+".match", match)...)
-	}
-	return issues
-}
-
-func validateMatchSpec(prefix string, match MatchSpec) []string {
-	var issues []string
-	if isZeroMatchSpec(match) {
-		return []string{prefix + " must not be empty"}
-	}
-	if strings.TrimSpace(match.Command) == "" && match.Command != "" {
-		issues = append(issues, prefix+".command must be non-empty")
-	}
-	if strings.TrimSpace(match.Subcommand) == "" && match.Subcommand != "" {
-		issues = append(issues, prefix+".subcommand must be non-empty")
-	}
-	issues = append(issues, validateNonEmptyStrings(prefix+".command_in", match.CommandIn)...)
-	issues = append(issues, validateNonEmptyStrings(prefix+".args_contains", match.ArgsContains)...)
-	issues = append(issues, validateNonEmptyStrings(prefix+".args_prefixes", match.ArgsPrefixes)...)
-	issues = append(issues, validateNonEmptyStrings(prefix+".env_requires", match.EnvRequires)...)
-	issues = append(issues, validateNonEmptyStrings(prefix+".env_missing", match.EnvMissing)...)
-	return issues
-}
-
-func validateNonEmptyStrings(prefix string, values []string) []string {
-	var issues []string
-	for i, value := range values {
-		if strings.TrimSpace(value) == "" {
-			issues = append(issues, fmt.Sprintf("%s[%d] must be non-empty", prefix, i))
-		}
-	}
-	return issues
-}
-
-func isZeroMatchSpec(match MatchSpec) bool {
-	return match.Command == "" &&
-		len(match.CommandIn) == 0 &&
-		match.Subcommand == "" &&
-		len(match.ArgsContains) == 0 &&
-		len(match.ArgsPrefixes) == 0 &&
-		len(match.EnvRequires) == 0 &&
-		len(match.EnvMissing) == 0
-}
-
-func containsString(values []string, want string) bool {
-	for _, value := range values {
-		if value == want {
-			return true
-		}
-	}
-	return false
-}
-
-func containsPrefix(values []string, prefix string) bool {
-	for _, value := range values {
-		if strings.HasPrefix(value, prefix) {
-			return true
-		}
-	}
-	return false
-}
-
-func newRule(spec RuleSpec, src Source) Rule {
-	r := Rule{RuleSpec: spec, Source: src}
-	if strings.TrimSpace(spec.Pattern) != "" {
-		r.re, _ = regexp.Compile(spec.Pattern)
-	}
-	return r
-}
-
-func validateDuplicateIDs(rules []Rule) []error {
-	seen := map[string]Source{}
-	var errs []error
-	for _, r := range rules {
-		if prev, ok := seen[r.ID]; ok {
-			errs = append(errs, fmt.Errorf("duplicate rule id %q across %s and %s", r.ID, prev.Path, r.Source.Path))
-			continue
-		}
-		seen[r.ID] = r.Source
-	}
-	return errs
-}
-
-func ErrorStrings(errs []error) []string {
-	parts := make([]string, 0, len(errs))
-	for _, err := range errs {
-		if err == nil {
-			continue
-		}
-		var ve *ValidationError
-		if errors.As(err, &ve) {
-			parts = append(parts, ve.Issues...)
-			continue
-		}
-		parts = append(parts, err.Error())
-	}
-	slices.Sort(parts)
-	return parts
-}
-
-func loadEvalCache(src Source, cachePath string, info os.FileInfo) ([]Rule, bool) {
+func loadEvalCache(src Source, cachePath string, info os.FileInfo) ([]policy.Rule, bool) {
 	data, err := os.ReadFile(cachePath)
 	if err != nil {
 		return nil, false
@@ -683,18 +599,20 @@ func loadEvalCache(src Source, cachePath string, info os.FileInfo) ([]Rule, bool
 	if cache.Version != 1 || cache.SourcePath != src.Path || cache.SourceSize != info.Size() || cache.SourceModTime != info.ModTime().UnixNano() {
 		return nil, false
 	}
-	rules := make([]Rule, 0, len(cache.CompiledRules))
+	rules := make([]policy.Rule, 0, len(cache.CompiledRules))
 	for _, spec := range cache.CompiledRules {
 		if strings.TrimSpace(spec.Pattern) != "" {
 			if _, err := regexp.Compile(spec.Pattern); err != nil {
 				return nil, false
 			}
 		}
-		rules = append(rules, newRule(RuleSpec{
+		rules = append(rules, policy.NewRule(policy.RuleSpec{
 			ID:      spec.ID,
 			Pattern: spec.Pattern,
 			Matcher: spec.Match,
 			Message: spec.Message,
+			Reject:  spec.Reject,
+			Rewrite: spec.Rewrite,
 		}, src))
 	}
 	return rules, true
