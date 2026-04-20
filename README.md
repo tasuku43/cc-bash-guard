@@ -91,7 +91,8 @@ Before trusting an installed binary:
 1. inspect the running binary with `cmdproxy version --format json`
 2. run `cmdproxy verify --format json` against the installed binary
 3. use `cmdproxy doctor --format json` for broader diagnostics
-4. prefer release artifacts with published checksums over opaque local copies
+4. verify the downloaded artifact checksum against `checksums.txt`
+5. verify release provenance with `gh attestation verify`
 
 The broader trust model is documented in
 [docs/concepts/security-trust-model.md](docs/concepts/security-trust-model.md).

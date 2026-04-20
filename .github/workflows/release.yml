@@ -8,6 +8,9 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write
+  attestations: write
+  artifact-metadata: write
 
 jobs:
   goreleaser:
@@ -45,6 +48,16 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Generate provenance attestations for release archives
+        uses: actions/attest@v4
+        with:
+          subject-checksums: dist/checksums.txt
+
+      - name: Generate provenance attestation for checksums.txt
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/checksums.txt
 
       - name: Determine release channel
         id: channel

@@ -25,9 +25,17 @@ Every release should publish:
 
 - platform archives
 - `checksums.txt`
+- artifact attestations for archives and `checksums.txt`
 
 Checksums are part of the security story for `cmdproxy` because users are
 trusting a binary that can rewrite commands before execution.
+
+GitHub Artifact Attestations provide a signed provenance record for the release
+artifacts. Consumers should be able to verify release provenance with:
+
+```sh
+gh attestation verify path/to/cmdproxy_<tag>_<os>_<arch>.tar.gz -R tasuku43/cmdguard
+```
 
 ## Release Invariants
 
@@ -54,14 +62,15 @@ After a release is published:
 3. run:
    - `cmdproxy version --format json`
    - `cmdproxy verify --format json`
-4. confirm the reported VCS revision matches the intended release commit
+4. run `gh attestation verify` against the downloaded artifact
+5. confirm the reported VCS revision matches the intended release commit
 
 ## Security Notes
 
 - `checksums.txt` is the minimum release integrity signal and should always be
   present.
-- Signed artifacts or attestations are still tracked separately in the security
-  backlog.
+- GitHub Artifact Attestations should be present for release archives and
+  `checksums.txt`.
 - A release is not considered fully verified until an artifact has been
   downloaded and checked outside the CI environment.
 

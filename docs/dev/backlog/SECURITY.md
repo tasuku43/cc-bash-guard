@@ -66,7 +66,7 @@ user-authored rules.
   - Depends: none
   - Serial: yes
 
-- [ ] SECURITY-007: Signed release artifacts or attestations
+- [x] SECURITY-007: Signed release artifacts or attestations
   - What: add artifact signing or GitHub artifact attestation so users can
     verify checksums against a trusted release process.
   - Specs:
