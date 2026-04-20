@@ -169,6 +169,8 @@ policy evaluation inside `cmdproxy`.
 - Security trust model: [docs/concepts/security-trust-model.md](docs/concepts/security-trust-model.md)
 - Developer spec: [docs/dev/spec/README.md](docs/dev/spec/README.md)
 - User docs: [docs/user/README.md](docs/user/README.md)
+- Security policy: [SECURITY.md](SECURITY.md)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
 
