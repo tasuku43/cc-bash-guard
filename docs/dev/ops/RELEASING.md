@@ -29,24 +29,32 @@ Every release should publish:
 Checksums are part of the security story for `cmdproxy` because users are
 trusting a binary that can rewrite commands before execution.
 
-## Operator Checklist
+## Release Invariants
 
-1. Confirm CI is green on `main`.
-2. Confirm `task release:preflight` passes locally if you are preparing the tag
-   by hand.
-3. Create and push a tag such as `v0.1.0`.
-4. Confirm the GitHub Actions `Release` workflow succeeded.
-5. Confirm the GitHub Release contains:
+The release pipeline should enforce as much as possible automatically.
+
+Before a release is considered healthy, the system should guarantee:
+
+1. CI-quality checks already passed before code merged to `main`
+2. the release workflow completed successfully for the pushed tag
+3. the GitHub Release contains:
    - macOS archives for amd64 and arm64
    - Linux archives for amd64 and arm64
    - `checksums.txt`
-6. Download one artifact and verify its checksum against `checksums.txt`.
-7. Run the downloaded binary with:
+4. stable tags open a Homebrew formula PR when Homebrew secrets are configured
+
+## Minimal Human Verification
+
+Manual checks should stay small and focus on what CI cannot prove by itself.
+
+After a release is published:
+
+1. download one artifact
+2. verify its checksum against `checksums.txt`
+3. run:
    - `cmdproxy version --format json`
    - `cmdproxy verify --format json`
-8. Confirm the reported VCS revision matches the intended release commit.
-9. For stable tags, confirm a Homebrew formula PR was opened when Homebrew
-   secrets are configured.
+4. confirm the reported VCS revision matches the intended release commit
 
 ## Security Notes
 

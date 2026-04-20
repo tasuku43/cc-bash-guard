@@ -76,7 +76,7 @@ user-authored rules.
   - Depends: SECURITY-006
   - Serial: yes
 
-- [ ] SECURITY-008: Branch protection and required review policy
+- [x] SECURITY-008: Branch protection and required review policy
   - What: enable GitHub branch protection and require review before merge for
     the default branch.
   - Specs:
@@ -146,10 +146,10 @@ user-authored rules.
   - Depends: SECURITY-005
   - Serial: no
 
-- [x] SECURITY-015: Release operator checklist hardening
-  - What: extend `docs/dev/ops/RELEASING.md` with a concrete post-release
-    operator checklist, including checksum inspection and binary identity
-    verification.
+- [x] SECURITY-015: Release invariant automation baseline
+  - What: rewrite release operations guidance so the default expectation is that
+    main-branch protection and release workflows guarantee most conditions
+    automatically, leaving only minimal human verification after publish.
   - Specs:
     - `docs/dev/ops/RELEASING.md`
   - Depends: SECURITY-006
