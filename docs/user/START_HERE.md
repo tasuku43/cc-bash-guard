@@ -23,7 +23,6 @@ cmdproxy init
 
 ```sh
 cmdproxy verify
-cmdproxy test
 cmdproxy doctor --format json
 ```
 

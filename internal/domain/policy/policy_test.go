@@ -102,3 +102,31 @@ func TestRewriteStepName(t *testing.T) {
 		t.Fatalf("got %q", got)
 	}
 }
+
+func TestRewriteStepMatchesPattern(t *testing.T) {
+	step := RewriteStepSpec{Pattern: `^\s*git\s+diff\s+.*\.\.\.`}
+	if !RewriteStepMatches(step, "git diff main...HEAD") {
+		t.Fatal("expected pattern match")
+	}
+	if RewriteStepMatches(step, "git diff HEAD~1") {
+		t.Fatal("did not expect match")
+	}
+}
+
+func TestPermissionRuleMatchesPatterns(t *testing.T) {
+	rule := PermissionRuleSpec{
+		Patterns: []string{
+			`^\s*cd\s+[^&;|]+\s*&&`,
+			`^\s*cd\s+[^&;|]+\s*;`,
+		},
+	}
+	if !PermissionRuleMatches(rule, "cd repo && git status") {
+		t.Fatal("expected patterns match")
+	}
+	if !PermissionRuleMatches(rule, "cd repo; make test") {
+		t.Fatal("expected patterns match")
+	}
+	if PermissionRuleMatches(rule, "cd repo") {
+		t.Fatal("did not expect match")
+	}
+}

@@ -15,6 +15,11 @@ import (
 
 func TestRunHookClaudeAllowReturnsAllowAndUpdatedInput(t *testing.T) {
 	home := t.TempDir()
+	writeClaudeSettings(t, home, `{
+  "permissions": {
+    "allow": ["Bash(AWS_PROFILE=dev aws sts:*)"]
+  }
+}`)
 	writeUserConfig(t, home, `rewrite:
   - match:
       command: aws
@@ -87,6 +92,43 @@ test:
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"hook", "claude"}, Streams{
 		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"aws s3 ls"}}`),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{Cwd: t.TempDir(), Home: home})
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("json error: %v", err)
+	}
+	hookOut := payload["hookSpecificOutput"].(map[string]any)
+	if _, ok := hookOut["permissionDecision"]; ok {
+		t.Fatalf("payload = %+v", payload)
+	}
+}
+
+func TestRunHookClaudeAllowFallsBackToAskWhenClaudeSettingsDoNotAllow(t *testing.T) {
+	home := t.TempDir()
+	writeUserConfig(t, home, `permission:
+  allow:
+    - match:
+        command: git
+        subcommand: diff
+      test:
+        allow:
+          - "git diff goal.md"
+        pass:
+          - "git status"
+test:
+  - in: "git diff goal.md"
+    decision: allow
+`)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"hook", "claude"}, Streams{
+		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git diff goal.md"}}`),
 		Stdout: &stdout,
 		Stderr: &stderr,
 	}, Env{Cwd: t.TempDir(), Home: home})
@@ -183,37 +225,6 @@ test:
 	}
 }
 
-func TestRunTest(t *testing.T) {
-	home := t.TempDir()
-	writeUserConfig(t, home, `permission:
-  allow:
-    - match:
-        command: git
-        subcommand: status
-      test:
-        allow:
-          - "git status"
-        pass:
-          - "git diff"
-test:
-  - in: "git status"
-    decision: allow
-`)
-
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"test"}, Streams{
-		Stdin:  strings.NewReader(""),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-	if !strings.Contains(stdout.String(), "ok: 0 rewrite steps, 1 permission rules, 3 tests checked") {
-		t.Fatalf("stdout=%q", stdout.String())
-	}
-}
-
 func TestVerifyStatus(t *testing.T) {
 	report := doctor.Report{
 		Checks: []doctor.Check{
@@ -251,6 +262,17 @@ func TestRunInitCreatesStarterConfig(t *testing.T) {
 func writeUserConfig(t *testing.T, home string, body string) {
 	t.Helper()
 	path := filepath.Join(home, ".config", "cmdproxy", "cmdproxy.yml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func writeClaudeSettings(t *testing.T, home string, body string) {
+	t.Helper()
+	path := filepath.Join(home, ".claude", "settings.json")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}

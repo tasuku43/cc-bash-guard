@@ -153,12 +153,12 @@ func testsPass(p policy.Pipeline) error {
 				expect = rule.Test.Allow
 			}
 			for _, ex := range expect {
-				if !rule.Match.MatchMatches(ex) {
+				if !policy.PermissionRuleMatches(rule, ex) {
 					return &exampleError{Scope: scope, Name: scopeName(scope, i), Kind: "expect", Example: ex}
 				}
 			}
 			for _, ex := range rule.Test.Pass {
-				if rule.Match.MatchMatches(ex) {
+				if policy.PermissionRuleMatches(rule, ex) {
 					return &exampleError{Scope: scope, Name: scopeName(scope, i), Kind: "pass", Example: ex}
 				}
 			}
@@ -191,7 +191,7 @@ func testsPass(p policy.Pipeline) error {
 }
 
 func policyTestApplyRewrite(step policy.RewriteStepSpec, command string) (string, bool) {
-	if !policy.IsZeroMatchSpec(step.Match) && !step.Match.MatchMatches(command) {
+	if !policy.RewriteStepMatches(step, command) {
 		return "", false
 	}
 	return policy.ApplyRewriteStepForTest(step, command)
@@ -199,7 +199,7 @@ func policyTestApplyRewrite(step policy.RewriteStepSpec, command string) (string
 
 func broadnessWarning(p policy.Pipeline) string {
 	for i, step := range p.Rewrite {
-		if policy.IsZeroMatchSpec(step.Match) {
+		if policy.IsZeroMatchSpec(step.Match) && strings.TrimSpace(step.Pattern) == "" && len(step.Patterns) == 0 {
 			return "rewrite[" + scopeName("global", i) + "] applies to all commands"
 		}
 	}

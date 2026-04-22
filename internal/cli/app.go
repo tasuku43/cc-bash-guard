@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/tasuku43/cmdproxy/internal/buildinfo"
+	"github.com/tasuku43/cmdproxy/internal/claude"
 	"github.com/tasuku43/cmdproxy/internal/config"
 	"github.com/tasuku43/cmdproxy/internal/doctor"
 	"github.com/tasuku43/cmdproxy/internal/domain/policy"
@@ -47,8 +49,6 @@ func Run(args []string, streams Streams, env Env) int {
 		return runHook(args[1:], streams, env)
 	case "check":
 		return runCheck(args[1:], streams, env)
-	case "test":
-		return runTest(args[1:], streams, env)
 	case "doctor":
 		return runDoctor(args[1:], streams, env)
 	case "verify":
@@ -108,51 +108,6 @@ func runCheck(args []string, streams Streams, env Env) int {
 	}
 	req := input.ExecRequest{Action: "exec", Command: strings.Join(rest, " ")}
 	return evaluateRequest(req, format, streams, env)
-}
-
-func runTest(args []string, streams Streams, env Env) int {
-	if wantsHelp(args) {
-		writeCommandHelp(streams.Stdout, "test")
-		return exitAllow
-	}
-	if len(args) != 0 {
-		writeCommandHelp(streams.Stderr, "test")
-		return exitError
-	}
-	loaded := config.LoadEffective(env.Home, env.XDGConfigHome)
-	if len(loaded.Errors) > 0 {
-		for _, msg := range policy.ErrorStrings(loaded.Errors) {
-			writeErr(streams.Stderr, msg)
-		}
-		return exitError
-	}
-
-	report := doctor.Run(loaded, env.Home)
-	for _, check := range report.Checks {
-		if check.ID == "tests.pass" && check.Status == doctor.StatusFail {
-			writeErr(streams.Stderr, check.Message)
-			return exitError
-		}
-	}
-
-	rewriteCount := len(loaded.Pipeline.Rewrite)
-	permissionCount := len(loaded.Pipeline.Permission.Deny) + len(loaded.Pipeline.Permission.Ask) + len(loaded.Pipeline.Permission.Allow)
-	testCount := 0
-	for _, step := range loaded.Pipeline.Rewrite {
-		testCount += len(step.Test)
-	}
-	for _, rule := range loaded.Pipeline.Permission.Deny {
-		testCount += len(rule.Test.Deny) + len(rule.Test.Pass)
-	}
-	for _, rule := range loaded.Pipeline.Permission.Ask {
-		testCount += len(rule.Test.Ask) + len(rule.Test.Pass)
-	}
-	for _, rule := range loaded.Pipeline.Permission.Allow {
-		testCount += len(rule.Test.Allow) + len(rule.Test.Pass)
-	}
-	testCount += len(loaded.Pipeline.Test)
-	fmt.Fprintf(streams.Stdout, "ok: %d rewrite steps, %d permission rules, %d tests checked\n", rewriteCount, permissionCount, testCount)
-	return exitAllow
 }
 
 func runDoctor(args []string, streams Streams, env Env) int {
@@ -441,6 +396,7 @@ func runClaudeHook(req input.ExecRequest, useRTK bool, streams Streams, env Env)
 	if err != nil {
 		return emitClaudeHookError(streams, "invalid_config", err.Error())
 	}
+	decision = applyClaudePermissionBridge(decision, env)
 	if useRTK && decision.Outcome != "deny" {
 		decision = applyRTKRewrite(decision)
 	}
@@ -503,6 +459,41 @@ func emitClaudeHookError(streams Streams, code string, message string) int {
 	return exitAllow
 }
 
+func applyClaudePermissionBridge(decision policy.Decision, env Env) policy.Decision {
+	verdict := claude.CheckCommand(decision.Command, env.Cwd, env.Home)
+	switch verdict {
+	case claude.PermissionDeny:
+		decision.Trace = append(decision.Trace, policy.TraceStep{
+			Action:  "permission",
+			Name:    "claude_settings",
+			Effect:  "deny",
+			Message: "Claude settings deny matched during migration",
+		})
+		if strings.TrimSpace(decision.Message) == "" {
+			decision.Message = "blocked by Claude settings migration rule"
+		}
+		decision.Outcome = "deny"
+	case claude.PermissionAsk, claude.PermissionDefault:
+		if decision.Outcome == "allow" {
+			decision.Trace = append(decision.Trace, policy.TraceStep{
+				Action:  "permission",
+				Name:    "claude_settings",
+				Effect:  "ask",
+				Message: "Claude settings require confirmation during migration",
+			})
+			decision.Outcome = "ask"
+		}
+	case claude.PermissionAllow:
+		decision.Trace = append(decision.Trace, policy.TraceStep{
+			Action:  "permission",
+			Name:    "claude_settings",
+			Effect:  "allow",
+			Message: "Claude settings allow matched during migration",
+		})
+	}
+	return decision
+}
+
 func applyRTKRewrite(decision policy.Decision) policy.Decision {
 	rewritten, ok := runRTKRewrite(decision.Command)
 	if !ok || rewritten == decision.Command {
@@ -519,8 +510,11 @@ func applyRTKRewrite(decision policy.Decision) policy.Decision {
 }
 
 func runRTKRewrite(command string) (string, bool) {
-	out, err := exec.Command("rtk", "rewrite", command).CombinedOutput()
-	if err != nil && len(out) == 0 {
+	cmd := exec.Command("rtk", "rewrite", command)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	out, err := cmd.Output()
+	if err != nil {
 		return "", false
 	}
 	rewritten := strings.TrimSpace(string(out))
@@ -591,7 +585,7 @@ Declarative, testable command policy for AI-agent shell commands.
 Typical workflow:
   1. Edit ~/.config/cmdproxy/cmdproxy.yml
   2. Add rewrite, permission, and E2E tests
-  3. Run cmdproxy test
+  3. Run cmdproxy verify
   4. Use cmdproxy check for spot checks
   5. Let Claude Code call cmdproxy hook claude --rtk from PreToolUse
 
@@ -600,10 +594,9 @@ Usage:
 
 Commands:
   init     create the user config and print the Claude Code hook snippet
-  test     validate every rule example; this is the main authoring command
   check    evaluate one command string interactively
   doctor   inspect config quality and installation state
-  verify   verify local trust-critical setup and build metadata
+  verify   verify config tests, trust-critical setup, and build metadata
   version  print build and source metadata for the running binary
   hook     Claude Code hook entrypoint
 
@@ -616,7 +609,6 @@ Help:
 
 Examples:
   cmdproxy init
-  cmdproxy test
   cmdproxy check --format json 'git -C repo status'
   cmdproxy verify --format json
   cmdproxy version --format json
@@ -638,24 +630,6 @@ Usage:
 
 Typical use:
   cmdproxy init
-`)
-	case "test":
-		fmt.Fprint(w, `cmdproxy test
-
-Validate the full pipeline in ~/.config/cmdproxy/cmdproxy.yml.
-This is the main command to run after editing policy.
-
-Usage:
-  cmdproxy test
-
-What it checks:
-  - every rewrite step test expect/pass case
-  - every permission rule test expect/pass case
-  - every top-level E2E test expect case
-
-Typical use:
-  $EDITOR ~/.config/cmdproxy/cmdproxy.yml
-  cmdproxy test
 `)
 	case "check":
 		fmt.Fprint(w, `cmdproxy check
@@ -687,7 +661,8 @@ Examples:
 
 Verify the local trust-critical cmdproxy setup.
 This command is stricter than doctor: it fails when the config is broken, when
-Claude settings point somewhere unexpected, or when build metadata is missing.
+configured tests fail, when Claude settings point somewhere unexpected, or when
+build metadata is missing.
 
 Usage:
   cmdproxy verify [--format json]
@@ -711,7 +686,7 @@ Options:
           the final rewritten command if it changes
 
 Note:
-  You usually do not run this manually. Edit rules and use cmdproxy test or
+  You usually do not run this manually. Edit rules and use cmdproxy verify or
   cmdproxy check instead.
 `)
 	case "version":

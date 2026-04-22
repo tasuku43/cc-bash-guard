@@ -50,7 +50,6 @@ The current `cmdproxy` contract prioritizes:
   - `commands/hook.md`: Claude Code hook entrypoint and hook-specific output contract
   - `commands/check.md`: interactive single-command evaluation
   - `commands/init.md`: setup and starter config behavior
-  - `commands/test.md`: rewrite, permission, and E2E verification behavior
   - `commands/doctor.md`: setup and pipeline health diagnostics
   - `commands/verify.md`: trust-oriented local verification
   - `commands/version.md`: binary build metadata and provenance visibility

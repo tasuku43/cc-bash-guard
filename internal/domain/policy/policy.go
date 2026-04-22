@@ -3,6 +3,7 @@ package policy
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -18,6 +19,8 @@ type PipelineSpec struct {
 
 type RewriteStepSpec struct {
 	Match            MatchSpec         `yaml:"match" json:"match,omitempty"`
+	Pattern          string            `yaml:"pattern" json:"pattern,omitempty"`
+	Patterns         []string          `yaml:"patterns" json:"patterns,omitempty"`
 	UnwrapShellDashC bool              `yaml:"unwrap_shell_dash_c" json:"unwrap_shell_dash_c,omitempty"`
 	UnwrapWrapper    UnwrapWrapperSpec `yaml:"unwrap_wrapper" json:"unwrap_wrapper,omitempty"`
 	MoveFlagToEnv    MoveFlagToEnvSpec `yaml:"move_flag_to_env" json:"move_flag_to_env,omitempty"`
@@ -35,9 +38,11 @@ type PermissionSpec struct {
 }
 
 type PermissionRuleSpec struct {
-	Match   MatchSpec          `yaml:"match" json:"match,omitempty"`
-	Message string             `yaml:"message" json:"message,omitempty"`
-	Test    PermissionTestSpec `yaml:"test" json:"test,omitempty"`
+	Match    MatchSpec          `yaml:"match" json:"match,omitempty"`
+	Pattern  string             `yaml:"pattern" json:"pattern,omitempty"`
+	Patterns []string           `yaml:"patterns" json:"patterns,omitempty"`
+	Message  string             `yaml:"message" json:"message,omitempty"`
+	Test     PermissionTestSpec `yaml:"test" json:"test,omitempty"`
 }
 
 type PermissionTestSpec struct {
@@ -134,7 +139,7 @@ func Evaluate(p Pipeline, command string) (Decision, error) {
 	trace := []TraceStep{}
 
 	for _, step := range p.Rewrite {
-		if !IsZeroMatchSpec(step.Match) && !step.Match.matches(invocation.Parse(current)) {
+		if !RewriteStepMatches(step, current) {
 			continue
 		}
 		rewritten, ok := applyRewriteStep(step, current)
@@ -173,9 +178,8 @@ func Evaluate(p Pipeline, command string) (Decision, error) {
 }
 
 func firstPermissionMatch(rules []PermissionRuleSpec, command string) (PermissionRuleSpec, bool) {
-	parsed := invocation.Parse(command)
 	for _, rule := range rules {
-		if rule.Match.matches(parsed) {
+		if PermissionRuleMatches(rule, command) {
 			return rule, true
 		}
 	}
@@ -211,6 +215,40 @@ func RewriteStepName(step RewriteStepSpec) string {
 
 func (m MatchSpec) MatchMatches(command string) bool {
 	return m.matches(invocation.Parse(command))
+}
+
+func RewriteStepMatches(step RewriteStepSpec, command string) bool {
+	return selectorMatches(command, step.Match, step.Pattern, step.Patterns)
+}
+
+func PermissionRuleMatches(rule PermissionRuleSpec, command string) bool {
+	return selectorMatches(command, rule.Match, rule.Pattern, rule.Patterns)
+}
+
+func selectorMatches(command string, match MatchSpec, pattern string, patterns []string) bool {
+	switch {
+	case !IsZeroMatchSpec(match):
+		return match.MatchMatches(command)
+	case strings.TrimSpace(pattern) != "":
+		return patternMatches(command, pattern)
+	case len(patterns) > 0:
+		for _, p := range patterns {
+			if patternMatches(command, p) {
+				return true
+			}
+		}
+		return false
+	default:
+		return true
+	}
+}
+
+func patternMatches(command string, pattern string) bool {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		return false
+	}
+	return re.MatchString(command)
 }
 
 func rewritePrimitiveName(step RewriteStepSpec) string {
@@ -293,9 +331,7 @@ func ValidatePipeline(spec PipelineSpec) []string {
 
 func ValidateRewriteStep(prefix string, step RewriteStepSpec) []string {
 	var issues []string
-	if !IsZeroMatchSpec(step.Match) {
-		issues = append(issues, ValidateMatchSpec(prefix+".match", step.Match)...)
-	}
+	issues = append(issues, ValidateSelector(prefix, step.Match, step.Pattern, step.Patterns, false)...)
 	primitiveCount := 0
 	if step.UnwrapShellDashC {
 		primitiveCount++
@@ -337,8 +373,39 @@ func ValidateRewriteStep(prefix string, step RewriteStepSpec) []string {
 
 func ValidatePermissionRule(prefix string, rule PermissionRuleSpec, effect string) []string {
 	var issues []string
-	issues = append(issues, ValidateMatchSpec(prefix+".match", rule.Match)...)
+	issues = append(issues, ValidateSelector(prefix, rule.Match, rule.Pattern, rule.Patterns, true)...)
 	issues = append(issues, ValidatePermissionTest(prefix+".test", rule.Test, effect)...)
+	return issues
+}
+
+func ValidateSelector(prefix string, match MatchSpec, pattern string, patterns []string, required bool) []string {
+	var issues []string
+	count := 0
+	if !IsZeroMatchSpec(match) {
+		count++
+		issues = append(issues, ValidateMatchSpec(prefix+".match", match)...)
+	}
+	if strings.TrimSpace(pattern) != "" {
+		count++
+		if _, err := regexp.Compile(pattern); err != nil {
+			issues = append(issues, prefix+".pattern must compile: "+err.Error())
+		}
+	}
+	if len(patterns) > 0 {
+		count++
+		issues = append(issues, validateNonEmptyStrings(prefix+".patterns", patterns)...)
+		for i, p := range patterns {
+			if _, err := regexp.Compile(p); err != nil {
+				issues = append(issues, fmt.Sprintf("%s.patterns[%d] must compile: %s", prefix, i, err.Error()))
+			}
+		}
+	}
+	if required && count == 0 {
+		issues = append(issues, prefix+" must set one of match, pattern, or patterns")
+	}
+	if count > 1 {
+		issues = append(issues, prefix+" may set only one of match, pattern, or patterns")
+	}
 	return issues
 }
 
