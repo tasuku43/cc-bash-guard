@@ -44,6 +44,13 @@ same rewrite and permission logic used by the Claude hook path.
 If you install `cc-bash-proxy` from a release artifact, verify it before relying on
 it in your command path.
 
+If no public GitHub Release exists yet, build from source and use:
+
+```sh
+cc-bash-proxy version --format json
+cc-bash-proxy verify --format json
+```
+
 1. Check the downloaded file against `checksums.txt`
 2. Verify the release provenance with GitHub attestation data
 3. Inspect the binary metadata

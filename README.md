@@ -168,6 +168,21 @@ The important combinations are:
 | `abstain` | `allow` | `allow` |
 | `abstain` | `abstain` | `ask` |
 
+## Release Verification
+
+The release pipeline, checksums, attestations, and Homebrew update path are
+designed and implemented, but the first GitHub Release may still be pending.
+
+Until a public release exists, prefer building from source and then running:
+
+```sh
+cc-bash-proxy version --format json
+cc-bash-proxy verify --format json
+```
+
+Once GitHub Releases exist, treat checksums and attestations as the preferred
+verification path for downloaded archives.
+
 ## Current Config Shape
 
 The currently implemented config file looks like this:
