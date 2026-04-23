@@ -14,6 +14,7 @@ import (
 	"github.com/tasuku43/cmdproxy/internal/buildinfo"
 	"github.com/tasuku43/cmdproxy/internal/config"
 	"github.com/tasuku43/cmdproxy/internal/doctor"
+	"github.com/tasuku43/cmdproxy/internal/domain/invocation"
 	"github.com/tasuku43/cmdproxy/internal/domain/policy"
 	"github.com/tasuku43/cmdproxy/internal/input"
 	"github.com/tasuku43/cmdproxy/internal/integration"
@@ -118,7 +119,7 @@ func runCheck(args []string, streams Streams, env Env) int {
 		writeCommandHelp(streams.Stderr, "check")
 		return exitError
 	}
-	req := input.ExecRequest{Action: "exec", Command: strings.Join(rest, " ")}
+	req := input.ExecRequest{Action: "exec", Command: invocation.Join(rest)}
 	return evaluateRequest(req, format, streams, env)
 }
 
@@ -613,12 +614,15 @@ Typical use:
 
 Evaluate one command string against the current rule set.
 Use this while authoring rules before relying on Claude Code hooks.
+For shell-sensitive examples, pass a single quoted command string so the shell
+does not pre-split nested arguments before cmdproxy reconstructs the invocation.
 
 Usage:
   cmdproxy check [--format json] <command>
 
 Examples:
   cmdproxy check 'git -C repo status'
+  cmdproxy check 'bash -c '"'"'echo hello world'"'"''
   cmdproxy check --format json 'AWS_PROFILE=read-only-profile aws s3 ls'
 `)
 	case "doctor":

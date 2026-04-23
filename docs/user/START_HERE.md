@@ -29,9 +29,13 @@ cmdproxy doctor --format json
 4. Spot-check individual commands
 
 ```sh
-cmdproxy check aws --profile read-only-profile s3 ls
-cmdproxy check bash -c 'git status'
+cmdproxy check 'aws --profile read-only-profile s3 ls'
+cmdproxy check 'bash -c '"'"'git status'"'"''
 ```
+
+For shell-sensitive spot checks, prefer a single quoted command string. This
+lets `cmdproxy check` reconstruct the intended invocation before applying the
+same rewrite and permission logic used by the Claude hook path.
 
 5. Register `cmdproxy hook claude --rtk` in Claude Code
 
