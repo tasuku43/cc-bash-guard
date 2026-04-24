@@ -310,7 +310,7 @@ test:
 	}
 }
 
-func TestHookCacheDirsPreferUserCacheBeforeTempFallback(t *testing.T) {
+func TestHookCacheDirsUseUserCacheOnly(t *testing.T) {
 	home := t.TempDir()
 	xdg := filepath.Join(t.TempDir(), "xdg-cache")
 
@@ -318,7 +318,6 @@ func TestHookCacheDirsPreferUserCacheBeforeTempFallback(t *testing.T) {
 	want := []string{
 		filepath.Join(xdg, "cc-bash-proxy"),
 		filepath.Join(home, ".cache", "cc-bash-proxy"),
-		filepath.Join(os.TempDir(), "cc-bash-proxy-"+shortHash(home), "cc-bash-proxy"),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("HookCacheDirs() = %#v, want %#v", got, want)
@@ -327,7 +326,6 @@ func TestHookCacheDirsPreferUserCacheBeforeTempFallback(t *testing.T) {
 	got = HookCacheDirs(home, "")
 	want = []string{
 		filepath.Join(home, ".cache", "cc-bash-proxy"),
-		filepath.Join(os.TempDir(), "cc-bash-proxy-"+shortHash(home), "cc-bash-proxy"),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("HookCacheDirs() without xdg = %#v, want %#v", got, want)

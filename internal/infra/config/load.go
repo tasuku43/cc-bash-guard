@@ -99,7 +99,6 @@ func HookCacheDirs(home string, xdgCacheHome string) []string {
 	}
 	add(xdgCacheHome)
 	add(filepath.Join(home, ".cache"))
-	add(filepath.Join(os.TempDir(), "cc-bash-proxy-"+shortHash(home)))
 	return dirs
 }
 
