@@ -344,6 +344,102 @@ test:
 	}
 }
 
+func TestRunHookClaudeStrictMergeDoesNotUpgradeAskToAllow(t *testing.T) {
+	payload := runClaudeHookTest(t, hookEnvSpec{
+		UserConfig: `claude_permission_merge_mode: strict
+permission:
+  ask:
+    - match:
+        command: git
+        subcommand: status
+      test:
+        ask:
+          - "git status"
+        pass:
+          - "git diff"
+test:
+  - in: "git status"
+    decision: ask
+`,
+		ClaudeSettings: `{
+  "permissions": {
+    "allow": ["Bash(git status)"]
+  }
+}`,
+		Command: "git status",
+	})
+	if _, ok := payload.HookSpecificOutput["permissionDecision"]; ok {
+		t.Fatalf("strict mode should keep ask, payload=%+v", payload)
+	}
+	if payload.Cmdproxy["outcome"] != "ask" {
+		t.Fatalf("outcome=%v payload=%+v", payload.Cmdproxy["outcome"], payload)
+	}
+}
+
+func TestRunHookClaudeAuthoritativeMergeIgnoresClaudeAsk(t *testing.T) {
+	payload := runClaudeHookTest(t, hookEnvSpec{
+		UserConfig: `claude_permission_merge_mode: cc_bash_proxy_authoritative
+permission:
+  allow:
+    - match:
+        command: git
+        subcommand: status
+      test:
+        allow:
+          - "git status"
+        pass:
+          - "git diff"
+test:
+  - in: "git status"
+    decision: allow
+`,
+		ClaudeSettings: `{
+  "permissions": {
+    "ask": ["Bash(git status)"]
+  }
+}`,
+		Command: "git status",
+	})
+	if payload.HookSpecificOutput["permissionDecision"] != "allow" {
+		t.Fatalf("authoritative mode should keep cc-bash-proxy allow, payload=%+v", payload)
+	}
+	if payload.Cmdproxy["outcome"] != "allow" {
+		t.Fatalf("outcome=%v payload=%+v", payload.Cmdproxy["outcome"], payload)
+	}
+}
+
+func TestRunHookClaudeAuthoritativeMergeStillHonorsClaudeDeny(t *testing.T) {
+	payload := runClaudeHookTest(t, hookEnvSpec{
+		UserConfig: `claude_permission_merge_mode: cc_bash_proxy_authoritative
+permission:
+  allow:
+    - match:
+        command: git
+        subcommand: status
+      test:
+        allow:
+          - "git status"
+        pass:
+          - "git diff"
+test:
+  - in: "git status"
+    decision: allow
+`,
+		ClaudeSettings: `{
+  "permissions": {
+    "deny": ["Bash(git status)"]
+  }
+}`,
+		Command: "git status",
+	})
+	if payload.HookSpecificOutput["permissionDecision"] != "deny" {
+		t.Fatalf("authoritative mode should still honor Claude deny, payload=%+v", payload)
+	}
+	if payload.Cmdproxy["outcome"] != "deny" {
+		t.Fatalf("outcome=%v payload=%+v", payload.Cmdproxy["outcome"], payload)
+	}
+}
+
 func TestRunHookClaudePermissionMergeMatrix(t *testing.T) {
 	tests := []struct {
 		name                string

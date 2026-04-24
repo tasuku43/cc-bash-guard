@@ -188,7 +188,7 @@ func testsPass(p policy.Pipeline, tool string, cwd string, home string) error {
 		if err != nil {
 			return err
 		}
-		decision = claude.ApplyPermissionBridge(tool, decision, cwd, home)
+		decision = claude.ApplyPermissionBridgeWithMode(tool, decision, cwd, home, p.ClaudePermissionMergeMode)
 		if decision.Outcome != ex.Decision {
 			return &exampleError{Scope: "test", Name: scopeName("e2e", i), Kind: "decision", Example: ex.In}
 		}

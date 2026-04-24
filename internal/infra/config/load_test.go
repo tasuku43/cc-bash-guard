@@ -129,6 +129,70 @@ test:
 	if len(loaded.Pipeline.Test) != 2 {
 		t.Fatalf("tests = %#v", loaded.Pipeline.Test)
 	}
+	if got := loaded.Pipeline.Permission.Allow[0].Source; got.Layer != LayerUser || got.Path != userPath {
+		t.Fatalf("allow source = %+v", got)
+	}
+	if got := loaded.Pipeline.Permission.Deny[0].Source; got.Layer != LayerProject || got.Path != localPath {
+		t.Fatalf("deny source = %+v", got)
+	}
+}
+
+func TestLoadEffectiveForToolProjectOverridesClaudeMergeMode(t *testing.T) {
+	home := t.TempDir()
+	project := t.TempDir()
+	if err := os.Mkdir(filepath.Join(project, ".git"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	userPath := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	if err := os.MkdirAll(filepath.Dir(userPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(userPath, []byte(`claude_permission_merge_mode: strict
+permission:
+  allow:
+    - match:
+        command: git
+        subcommand: status
+      test:
+        allow:
+          - "git status"
+        pass:
+          - "git diff"
+test:
+  - in: "git status"
+    decision: allow
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	localPath := filepath.Join(project, ".cc-bash-proxy", "cc-bash-proxy.yml")
+	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(localPath, []byte(`claude_permission_merge_mode: cc_bash_proxy_authoritative
+permission:
+  ask:
+    - match:
+        command: git
+        subcommand: push
+      test:
+        ask:
+          - "git push"
+        pass:
+          - "git status"
+test:
+  - in: "git push"
+    decision: ask
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded := LoadEffectiveForTool(project, home, "", "claude")
+	if len(loaded.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", loaded.Errors)
+	}
+	if loaded.Pipeline.ClaudePermissionMergeMode != "cc_bash_proxy_authoritative" {
+		t.Fatalf("mode=%q", loaded.Pipeline.ClaudePermissionMergeMode)
+	}
 }
 
 func TestLoadFileForEvalIfPresentSupportsStripCommandPath(t *testing.T) {

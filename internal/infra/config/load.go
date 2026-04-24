@@ -599,6 +599,9 @@ func shortHash(value string) string {
 }
 
 func mergePipelines(base policy.Pipeline, next policy.Pipeline) policy.Pipeline {
+	if strings.TrimSpace(next.ClaudePermissionMergeMode) != "" {
+		base.ClaudePermissionMergeMode = next.ClaudePermissionMergeMode
+	}
 	base.Rewrite = append(base.Rewrite, next.Rewrite...)
 	base.Permission.Deny = append(base.Permission.Deny, next.Permission.Deny...)
 	base.Permission.Ask = append(base.Permission.Ask, next.Permission.Ask...)
@@ -607,6 +610,7 @@ func mergePipelines(base policy.Pipeline, next policy.Pipeline) policy.Pipeline 
 	if base.Source == (policy.Source{}) {
 		base.Source = next.Source
 	}
+	base = policy.NewPipeline(base.PipelineSpec, base.Source)
 	return base
 }
 

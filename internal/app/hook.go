@@ -19,11 +19,11 @@ func RunHook(raw []byte, useRTK bool, env Env) HookResult {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_input", err.Error())}
 	}
 
-	decision, err := evaluateDecision(req, env)
+	decision, mergeMode, err := evaluateDecision(req, env)
 	if err != nil {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_config", err.Error())}
 	}
-	decision = claude.ApplyPermissionBridge(claude.Tool, decision, env.Cwd, env.Home)
+	decision = claude.ApplyPermissionBridgeWithMode(claude.Tool, decision, env.Cwd, env.Home, mergeMode)
 	if useRTK && decision.Outcome != "deny" {
 		decision = applyRTKRewrite(decision)
 	}
@@ -31,7 +31,7 @@ func RunHook(raw []byte, useRTK bool, env Env) HookResult {
 	return HookResult{Payload: hookPayload(decision, req.Command)}
 }
 
-func evaluateDecision(req hookinput.ExecRequest, env Env) (policy.Decision, error) {
+func evaluateDecision(req hookinput.ExecRequest, env Env) (policy.Decision, string, error) {
 	loaded := configrepo.LoadEffectiveForHookTool(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, claude.Tool)
 	if len(loaded.Errors) > 0 {
 		if shouldAttemptImplicitVerify(loaded.Errors) {
@@ -40,11 +40,12 @@ func evaluateDecision(req hookinput.ExecRequest, env Env) (policy.Decision, erro
 			}
 		}
 		if len(loaded.Errors) > 0 {
-			return policy.Decision{}, errors.New(strings.Join(policy.ErrorStrings(loaded.Errors), "; "))
+			return policy.Decision{}, "", errors.New(strings.Join(policy.ErrorStrings(loaded.Errors), "; "))
 		}
 	}
 
-	return policy.Evaluate(loaded.Pipeline, req.Command)
+	decision, err := policy.Evaluate(loaded.Pipeline, req.Command)
+	return decision, loaded.Pipeline.ClaudePermissionMergeMode, err
 }
 
 func shouldAttemptImplicitVerify(errs []error) bool {
