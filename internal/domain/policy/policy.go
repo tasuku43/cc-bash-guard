@@ -40,12 +40,13 @@ type PermissionSpec struct {
 }
 
 type PermissionRuleSpec struct {
-	Match    MatchSpec          `yaml:"match" json:"match,omitempty"`
-	Pattern  string             `yaml:"pattern" json:"pattern,omitempty"`
-	Patterns []string           `yaml:"patterns" json:"patterns,omitempty"`
-	Message  string             `yaml:"message" json:"message,omitempty"`
-	Test     PermissionTestSpec `yaml:"test" json:"test,omitempty"`
-	Source   Source             `yaml:"-" json:"source,omitempty"`
+	Match            MatchSpec          `yaml:"match" json:"match,omitempty"`
+	Pattern          string             `yaml:"pattern" json:"pattern,omitempty"`
+	Patterns         []string           `yaml:"patterns" json:"patterns,omitempty"`
+	AllowUnsafeShell bool               `yaml:"allow_unsafe_shell" json:"allow_unsafe_shell,omitempty"`
+	Message          string             `yaml:"message" json:"message,omitempty"`
+	Test             PermissionTestSpec `yaml:"test" json:"test,omitempty"`
+	Source           Source             `yaml:"-" json:"source,omitempty"`
 }
 
 type PermissionTestSpec struct {
@@ -314,7 +315,7 @@ func firstPreparedAllowPermissionMatch(rules []preparedPermissionRule, command s
 }
 
 func allowRuleCanMatch(rule PermissionRuleSpec, command string) bool {
-	if IsZeroMatchSpec(rule.Match) {
+	if rule.AllowUnsafeShell {
 		return true
 	}
 	return invocation.IsStructuredSafeForAllow(command)
@@ -357,6 +358,10 @@ func RewriteStepMatches(step RewriteStepSpec, command string) bool {
 
 func PermissionRuleMatches(rule PermissionRuleSpec, command string) bool {
 	return selectorMatches(command, rule.Match, rule.Pattern, rule.Patterns)
+}
+
+func PermissionAllowRuleMatches(rule PermissionRuleSpec, command string) bool {
+	return allowRuleCanMatch(rule, command) && PermissionRuleMatches(rule, command)
 }
 
 func selectorMatches(command string, match MatchSpec, pattern string, patterns []string) bool {
@@ -534,6 +539,9 @@ func ValidateRewriteStep(prefix string, step RewriteStepSpec) []string {
 func ValidatePermissionRule(prefix string, rule PermissionRuleSpec, effect string) []string {
 	var issues []string
 	issues = append(issues, ValidateSelector(prefix, rule.Match, rule.Pattern, rule.Patterns, true)...)
+	if rule.AllowUnsafeShell && strings.TrimSpace(rule.Message) == "" {
+		issues = append(issues, prefix+".message must be non-empty when allow_unsafe_shell is true")
+	}
 	issues = append(issues, ValidatePermissionTest(prefix+".test", rule.Test, effect)...)
 	return issues
 }

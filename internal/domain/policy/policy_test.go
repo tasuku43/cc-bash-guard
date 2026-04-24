@@ -212,7 +212,7 @@ func TestEvaluateStructuredAllowFailsClosedOnUnsafeShellExpressions(t *testing.T
 	}
 }
 
-func TestEvaluatePatternAllowCanStillOptInToUnsafeShellExpressions(t *testing.T) {
+func TestEvaluatePatternAllowFailsClosedOnUnsafeShellExpressions(t *testing.T) {
 	p := NewPipeline(PipelineSpec{
 		Permission: PermissionSpec{
 			Allow: []PermissionRuleSpec{{
@@ -225,8 +225,62 @@ func TestEvaluatePatternAllowCanStillOptInToUnsafeShellExpressions(t *testing.T)
 	if err != nil {
 		t.Fatalf("Evaluate() error = %v", err)
 	}
+	if got.Outcome != "ask" {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestEvaluatePatternAllowCanOptInToUnsafeShellExpressions(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Allow: []PermissionRuleSpec{{
+				Pattern:          `^\s*git\s+status\s*\|\s*sh$`,
+				AllowUnsafeShell: true,
+				Message:          "allow trusted pipeline",
+			}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "git status | sh")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
 	if got.Outcome != "allow" {
 		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestEvaluatePatternsAllowCanOptInToUnsafeShellExpressions(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Allow: []PermissionRuleSpec{{
+				Patterns: []string{
+					`^\s*git\s+status\s*\|\s*sh$`,
+					`^\s*git\s+diff\s*\|\s*sh$`,
+				},
+				AllowUnsafeShell: true,
+				Message:          "allow trusted pipelines",
+			}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "git status | sh")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "allow" {
+		t.Fatalf("got %+v", got)
+	}
+}
+
+func TestValidatePermissionRuleRequiresMessageForUnsafeAllow(t *testing.T) {
+	issues := ValidatePermissionRule("permission.allow[0]", PermissionRuleSpec{
+		Pattern:          `^\s*git\s+status\s*\|\s*sh$`,
+		AllowUnsafeShell: true,
+		Test:             PermissionTestSpec{Allow: []string{"git status | sh"}, Pass: []string{"git status"}},
+	}, "allow")
+	if len(issues) == 0 {
+		t.Fatal("expected validation issues")
 	}
 }
 

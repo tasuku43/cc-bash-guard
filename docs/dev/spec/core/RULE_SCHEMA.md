@@ -156,6 +156,8 @@ Each permission rule may contain:
 
 - required selector: exactly one of `match`, `pattern`, or `patterns`
 - optional `message`
+- optional `allow_unsafe_shell` for `allow` rules that intentionally allow
+  unsafe shell expressions; when true, `message` is required
 - required `test`
 
 ### Permission rule example
@@ -188,6 +190,12 @@ deny:
       pass:
         - "git diff HEAD~1"
 ```
+
+For `permission.allow`, `pattern` and `patterns` still fail closed to `ask`
+when the command is an unsafe shell expression such as a pipeline, compound
+list, redirect, or unsafe `bash -c` payload. Set `allow_unsafe_shell: true`
+only for intentionally trusted shell shapes, and include a `message` explaining
+that trust boundary.
 
 ### Permission `test`
 

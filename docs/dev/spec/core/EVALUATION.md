@@ -41,8 +41,9 @@ invocation model that may include:
 Structured `allow` rules only auto-allow commands that are classified as safe
 single-command expressions. Compound shell expressions such as `&&`, `;`, `|`,
 redirects, process substitution, or unsafe `bash -c` payloads fail closed to
-`ask` unless a pattern-based rule explicitly opts into matching that shell
-shape.
+`ask`. Pattern-based `allow` rules follow the same gate by default and may
+only allow those shell shapes when the rule explicitly sets
+`allow_unsafe_shell: true`.
 
 ## 4. Configuration Source
 

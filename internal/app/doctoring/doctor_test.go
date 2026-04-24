@@ -94,6 +94,29 @@ func TestRunPassesOnStrictClaudeMergeMode(t *testing.T) {
 	}
 }
 
+func TestRunWarnsOnExplicitUnsafeAllow(t *testing.T) {
+	loaded := configrepo.Loaded{
+		Pipeline: policy.NewPipeline(policy.PipelineSpec{
+			Permission: policy.PermissionSpec{
+				Allow: []policy.PermissionRuleSpec{{
+					Pattern:          `^\s*git\s+status\s*\|\s*sh$`,
+					AllowUnsafeShell: true,
+					Message:          "allow trusted pipeline",
+					Test: policy.PermissionTestSpec{
+						Allow: []string{"git status | sh"},
+						Pass:  []string{"git status"},
+					},
+				}},
+			},
+			Test: policy.PipelineTestSpec{{In: "git status | sh", Decision: "allow"}},
+		}, policy.Source{}),
+	}
+	report := Run(loaded, "claude", t.TempDir(), t.TempDir())
+	if !hasCheck(report, "permission.unsafe-shell-allow", StatusWarn) {
+		t.Fatalf("checks = %+v", report.Checks)
+	}
+}
+
 func hasCheck(report Report, id string, status Status) bool {
 	for _, check := range report.Checks {
 		if check.ID == id && check.Status == status {

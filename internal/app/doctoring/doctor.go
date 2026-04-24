@@ -85,6 +85,12 @@ func Run(loaded configrepo.Loaded, tool string, cwd string, home string) Report 
 		checks = append(checks, Check{ID: "rewrite.pattern-broadness", Category: "diagnostics", Status: StatusPass, Message: "rewrite matches are not obviously broad"})
 	}
 
+	if ids := unsafeAllowNames(loaded.Pipeline); len(ids) > 0 {
+		checks = append(checks, Check{ID: "permission.unsafe-shell-allow", Category: "permission", Status: StatusWarn, Message: "explicit unsafe shell allow enabled: " + strings.Join(ids, ", ")})
+	} else {
+		checks = append(checks, Check{ID: "permission.unsafe-shell-allow", Category: "permission", Status: StatusPass, Message: "no explicit unsafe shell allow rules"})
+	}
+
 	mergeMode := claudePermissionMergeMode(loaded.Pipeline)
 	if tool == claude.Tool && mergeMode == claude.MergeModeMigrationCompat {
 		checks = append(checks, Check{ID: "permission.claude-merge-mode", Category: "permission", Status: StatusWarn, Message: "Claude permission merge mode is migration_compat; use strict for security-first behavior"})
@@ -180,12 +186,12 @@ func testsPass(p policy.Pipeline, tool string, cwd string, home string) error {
 				expect = rule.Test.Allow
 			}
 			for _, ex := range expect {
-				if !policy.PermissionRuleMatches(rule, ex) {
+				if !permissionRuleMatchesEffect(rule, ex, effect) {
 					return &exampleError{Scope: scope, Name: scopeName(scope, i), Kind: "expect", Example: ex}
 				}
 			}
 			for _, ex := range rule.Test.Pass {
-				if policy.PermissionRuleMatches(rule, ex) {
+				if permissionRuleMatchesEffect(rule, ex, effect) {
 					return &exampleError{Scope: scope, Name: scopeName(scope, i), Kind: "pass", Example: ex}
 				}
 			}
@@ -232,6 +238,23 @@ func broadnessWarning(p policy.Pipeline) string {
 		}
 	}
 	return ""
+}
+
+func unsafeAllowNames(p policy.Pipeline) []string {
+	var ids []string
+	for i, rule := range p.Permission.Allow {
+		if rule.AllowUnsafeShell {
+			ids = append(ids, scopeName("permission.allow", i))
+		}
+	}
+	return ids
+}
+
+func permissionRuleMatchesEffect(rule policy.PermissionRuleSpec, command string, effect string) bool {
+	if effect == "allow" {
+		return policy.PermissionAllowRuleMatches(rule, command)
+	}
+	return policy.PermissionRuleMatches(rule, command)
 }
 
 func relaxedRewriteNames(p policy.Pipeline) []string {
