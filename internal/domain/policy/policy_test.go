@@ -368,6 +368,84 @@ func TestEvaluateCompoundGitCommandsFailClosedAcrossAllowCoverage(t *testing.T) 
 	}
 }
 
+func TestEvaluateCompositionAllowForAndListWhenExplicitlyEnabled(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Allow: []PermissionRuleSpec{
+				{Match: MatchSpec{Command: "git", Subcommand: "status"}},
+				{Match: MatchSpec{Command: "git", Subcommand: "diff"}},
+			},
+			Composition: CompositionPermissionSpec{Allow: []string{"and_list"}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "git status && git diff")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "allow" {
+		t.Fatalf("Outcome = %q, want allow; decision=%+v", got.Outcome, got)
+	}
+}
+
+func TestEvaluateCompositionAllowRequiresEveryCommandAllowed(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Allow: []PermissionRuleSpec{
+				{Match: MatchSpec{Command: "git", Subcommand: "status"}},
+			},
+			Composition: CompositionPermissionSpec{Allow: []string{"and_list"}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "git status && git diff")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "ask" {
+		t.Fatalf("Outcome = %q, want ask; decision=%+v", got.Outcome, got)
+	}
+}
+
+func TestEvaluateCompositionAllowForSequenceWhenExplicitlyEnabled(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Allow: []PermissionRuleSpec{
+				{Match: MatchSpec{Command: "git", Subcommand: "status"}},
+				{Match: MatchSpec{Command: "git", Subcommand: "diff"}},
+			},
+			Composition: CompositionPermissionSpec{Allow: []string{"sequence"}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "git status; git diff")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "allow" {
+		t.Fatalf("Outcome = %q, want allow; decision=%+v", got.Outcome, got)
+	}
+}
+
+func TestEvaluatePipelineCompositionAsksByDefaultEvenWhenCommandsAllowed(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Allow: []PermissionRuleSpec{
+				{Match: MatchSpec{Command: "git", Subcommand: "status"}},
+				{Match: MatchSpec{Command: "sh"}},
+			},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "git status | sh")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "ask" {
+		t.Fatalf("Outcome = %q, want ask; decision=%+v", got.Outcome, got)
+	}
+}
+
 func TestMatchSpecGitSubcommandDoesNotTreatDoubleDashBeforeStatusAsStatus(t *testing.T) {
 	match := MatchSpec{Command: "git", Subcommand: "status"}
 	if match.MatchMatches("git -C repo -- status") {
