@@ -374,6 +374,13 @@ func loadVerifiedEffectivePipeline(inputs EffectiveInputs, cacheDirs []string) (
 }
 
 func decodeFile(src Source, data string) (File, error) {
+	var root yaml.Node
+	if err := yaml.Unmarshal([]byte(data), &root); err != nil {
+		return File{}, fmt.Errorf("%s config %s is invalid: %w", src.Layer, src.Path, err)
+	}
+	if yamlMappingHasKey(root, "claude_permission_merge_mode") {
+		return File{}, fmt.Errorf("%s config %s is invalid: claude_permission_merge_mode is no longer supported; permission sources are merged using deny > ask > allow > abstain.", src.Layer, src.Path)
+	}
 	dec := yaml.NewDecoder(strings.NewReader(data))
 	dec.KnownFields(true)
 	var file File
@@ -381,6 +388,22 @@ func decodeFile(src Source, data string) (File, error) {
 		return File{}, fmt.Errorf("%s config %s is invalid: %w", src.Layer, src.Path, err)
 	}
 	return file, nil
+}
+
+func yamlMappingHasKey(root yaml.Node, key string) bool {
+	node := &root
+	if node.Kind == yaml.DocumentNode && len(node.Content) > 0 {
+		node = node.Content[0]
+	}
+	if node.Kind != yaml.MappingNode {
+		return false
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return true
+		}
+	}
+	return false
 }
 
 func validateFile(file File) []string {
@@ -631,9 +654,6 @@ func shortHash(value string) string {
 }
 
 func mergePipelines(base policy.Pipeline, next policy.Pipeline) policy.Pipeline {
-	if strings.TrimSpace(next.ClaudePermissionMergeMode) != "" {
-		base.ClaudePermissionMergeMode = next.ClaudePermissionMergeMode
-	}
 	base.Rewrite = append(base.Rewrite, next.Rewrite...)
 	base.Permission.Deny = append(base.Permission.Deny, next.Permission.Deny...)
 	base.Permission.Ask = append(base.Permission.Ask, next.Permission.Ask...)

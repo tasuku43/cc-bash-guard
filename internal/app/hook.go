@@ -19,11 +19,11 @@ func RunHook(raw []byte, useRTK bool, autoVerify bool, env Env) HookResult {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_input", err.Error())}
 	}
 
-	decision, mergeMode, err := evaluateDecision(req, env, autoVerify)
+	decision, err := evaluateDecision(req, env, autoVerify)
 	if err != nil {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_config", err.Error())}
 	}
-	decision = claude.ApplyPermissionBridgeWithMode(claude.Tool, decision, env.Cwd, env.Home, mergeMode)
+	decision = claude.ApplyPermissionBridge(claude.Tool, decision, env.Cwd, env.Home)
 	if useRTK && decision.Outcome != "deny" {
 		decision = applyRTKRewrite(decision)
 	}
@@ -31,24 +31,24 @@ func RunHook(raw []byte, useRTK bool, autoVerify bool, env Env) HookResult {
 	return HookResult{Payload: hookPayload(decision, req.Command)}
 }
 
-func evaluateDecision(req hookinput.ExecRequest, env Env, autoVerify bool) (policy.Decision, string, error) {
+func evaluateDecision(req hookinput.ExecRequest, env Env, autoVerify bool) (policy.Decision, error) {
 	loaded := configrepo.LoadEffectiveForHookTool(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, claude.Tool)
 	if len(loaded.Errors) > 0 {
 		if shouldAttemptImplicitVerify(loaded.Errors) {
 			if !autoVerify {
-				return policy.Decision{}, "", errors.New("verified artifact missing or stale; run cc-bash-guard verify")
+				return policy.Decision{}, errors.New("verified artifact missing or stale; run cc-bash-guard verify")
 			}
 			if err := ensureVerifiedArtifacts(env, claude.Tool); err == nil {
 				loaded = configrepo.LoadEffectiveForHookTool(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, claude.Tool)
 			}
 		}
 		if len(loaded.Errors) > 0 {
-			return policy.Decision{}, "", errors.New(strings.Join(policy.ErrorStrings(loaded.Errors), "; "))
+			return policy.Decision{}, errors.New(strings.Join(policy.ErrorStrings(loaded.Errors), "; "))
 		}
 	}
 
 	decision, err := policy.Evaluate(loaded.Pipeline, req.Command)
-	return decision, loaded.Pipeline.ClaudePermissionMergeMode, err
+	return decision, err
 }
 
 func shouldAttemptImplicitVerify(errs []error) bool {

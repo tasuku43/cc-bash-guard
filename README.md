@@ -70,8 +70,14 @@ Permission evaluation is deterministic:
 2. evaluate `deny`
 3. evaluate `ask`
 4. evaluate `allow`
-5. return `ask` for unsafe or ambiguous command shapes that are not explicitly
-   denied
+5. return `abstain` when no permission rule matches
+6. merge permission sources with `deny > ask > allow > abstain`
+
+Claude settings.json permissions and cc-bash-guard policy are both permission
+sources. `abstain` means no matching rule. `deny` always wins, and an explicit
+`ask` is not overridden by `allow` from another source. The final fallback is
+`ask` only when all sources abstain. No configuration is required to choose
+merge behavior.
 
 Each rule uses `command`, `env`, or `patterns`. `command` and `patterns` cannot
 be combined in one rule. `env` can be combined with either.

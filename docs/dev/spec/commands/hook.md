@@ -16,8 +16,12 @@ Runtime flow:
 2. load the verified effective policy artifact
 3. parse the original command string into a `CommandPlan`
 4. evaluate `cc-bash-guard` permission policy
-5. merge with Claude settings according to `claude_permission_merge_mode`
+5. merge `cc-bash-guard` policy with Claude settings as permission sources
+   using `deny > ask > allow > abstain`
 6. emit `allow`, `ask`, `deny`, or error output
+
+`abstain` means a source had no matching rule. The final fallback is `ask` only
+when all sources abstain.
 
 `cc-bash-guard` does not emit `updatedInput.command` for policy evaluation,
 because it does not rewrite commands. Parser-backed normalization is

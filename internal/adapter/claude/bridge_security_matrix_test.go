@@ -7,154 +7,103 @@ import (
 	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
 )
 
-func TestSecurityRegressionMatrixClaudeMergeModes(t *testing.T) {
+func TestSecurityRegressionMatrixPermissionSourceMerge(t *testing.T) {
 	tests := []struct {
-		name          string
-		mode          string
-		baseOutcome   string
-		claudeAllow   []string
-		claudeAsk     []string
-		claudeDeny    []string
-		want          string
-		wantModeTrace string
-		wantSettings  string
+		name         string
+		baseOutcome  string
+		claudeAllow  []string
+		claudeAsk    []string
+		claudeDeny   []string
+		want         string
+		wantExplicit bool
+		wantReason   string
+		wantMerge    string
 	}{
 		{
-			name:          "strict keeps deny over settings allow",
-			mode:          MergeModeStrict,
-			baseOutcome:   "deny",
-			claudeAllow:   []string{"git status"},
-			want:          "deny",
-			wantModeTrace: MergeModeStrict,
-			wantSettings:  "allow",
+			name:         "cc deny plus Claude allow denies",
+			baseOutcome:  "deny",
+			claudeAllow:  []string{"git status"},
+			want:         "deny",
+			wantExplicit: true,
+			wantMerge:    "source denied",
 		},
 		{
-			name:          "strict does not upgrade ask to settings allow",
-			mode:          MergeModeStrict,
-			baseOutcome:   "ask",
-			claudeAllow:   []string{"git status"},
-			want:          "ask",
-			wantModeTrace: MergeModeStrict,
-			wantSettings:  "allow",
+			name:         "cc ask plus Claude allow asks",
+			baseOutcome:  "ask",
+			claudeAllow:  []string{"git status"},
+			want:         "ask",
+			wantExplicit: true,
+			wantMerge:    "source asked",
 		},
 		{
-			name:          "strict applies settings ask over allow",
-			mode:          MergeModeStrict,
-			baseOutcome:   "allow",
-			claudeAsk:     []string{"git status"},
-			want:          "ask",
-			wantModeTrace: MergeModeStrict,
-			wantSettings:  "ask",
+			name:         "cc allow plus Claude ask asks",
+			baseOutcome:  "allow",
+			claudeAsk:    []string{"git status"},
+			want:         "ask",
+			wantExplicit: true,
+			wantReason:   "claude_settings",
+			wantMerge:    "source asked",
 		},
 		{
-			name:          "strict applies settings allow when cc-bash-guard abstains",
-			mode:          MergeModeStrict,
-			baseOutcome:   "abstain",
-			claudeAllow:   []string{"git status"},
-			want:          "allow",
-			wantModeTrace: MergeModeStrict,
-			wantSettings:  "allow",
+			name:         "cc abstain plus Claude allow allows",
+			baseOutcome:  "abstain",
+			claudeAllow:  []string{"git status"},
+			want:         "allow",
+			wantExplicit: true,
+			wantReason:   "claude_settings",
+			wantMerge:    "source allowed",
 		},
 		{
-			name:          "strict applies settings ask when cc-bash-guard abstains",
-			mode:          MergeModeStrict,
-			baseOutcome:   "abstain",
-			claudeAsk:     []string{"git status"},
-			want:          "ask",
-			wantModeTrace: MergeModeStrict,
-			wantSettings:  "ask",
+			name:         "cc abstain plus Claude ask asks",
+			baseOutcome:  "abstain",
+			claudeAsk:    []string{"git status"},
+			want:         "ask",
+			wantExplicit: true,
+			wantReason:   "claude_settings",
+			wantMerge:    "source asked",
 		},
 		{
-			name:          "strict applies settings deny when cc-bash-guard abstains",
-			mode:          MergeModeStrict,
-			baseOutcome:   "abstain",
-			claudeDeny:    []string{"git status"},
-			want:          "deny",
-			wantModeTrace: MergeModeStrict,
-			wantSettings:  "deny",
+			name:         "cc abstain plus Claude deny denies",
+			baseOutcome:  "abstain",
+			claudeDeny:   []string{"git status"},
+			want:         "deny",
+			wantExplicit: true,
+			wantReason:   "claude_settings",
+			wantMerge:    "source denied",
 		},
 		{
-			name:          "migration compat upgrades ask to settings allow",
-			mode:          MergeModeMigrationCompat,
-			baseOutcome:   "ask",
-			claudeAllow:   []string{"git status"},
-			want:          "allow",
-			wantModeTrace: MergeModeMigrationCompat,
-			wantSettings:  "allow",
-		},
-		{
-			name:          "migration compat still keeps deny",
-			mode:          MergeModeMigrationCompat,
-			baseOutcome:   "deny",
-			claudeAllow:   []string{"git status"},
-			want:          "deny",
-			wantModeTrace: MergeModeMigrationCompat,
-			wantSettings:  "",
-		},
-		{
-			name:          "authoritative ignores settings ask",
-			mode:          MergeModeCCBashProxyAuthoritative,
-			baseOutcome:   "allow",
-			claudeAsk:     []string{"git status"},
-			want:          "allow",
-			wantModeTrace: MergeModeCCBashProxyAuthoritative,
-			wantSettings:  "ask",
-		},
-		{
-			name:          "authoritative ignores settings allow",
-			mode:          MergeModeCCBashProxyAuthoritative,
-			baseOutcome:   "ask",
-			claudeAllow:   []string{"git status"},
-			want:          "ask",
-			wantModeTrace: MergeModeCCBashProxyAuthoritative,
-			wantSettings:  "allow",
-		},
-		{
-			name:          "authoritative still honors settings deny",
-			mode:          MergeModeCCBashProxyAuthoritative,
-			baseOutcome:   "allow",
-			claudeDeny:    []string{"git status"},
-			want:          "deny",
-			wantModeTrace: MergeModeCCBashProxyAuthoritative,
-			wantSettings:  "deny",
-		},
-		{
-			name:          "unknown mode normalizes to strict",
-			mode:          "unknown",
-			baseOutcome:   "ask",
-			claudeAllow:   []string{"git status"},
-			want:          "ask",
-			wantModeTrace: MergeModeStrict,
-			wantSettings:  "allow",
-		},
-		{
-			name:          "both abstain ask by default",
-			mode:          MergeModeStrict,
-			baseOutcome:   "abstain",
-			want:          "ask",
-			wantModeTrace: MergeModeStrict,
-			wantSettings:  "abstain",
+			name:         "both abstain fallback asks",
+			baseOutcome:  "abstain",
+			want:         "ask",
+			wantExplicit: false,
+			wantReason:   "default_fallback",
+			wantMerge:    "all sources abstained; fallback ask",
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run("merge_mode/"+tt.name, func(t *testing.T) {
+		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
 			cwd := t.TempDir()
 			writeSettings(t, filepath.Join(home, ".claude", "settings.json"), claudeSettingsJSON(tt.claudeDeny, tt.claudeAsk, tt.claudeAllow))
 
-			decision := ApplyPermissionBridgeWithMode(Tool, policy.Decision{
-				Outcome: tt.baseOutcome,
-				Command: "git status",
-			}, cwd, home, tt.mode)
+			decision := ApplyPermissionBridge(Tool, policy.Decision{
+				Outcome:  tt.baseOutcome,
+				Explicit: tt.baseOutcome != "abstain",
+				Reason:   "rule_match",
+				Command:  "git status",
+			}, cwd, home)
 			if decision.Outcome != tt.want {
 				t.Fatalf("Outcome = %q, want %q; decision=%+v", decision.Outcome, tt.want, decision)
 			}
-			if !bridgeTraceContains(decision.Trace, "claude_permission_merge_mode", tt.wantModeTrace) {
-				t.Fatalf("trace missing merge mode %q; trace=%+v", tt.wantModeTrace, decision.Trace)
+			if decision.Explicit != tt.wantExplicit {
+				t.Fatalf("Explicit = %v, want %v; decision=%+v", decision.Explicit, tt.wantExplicit, decision)
 			}
-			if tt.wantSettings != "" && !bridgeTraceContains(decision.Trace, "claude_settings", tt.wantSettings) {
-				t.Fatalf("trace missing claude_settings %q; trace=%+v", tt.wantSettings, decision.Trace)
+			if tt.wantReason != "" && decision.Reason != tt.wantReason {
+				t.Fatalf("Reason = %q, want %q; decision=%+v", decision.Reason, tt.wantReason, decision)
+			}
+			if !bridgeTraceContainsReason(decision.Trace, "permission_sources_merge", tt.wantMerge) {
+				t.Fatalf("trace missing merge reason %q; trace=%+v", tt.wantMerge, decision.Trace)
 			}
 			if tt.baseOutcome == "deny" && decision.Outcome == "allow" {
 				t.Fatalf("deny widened to allow; decision=%+v", decision)
@@ -181,9 +130,9 @@ func bashPatternsJSON(patterns []string) string {
 	return out + `]`
 }
 
-func bridgeTraceContains(trace []policy.TraceStep, name string, effect string) bool {
+func bridgeTraceContainsReason(trace []policy.TraceStep, name string, reason string) bool {
 	for _, step := range trace {
-		if step.Name == name && step.Effect == effect {
+		if step.Name == name && step.Reason == reason {
 			return true
 		}
 	}

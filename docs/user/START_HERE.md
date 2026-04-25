@@ -45,13 +45,16 @@ multiple Bash hooks. Permission evaluation happens before `rtk` is invoked.
 
 ## Current Config Model
 
-- top-level keys are `permission`, `test`, and optional
-  `claude_permission_merge_mode`
+- top-level keys are `permission` and `test`
 - top-level `rewrite` is not supported
 - permission rules use only `command`, `env`, and `patterns`
 - singular `pattern` and permission `match` are not supported
 - permission buckets are evaluated in the order `deny -> ask -> allow`
 - top-level `test` is for end-to-end behavior
+
+Claude settings.json permissions and cc-bash-guard policy are merged as
+permission sources using `deny > ask > allow > abstain`. `abstain` means no
+matching rule, and the final fallback is `ask` only when all sources abstain.
 
 Parser-backed normalization is evaluation-only:
 

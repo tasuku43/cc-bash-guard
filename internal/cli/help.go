@@ -169,7 +169,6 @@ Config files live at:
   - ./.cc-bash-guard/cc-bash-guard.yaml (project-local, optional)
 
 Top-level sections are:
-  - claude_permission_merge_mode: strict / migration_compat / cc_bash_guard_authoritative
   - permission: deny / ask / allow buckets
   - test: end-to-end expect cases
 
@@ -178,25 +177,15 @@ command string it evaluates or returns to Claude. Parser-backed normalization is
 evaluation-only: shell -c wrappers are inspected as inner commands, absolute
 paths match by basename, and AWS profile flags are parsed semantically.
 
-Permission merge mode:
-  claude_permission_merge_mode controls how Claude settings.json permissions and
-  cc-bash-guard rules combine.
-
-  strict:
-    Recommended for security-first setups. cc-bash-guard is fail-closed and
-    settings.json allow entries do not silently broaden cc-bash-guard policy.
-
-  migration_compat:
-    Use while migrating existing Claude permissions. Existing settings can still
-    contribute compatibility decisions, but cc-bash-guard deny/ask remains the
-    safer override.
-
-  cc_bash_guard_authoritative:
-    Use when cc-bash-guard should be the authoritative policy surface.
+Permission source merge rule:
+  cc-bash-guard policy and Claude settings.json permissions are both permission
+  sources. Each source returns deny, ask, allow, or abstain. Abstain means no
+  matching rule. No configuration is required to choose merge behavior.
 
 Decision order:
-  deny wins over ask, ask wins over allow, and abstain means no local rule
-  matched. When no permission rule matches, the fallback decision is ask.
+  deny > ask > allow > abstain. Deny always wins. An explicit ask is not
+  overridden by allow from another source. The final fallback is ask only when
+  all sources abstain.
 
 Permission rule example:
   permission:

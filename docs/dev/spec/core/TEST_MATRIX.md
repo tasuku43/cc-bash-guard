@@ -18,7 +18,7 @@ The matrix lives in table-driven Go tests and covers:
 - shell features that fail closed
 - parser-specific and generic parser behavior
 - raw and structured permission rules
-- Claude permission merge modes
+- permission source merging with Claude settings
 - rewrite and permission interaction
 
 ## 2. Required Assertions
@@ -36,8 +36,8 @@ Trace assertions must include the security-relevant event, such as:
 - `composition`
 - `composition.command`
 - rewrite primitive names
-- `claude_permission_merge_mode`
 - `claude_settings`
+- `permission_sources_merge`
 
 ## 3. Invariants
 
@@ -47,8 +47,7 @@ The matrix must preserve these invariants:
 - unsafe shell shapes must not become automatic `allow`
 - `patterns` allow must not bypass fail-closed shell safety
 - parser removal or generic fallback must not widen a semantic rule to `allow`
-- Claude `migration_compat`, `strict`, and `cc_bash_guard_authoritative` must
-  have explicit, tested differences
+- permission sources must merge as `deny > ask > allow > abstain`
 - rewrite steps must not hide the final shell shape used for permission
   evaluation
 
@@ -97,19 +96,20 @@ available, evaluation must ask instead of falling through to a broader allow.
 `patterns` deny and ask keep their priority. `patterns` allow must remain
 narrow and must not authorize unsafe shell syntax.
 
-### Merge Mode
+### Permission Source Merge
 
-- `strict`
-- `migration_compat`
-- `cc_bash_guard_authoritative`
+- `cc-bash-guard` abstain + Claude allow => allow
+- `cc-bash-guard` ask + Claude allow => ask
+- `cc-bash-guard` allow + Claude ask => ask
+- `cc-bash-guard` allow + Claude deny => deny
+- `cc-bash-guard` abstain + Claude deny => deny
+- both sources abstain => final fallback ask
 
-The merge mode matrix must show where the modes differ. In particular, only
-`migration_compat` may upgrade a `cc-bash-guard` `ask` to `allow` from Claude
-settings, and no mode may upgrade an existing `deny` to `allow`. The matrix
-must also cover `cc-bash-guard` `abstain`: in `strict`, Claude `allow`, `ask`,
-and `deny` are honored when `cc-bash-guard` abstains, while both sides
-abstaining falls back to final `ask`. E2E hook tests must assert trace
-distinguishes `no_match` from final fallback `default` ask.
+The merge matrix must assert that `deny` always wins, explicit `ask` is not
+overridden by another source's `allow`, and no-match remains `abstain` until
+the final source merge. E2E hook tests must assert trace distinguishes explicit
+ask from fallback ask with the final merge reason
+`all sources abstained; fallback ask`.
 
 ### Evaluation Normalization
 

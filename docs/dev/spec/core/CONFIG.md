@@ -33,13 +33,20 @@ Merge order is deterministic:
 - rewrite rules append in source order
 - permission rules append within each bucket in source order
 - top-level E2E tests append in source order
-- scalar options, such as `claude_permission_merge_mode`, use the last
-  non-empty value, so project-local config can override user-wide config
 
-`claude_permission_merge_mode` accepts `strict`, `migration_compat`, and
-`cc_bash_guard_authoritative`. `cc-bash-guard help config` must describe these
-values, the `deny / ask / allow / abstain` merge relationship, the no-match
-fallback to `ask`, and why `strict` is recommended for security-first setups.
+`claude_permission_merge_mode` is no longer supported. If present, verification
+fails. No configuration is required to choose permission merge behavior.
+
+`cc-bash-guard` policy and Claude settings.json permissions are permission
+sources. Each source returns `deny`, `ask`, `allow`, or `abstain`. `abstain`
+means no matching rule. Sources are merged with one rule:
+
+```text
+deny > ask > allow > abstain
+```
+
+An explicit `ask` is not overridden by `allow` from another source. `deny`
+always wins. The final fallback is `ask` only when all sources abstain.
 
 Project root resolution is currently delegated to the Claude-aware runtime paths
 used by `cc-bash-guard hook` and `cc-bash-guard verify`.

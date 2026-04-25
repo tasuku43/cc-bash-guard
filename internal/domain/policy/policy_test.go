@@ -384,22 +384,6 @@ func TestValidatePipelineRequiresE2ETest(t *testing.T) {
 	}
 }
 
-func TestValidatePipelineRejectsUnknownClaudePermissionMergeMode(t *testing.T) {
-	issues := ValidatePipeline(PipelineSpec{
-		ClaudePermissionMergeMode: "loose",
-		Permission: PermissionSpec{
-			Allow: []PermissionRuleSpec{{
-				Command: PermissionCommandSpec{Name: "git", Semantic: &SemanticMatchSpec{Verb: "status"}},
-				Test:    PermissionTestSpec{Allow: []string{"git status"}, Pass: []string{"git diff"}},
-			}},
-		},
-		Test: PipelineTestSpec{{In: "git status", Decision: "allow"}},
-	})
-	if len(issues) == 0 {
-		t.Fatal("expected validation issues")
-	}
-}
-
 func TestPermissionRuleMatchesPatterns(t *testing.T) {
 	rule := PermissionRuleSpec{
 		Patterns: []string{

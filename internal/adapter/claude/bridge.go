@@ -8,12 +8,6 @@ import (
 
 const Tool = "claude"
 
-const (
-	MergeModeMigrationCompat          = "migration_compat"
-	MergeModeStrict                   = "strict"
-	MergeModeCCBashProxyAuthoritative = "cc_bash_guard_authoritative"
-)
-
 func Supported(tool string) bool {
 	switch strings.TrimSpace(tool) {
 	case Tool:
@@ -24,216 +18,136 @@ func Supported(tool string) bool {
 }
 
 func ApplyPermissionBridge(tool string, decision policy.Decision, cwd string, home string) policy.Decision {
-	return ApplyPermissionBridgeWithMode(tool, decision, cwd, home, "")
-}
-
-func ApplyPermissionBridgeWithMode(tool string, decision policy.Decision, cwd string, home string, mode string) policy.Decision {
 	switch strings.TrimSpace(tool) {
 	case Tool:
-		return applyPermissionBridge(decision, cwd, home, mode)
+		return applyPermissionBridge(decision, cwd, home)
 	default:
 		return decision
 	}
 }
 
-func applyPermissionBridge(decision policy.Decision, cwd string, home string, mode string) policy.Decision {
+func applyPermissionBridge(decision policy.Decision, cwd string, home string) policy.Decision {
 	verdict := CheckCommand(decision.Command, cwd, home)
-	mergeMode := normalizeMergeMode(mode)
+	claudeOutcome := permissionVerdictOutcome(verdict)
+	decision.Trace = append(decision.Trace, ccBashGuardPolicyTrace(decision))
 	decision.Trace = append(decision.Trace, policy.TraceStep{
 		Action:  "permission",
-		Name:    "claude_permission_merge_mode",
-		Effect:  mergeMode,
-		Message: "Claude permission merge mode: " + mergeMode,
+		Name:    "claude_settings",
+		Effect:  claudeOutcome,
+		Message: claudeSettingsTraceMessage(claudeOutcome),
 	})
-	switch mergeMode {
-	case MergeModeStrict:
-		return applyStrictPermissionBridge(decision, verdict)
-	case MergeModeCCBashProxyAuthoritative:
-		return applyAuthoritativePermissionBridge(decision, verdict)
-	case MergeModeMigrationCompat:
-		return applyMigrationCompatPermissionBridge(decision, verdict)
-	default:
-		return applyStrictPermissionBridge(decision, verdict)
-	}
+	return mergePermissionSources(decision, claudeOutcome)
 }
 
-func normalizeMergeMode(mode string) string {
-	switch strings.TrimSpace(mode) {
-	case MergeModeMigrationCompat:
-		return MergeModeMigrationCompat
-	case MergeModeStrict:
-		return MergeModeStrict
-	case MergeModeCCBashProxyAuthoritative:
-		return MergeModeCCBashProxyAuthoritative
-	default:
-		return MergeModeStrict
+func ccBashGuardPolicyTrace(decision policy.Decision) policy.TraceStep {
+	outcome := strings.TrimSpace(decision.Outcome)
+	if outcome == "" {
+		outcome = "abstain"
 	}
+	reason := "explicit"
+	if outcome == "abstain" {
+		reason = "abstain"
+	}
+	step := policy.TraceStep{
+		Action: "permission",
+		Name:   "cc_bash_guard_policy",
+		Effect: outcome,
+		Reason: reason,
+	}
+	if matched := matchedPolicyTraceName(decision.Trace); matched != "" {
+		step.Message = "matched rule: " + matched
+	}
+	return step
 }
 
-func applyMigrationCompatPermissionBridge(decision policy.Decision, verdict PermissionVerdict) policy.Decision {
+func matchedPolicyTraceName(trace []policy.TraceStep) string {
+	for i := len(trace) - 1; i >= 0; i-- {
+		step := trace[i]
+		if step.Action != "permission" {
+			continue
+		}
+		if step.Name == "no_match" || step.Name == "fail_closed" || step.Name == "composition" || step.Name == "composition.command" {
+			continue
+		}
+		if strings.TrimSpace(step.Name) != "" {
+			return step.Name
+		}
+	}
+	return ""
+}
+
+func permissionVerdictOutcome(verdict PermissionVerdict) string {
 	switch verdict {
 	case PermissionDeny:
-		decision.Trace = append(decision.Trace, policy.TraceStep{
-			Action:  "permission",
-			Name:    "claude_settings",
-			Effect:  "deny",
-			Message: "Claude settings deny matched during migration",
-		})
-		if strings.TrimSpace(decision.Message) == "" {
-			decision.Message = "blocked by Claude settings migration rule"
-		}
-		decision.Outcome = "deny"
-		decision.Explicit = true
-		decision.Reason = "claude_settings"
-	case PermissionAllow:
-		if decision.Outcome == "deny" {
-			return decision
-		}
-		decision.Trace = append(decision.Trace, policy.TraceStep{
-			Action:  "permission",
-			Name:    "claude_settings",
-			Effect:  "allow",
-			Message: "Claude settings allow matched during migration",
-		})
-		decision.Outcome = "allow"
-		decision.Explicit = true
-		decision.Reason = "claude_settings"
+		return "deny"
 	case PermissionAsk:
-		if decision.Outcome == "deny" {
-			return decision
+		return "ask"
+	case PermissionAllow:
+		return "allow"
+	default:
+		return "abstain"
+	}
+}
+
+func claudeSettingsTraceMessage(outcome string) string {
+	switch outcome {
+	case "deny":
+		return "Claude settings deny matched"
+	case "ask":
+		return "Claude settings ask matched"
+	case "allow":
+		return "Claude settings allow matched"
+	default:
+		return "Claude settings did not define a matching permission"
+	}
+}
+
+func mergePermissionSources(decision policy.Decision, claudeOutcome string) policy.Decision {
+	ccOutcome := strings.TrimSpace(decision.Outcome)
+	if ccOutcome == "" {
+		ccOutcome = "abstain"
+	}
+
+	switch {
+	case ccOutcome == "deny" || claudeOutcome == "deny":
+		if claudeOutcome == "deny" {
+			decision.Outcome = "deny"
+			decision.Explicit = true
+			decision.Reason = "claude_settings"
+			if strings.TrimSpace(decision.Message) == "" {
+				decision.Message = "blocked by Claude settings"
+			}
 		}
-		decision.Trace = append(decision.Trace, policy.TraceStep{
-			Action:  "permission",
-			Name:    "claude_settings",
-			Effect:  "ask",
-			Message: "Claude settings explicitly require confirmation during migration",
-		})
+		decision.Trace = append(decision.Trace, finalMergeTrace("deny", "source denied"))
+	case ccOutcome == "ask" || claudeOutcome == "ask":
+		if ccOutcome != "ask" && claudeOutcome == "ask" {
+			decision.Outcome = "ask"
+			decision.Explicit = true
+			decision.Reason = "claude_settings"
+		}
+		decision.Trace = append(decision.Trace, finalMergeTrace("ask", "source asked"))
+	case ccOutcome == "allow" || claudeOutcome == "allow":
+		if ccOutcome != "allow" && claudeOutcome == "allow" {
+			decision.Outcome = "allow"
+			decision.Explicit = true
+			decision.Reason = "claude_settings"
+		}
+		decision.Trace = append(decision.Trace, finalMergeTrace("allow", "source allowed"))
+	default:
 		decision.Outcome = "ask"
-		decision.Explicit = true
-		decision.Reason = "claude_settings"
-	case PermissionDefault:
-		decision.Trace = append(decision.Trace, policy.TraceStep{
-			Action:  "permission",
-			Name:    "claude_settings",
-			Effect:  "abstain",
-			Message: "Claude settings did not define a matching permission during migration",
-		})
-		decision = applyFinalAskFallback(decision)
+		decision.Explicit = false
+		decision.Reason = "default_fallback"
+		decision.Trace = append(decision.Trace, finalMergeTrace("ask", "all sources abstained; fallback ask"))
 	}
 	return decision
 }
 
-func applyStrictPermissionBridge(decision policy.Decision, verdict PermissionVerdict) policy.Decision {
-	switch verdict {
-	case PermissionDeny:
-		return applyClaudeDeny(decision, "Claude settings deny matched in strict merge mode")
-	case PermissionAsk:
-		if decision.Outcome == "deny" {
-			return decision
-		}
-		return applyClaudeAsk(decision, "Claude settings explicitly require confirmation in strict merge mode")
-	case PermissionAllow:
-		if decision.Outcome == "deny" || decision.Outcome == "ask" {
-			decision.Trace = append(decision.Trace, policy.TraceStep{
-				Action:  "permission",
-				Name:    "claude_settings",
-				Effect:  "allow",
-				Message: "Claude settings allow ignored by strict merge mode",
-			})
-			return decision
-		}
-		return applyClaudeAllow(decision, "Claude settings allow matched in strict merge mode")
-	case PermissionDefault:
-		return applyClaudeDefault(decision, "Claude settings did not define a matching permission in strict merge mode")
-	default:
-		return decision
+func finalMergeTrace(outcome string, reason string) policy.TraceStep {
+	return policy.TraceStep{
+		Action:  "permission",
+		Name:    "permission_sources_merge",
+		Effect:  outcome,
+		Reason:  reason,
+		Message: "permission sources merged using deny > ask > allow > abstain",
 	}
-}
-
-func applyAuthoritativePermissionBridge(decision policy.Decision, verdict PermissionVerdict) policy.Decision {
-	switch verdict {
-	case PermissionDeny:
-		return applyClaudeDeny(decision, "Claude settings deny matched in cc_bash_guard_authoritative merge mode")
-	case PermissionAsk, PermissionAllow:
-		decision.Trace = append(decision.Trace, policy.TraceStep{
-			Action:  "permission",
-			Name:    "claude_settings",
-			Effect:  string(verdict),
-			Message: "Claude settings allow/ask ignored in cc_bash_guard_authoritative merge mode",
-		})
-		return applyFinalAskFallback(decision)
-	case PermissionDefault:
-		return applyClaudeDefault(decision, "Claude settings did not define a matching permission in cc_bash_guard_authoritative merge mode")
-	default:
-		return applyFinalAskFallback(decision)
-	}
-}
-
-func applyClaudeDeny(decision policy.Decision, message string) policy.Decision {
-	decision.Trace = append(decision.Trace, policy.TraceStep{
-		Action:  "permission",
-		Name:    "claude_settings",
-		Effect:  "deny",
-		Message: message,
-	})
-	if strings.TrimSpace(decision.Message) == "" {
-		decision.Message = "blocked by Claude settings"
-	}
-	decision.Outcome = "deny"
-	decision.Explicit = true
-	decision.Reason = "claude_settings"
-	return decision
-}
-
-func applyClaudeAsk(decision policy.Decision, message string) policy.Decision {
-	decision.Trace = append(decision.Trace, policy.TraceStep{
-		Action:  "permission",
-		Name:    "claude_settings",
-		Effect:  "ask",
-		Message: message,
-	})
-	decision.Outcome = "ask"
-	decision.Explicit = true
-	decision.Reason = "claude_settings"
-	return decision
-}
-
-func applyClaudeAllow(decision policy.Decision, message string) policy.Decision {
-	decision.Trace = append(decision.Trace, policy.TraceStep{
-		Action:  "permission",
-		Name:    "claude_settings",
-		Effect:  "allow",
-		Message: message,
-	})
-	decision.Outcome = "allow"
-	decision.Explicit = true
-	decision.Reason = "claude_settings"
-	return decision
-}
-
-func applyClaudeDefault(decision policy.Decision, message string) policy.Decision {
-	decision.Trace = append(decision.Trace, policy.TraceStep{
-		Action:  "permission",
-		Name:    "claude_settings",
-		Effect:  "abstain",
-		Message: message,
-	})
-	return applyFinalAskFallback(decision)
-}
-
-func applyFinalAskFallback(decision policy.Decision) policy.Decision {
-	if decision.Outcome != "" && decision.Outcome != "abstain" {
-		return decision
-	}
-	decision.Trace = append(decision.Trace, policy.TraceStep{
-		Action:  "permission",
-		Name:    "default",
-		Effect:  "ask",
-		Message: "no explicit permission source matched; falling back to ask",
-		Reason:  "default_fallback",
-	})
-	decision.Outcome = "ask"
-	decision.Explicit = false
-	decision.Reason = "default_fallback"
-	return decision
 }

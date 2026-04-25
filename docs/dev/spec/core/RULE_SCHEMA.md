@@ -10,9 +10,15 @@ Current configs are permission-only.
 
 Top-level keys:
 
-- `claude_permission_merge_mode`
 - `permission`
 - `test`
+
+`claude_permission_merge_mode` is no longer supported. If present,
+verification fails with:
+
+```text
+claude_permission_merge_mode is no longer supported; permission sources are merged using deny > ask > allow > abstain.
+```
 
 Top-level `rewrite` is no longer supported. If present, verification fails with:
 

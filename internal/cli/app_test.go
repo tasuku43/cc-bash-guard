@@ -63,6 +63,23 @@ func traceHasEffect(trace any, name string, effect string) bool {
 	return false
 }
 
+func traceHasReason(trace any, name string, reason string) bool {
+	steps, ok := trace.([]any)
+	if !ok {
+		return false
+	}
+	for _, step := range steps {
+		entry, ok := step.(map[string]any)
+		if !ok {
+			continue
+		}
+		if entry["name"] == name && entry["reason"] == reason {
+			return true
+		}
+	}
+	return false
+}
+
 func runClaudeHookMapTest(t *testing.T, spec hookEnvSpec) map[string]any {
 	t.Helper()
 	home := t.TempDir()
@@ -341,245 +358,6 @@ test:
 	}
 }
 
-func TestRunHookClaudeMigrationCompatSettingsAllowUpgradesAskToAllow(t *testing.T) {
-	home := t.TempDir()
-	writeClaudeSettings(t, home, `{
-  "permissions": {
-    "allow": ["Bash(git status -s)"]
-  }
-}`)
-	writeUserConfig(t, home, `claude_permission_merge_mode: migration_compat
-permission:
-  ask:
-    - command:
-
-        name: git
-
-        semantic:
-
-          verb: status
-
-          flags_contains:
-
-            - "-s"
-      test:
-        ask:
-          - "git status -s"
-        pass:
-          - "git status"
-test:
-  - in: "git status -s"
-    decision: ask
-`)
-
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git status -s"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v", err)
-	}
-	hookOut := payload["hookSpecificOutput"].(map[string]any)
-	if hookOut["permissionDecision"] != "allow" {
-		t.Fatalf("payload = %+v", payload)
-	}
-}
-
-func TestRunHookClaudeStrictMergeDoesNotUpgradeAskToAllow(t *testing.T) {
-	payload := runClaudeHookTest(t, hookEnvSpec{
-		UserConfig: `claude_permission_merge_mode: strict
-permission:
-  ask:
-    - command:
-
-        name: git
-
-        semantic:
-
-          verb: status
-      test:
-        ask:
-          - "git status"
-        pass:
-          - "git diff"
-test:
-  - in: "git status"
-    decision: ask
-`,
-		ClaudeSettings: `{
-  "permissions": {
-    "allow": ["Bash(git status)"]
-  }
-}`,
-		Command: "git status",
-	})
-	if _, ok := payload.HookSpecificOutput["permissionDecision"]; ok {
-		t.Fatalf("strict mode should keep ask, payload=%+v", payload)
-	}
-	if payload.Cmdproxy["outcome"] != "ask" {
-		t.Fatalf("outcome=%v payload=%+v", payload.Cmdproxy["outcome"], payload)
-	}
-	if !traceHasEffect(payload.Cmdproxy["trace"], "claude_permission_merge_mode", "strict") {
-		t.Fatalf("trace should include strict merge mode, payload=%+v", payload)
-	}
-}
-
-func TestRunHookClaudeDefaultMergeDoesNotUpgradeAskToAllow(t *testing.T) {
-	payload := runClaudeHookTest(t, hookEnvSpec{
-		UserConfig: `permission:
-  ask:
-    - command:
-
-        name: git
-
-        semantic:
-
-          verb: status
-      test:
-        ask:
-          - "git status"
-        pass:
-          - "git diff"
-test:
-  - in: "git status"
-    decision: ask
-`,
-		ClaudeSettings: `{
-  "permissions": {
-    "allow": ["Bash(git status)"]
-  }
-}`,
-		Command: "git status",
-	})
-	if _, ok := payload.HookSpecificOutput["permissionDecision"]; ok {
-		t.Fatalf("default strict mode should keep ask, payload=%+v", payload)
-	}
-	if payload.Cmdproxy["outcome"] != "ask" {
-		t.Fatalf("outcome=%v payload=%+v", payload.Cmdproxy["outcome"], payload)
-	}
-	if !traceHasEffect(payload.Cmdproxy["trace"], "claude_permission_merge_mode", "strict") {
-		t.Fatalf("trace should include default strict merge mode, payload=%+v", payload)
-	}
-}
-
-func TestRunHookClaudeMigrationCompatExplicitlyUpgradesAskToAllow(t *testing.T) {
-	payload := runClaudeHookTest(t, hookEnvSpec{
-		UserConfig: `claude_permission_merge_mode: migration_compat
-permission:
-  ask:
-    - command:
-
-        name: git
-
-        semantic:
-
-          verb: status
-      test:
-        ask:
-          - "git status"
-        pass:
-          - "git diff"
-test:
-  - in: "git status"
-    decision: ask
-`,
-		ClaudeSettings: `{
-  "permissions": {
-    "allow": ["Bash(git status)"]
-  }
-}`,
-		Command: "git status",
-	})
-	if payload.HookSpecificOutput["permissionDecision"] != "allow" {
-		t.Fatalf("migration_compat should upgrade ask to allow, payload=%+v", payload)
-	}
-	if payload.Cmdproxy["outcome"] != "allow" {
-		t.Fatalf("outcome=%v payload=%+v", payload.Cmdproxy["outcome"], payload)
-	}
-	if !traceHasEffect(payload.Cmdproxy["trace"], "claude_permission_merge_mode", "migration_compat") {
-		t.Fatalf("trace should include migration_compat merge mode, payload=%+v", payload)
-	}
-}
-
-func TestRunHookClaudeAuthoritativeMergeIgnoresClaudeAsk(t *testing.T) {
-	payload := runClaudeHookTest(t, hookEnvSpec{
-		UserConfig: `claude_permission_merge_mode: cc_bash_guard_authoritative
-permission:
-  allow:
-    - command:
-
-        name: git
-
-        semantic:
-
-          verb: status
-      test:
-        allow:
-          - "git status"
-        pass:
-          - "git diff"
-test:
-  - in: "git status"
-    decision: allow
-`,
-		ClaudeSettings: `{
-  "permissions": {
-    "ask": ["Bash(git status)"]
-  }
-}`,
-		Command: "git status",
-	})
-	if payload.HookSpecificOutput["permissionDecision"] != "allow" {
-		t.Fatalf("authoritative mode should keep cc-bash-guard allow, payload=%+v", payload)
-	}
-	if payload.Cmdproxy["outcome"] != "allow" {
-		t.Fatalf("outcome=%v payload=%+v", payload.Cmdproxy["outcome"], payload)
-	}
-}
-
-func TestRunHookClaudeAuthoritativeMergeStillHonorsClaudeDeny(t *testing.T) {
-	payload := runClaudeHookTest(t, hookEnvSpec{
-		UserConfig: `claude_permission_merge_mode: cc_bash_guard_authoritative
-permission:
-  allow:
-    - command:
-
-        name: git
-
-        semantic:
-
-          verb: status
-      test:
-        allow:
-          - "git status"
-        pass:
-          - "git diff"
-test:
-  - in: "git status"
-    decision: allow
-`,
-		ClaudeSettings: `{
-  "permissions": {
-    "deny": ["Bash(git status)"]
-  }
-}`,
-		Command: "git status",
-	})
-	if payload.HookSpecificOutput["permissionDecision"] != "deny" {
-		t.Fatalf("authoritative mode should still honor Claude deny, payload=%+v", payload)
-	}
-	if payload.Cmdproxy["outcome"] != "deny" {
-		t.Fatalf("outcome=%v payload=%+v", payload.Cmdproxy["outcome"], payload)
-	}
-}
-
 func TestRunHookClaudePermissionMergeMatrix(t *testing.T) {
 	tests := []struct {
 		name                string
@@ -593,6 +371,10 @@ func TestRunHookClaudePermissionMergeMatrix(t *testing.T) {
 		wantTrace           []struct {
 			name   string
 			effect string
+		}
+		wantTraceReason []struct {
+			name   string
+			reason string
 		}
 	}{
 		{
@@ -662,7 +444,7 @@ test:
 			}{{name: "claude_settings", effect: "allow"}},
 		},
 		{
-			name: "settings allow fills cc-bash-guard no match in strict mode",
+			name: "settings allow fills cc-bash-guard no match",
 			cmdproxyPermission: `permission:
   allow:
     - command:
@@ -849,7 +631,11 @@ test:
 			wantTrace: []struct {
 				name   string
 				effect string
-			}{{name: "no_match", effect: "abstain"}, {name: "claude_settings", effect: "abstain"}, {name: "default", effect: "ask"}},
+			}{{name: "no_match", effect: "abstain"}, {name: "claude_settings", effect: "abstain"}, {name: "permission_sources_merge", effect: "ask"}},
+			wantTraceReason: []struct {
+				name   string
+				reason string
+			}{{name: "permission_sources_merge", reason: "all sources abstained; fallback ask"}},
 		},
 		{
 			name: "cc-bash-guard ask plus settings abstain stays ask",
@@ -910,29 +696,33 @@ test:
 					t.Fatalf("trace missing %s/%s payload=%+v", want.name, want.effect, payload)
 				}
 			}
+			for _, want := range tt.wantTraceReason {
+				if !traceHasReason(payload.Cmdproxy["trace"], want.name, want.reason) {
+					t.Fatalf("trace missing %s reason %q payload=%+v", want.name, want.reason, payload)
+				}
+			}
 		})
 	}
 }
 
 func TestRunHookClaudeMergesGlobalAndLocalPolicyAndSettings(t *testing.T) {
 	payload := runClaudeHookTest(t, hookEnvSpec{
-		UserConfig: `claude_permission_merge_mode: migration_compat
-permission:
+		UserConfig: `permission:
   ask:
     - command:
 
-        name: aws
+        name: git
 
         semantic:
 
-          service: sts
+          verb: status
       test:
         ask:
-          - "aws --profile dev sts get-caller-identity"
-        pass:
           - "git status"
+        pass:
+          - "aws --profile dev sts get-caller-identity"
 test:
-  - in: "aws --profile dev sts get-caller-identity"
+  - in: "git status"
     decision: ask
 `,
 		LocalConfig: `permission:

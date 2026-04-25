@@ -48,6 +48,10 @@ For permission proxy behavior, ambiguity must not become permissive.
   `match` and `pattern` do not exist
 - raw regex matching is always `patterns`
 - `command` and `patterns` must not be combined in a permission rule
+- cc-bash-guard policy and Claude settings are permission sources merged as
+  `deny > ask > allow > abstain`; `abstain` means no matching rule
+- final fallback to `ask` happens only when all permission sources abstain
+- explicit `ask` must not be overridden by `allow` from another source
 - compound command handling must not accidentally allow additional shell
   segments
 - unknown shell shapes must not be made more permissive accidentally

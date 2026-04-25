@@ -31,7 +31,6 @@ type Check struct {
 
 type Report struct {
 	Tool                       string              `json:"tool,omitempty"`
-	ClaudePermissionMergeMode  string              `json:"claude_permission_merge_mode,omitempty"`
 	ConfigSources              []configrepo.Source `json:"config_sources,omitempty"`
 	SettingsPaths              []string            `json:"settings_paths,omitempty"`
 	EffectiveFingerprint       string              `json:"effective_fingerprint,omitempty"`
@@ -84,11 +83,8 @@ func Run(loaded configrepo.Loaded, tool string, cwd string, home string) Report 
 		checks = append(checks, Check{ID: "permission.env-only-allow", Category: "permission", Status: StatusPass, Message: "no env-only allow rules"})
 	}
 
-	mergeMode := claudePermissionMergeMode(loaded.Pipeline)
-	if tool == claude.Tool && mergeMode == claude.MergeModeMigrationCompat {
-		checks = append(checks, Check{ID: "permission.claude-merge-mode", Category: "permission", Status: StatusWarn, Message: "Claude permission merge mode is migration_compat; use strict for security-first behavior"})
-	} else if tool == claude.Tool {
-		checks = append(checks, Check{ID: "permission.claude-merge-mode", Category: "permission", Status: StatusPass, Message: "Claude permission merge mode: " + mergeMode})
+	if tool == claude.Tool {
+		checks = append(checks, Check{ID: "permission.source-merge-rule", Category: "permission", Status: StatusPass, Message: "permission sources are merged using deny > ask > allow > abstain"})
 	}
 
 	if path, err := exec.LookPath("cc-bash-guard"); err == nil {
@@ -119,7 +115,7 @@ func Run(loaded configrepo.Loaded, tool string, cwd string, home string) Report 
 		checks = append(checks, claudeHookRegistrationCheck(claudeSettings))
 	}
 
-	return Report{ClaudePermissionMergeMode: mergeMode, Checks: checks}
+	return Report{Checks: checks}
 }
 
 func AddVerifiedArtifactCheck(report Report, status configrepo.EffectiveArtifactStatus) Report {
@@ -135,19 +131,6 @@ func AddVerifiedArtifactCheck(report Report, status configrepo.EffectiveArtifact
 	}
 	report.Checks = append(report.Checks, Check{ID: "artifact.evaluation-semantics", Category: "artifact", Status: StatusWarn, Message: status.Message})
 	return report
-}
-
-func claudePermissionMergeMode(p policy.Pipeline) string {
-	switch strings.TrimSpace(p.ClaudePermissionMergeMode) {
-	case claude.MergeModeMigrationCompat:
-		return claude.MergeModeMigrationCompat
-	case claude.MergeModeStrict:
-		return claude.MergeModeStrict
-	case claude.MergeModeCCBashProxyAuthoritative:
-		return claude.MergeModeCCBashProxyAuthoritative
-	default:
-		return claude.MergeModeStrict
-	}
 }
 
 func HasFailures(report Report) bool {
@@ -199,7 +182,7 @@ func testsPass(p policy.Pipeline, tool string, cwd string, home string) error {
 		if err != nil {
 			return err
 		}
-		decision = claude.ApplyPermissionBridgeWithMode(tool, decision, cwd, home, p.ClaudePermissionMergeMode)
+		decision = claude.ApplyPermissionBridge(tool, decision, cwd, home)
 		if decision.Outcome != ex.Decision {
 			return &exampleError{Scope: "test", Name: scopeName("e2e", i), Kind: "decision", Example: ex.In}
 		}

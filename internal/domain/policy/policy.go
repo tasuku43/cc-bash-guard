@@ -13,10 +13,9 @@ import (
 )
 
 type PipelineSpec struct {
-	ClaudePermissionMergeMode string           `yaml:"claude_permission_merge_mode" json:"claude_permission_merge_mode,omitempty"`
-	Rewrite                   []map[string]any `yaml:"rewrite" json:"rewrite,omitempty"`
-	Permission                PermissionSpec   `yaml:"permission" json:"permission,omitempty"`
-	Test                      PipelineTestSpec `yaml:"test" json:"test,omitempty"`
+	Rewrite    []map[string]any `yaml:"rewrite" json:"rewrite,omitempty"`
+	Permission PermissionSpec   `yaml:"permission" json:"permission,omitempty"`
+	Test       PipelineTestSpec `yaml:"test" json:"test,omitempty"`
 }
 
 type PermissionSpec struct {
@@ -2254,11 +2253,6 @@ func ValidatePipeline(spec PipelineSpec) []string {
 	}
 	if IsZeroPermissionSpec(spec.Permission) {
 		issues = append(issues, "must set at least one permission entry")
-	}
-	switch strings.TrimSpace(spec.ClaudePermissionMergeMode) {
-	case "", "migration_compat", "strict", "cc_bash_guard_authoritative":
-	default:
-		issues = append(issues, "claude_permission_merge_mode must be one of migration_compat, strict, or cc_bash_guard_authoritative")
 	}
 	for i, rule := range spec.Permission.Deny {
 		issues = append(issues, ValidatePermissionRule(fmt.Sprintf("permission.deny[%d]", i), rule, "deny")...)

@@ -125,7 +125,7 @@ test:
 	}
 }
 
-func TestLoadEffectiveForToolProjectOverridesClaudeMergeMode(t *testing.T) {
+func TestLoadEffectiveRejectsClaudePermissionMergeMode(t *testing.T) {
 	home := t.TempDir()
 	project := t.TempDir()
 	if err := os.Mkdir(filepath.Join(project, ".git"), 0o755); err != nil {
@@ -156,38 +156,13 @@ test:
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	localPath := filepath.Join(project, ".cc-bash-guard", "cc-bash-guard.yml")
-	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(localPath, []byte(`claude_permission_merge_mode: cc_bash_guard_authoritative
-permission:
-  ask:
-    - command:
-
-        name: git
-
-        semantic:
-
-          verb: push
-      test:
-        ask:
-          - "git push"
-        pass:
-          - "git status"
-test:
-  - in: "git push"
-    decision: ask
-`), 0o644); err != nil {
-		t.Fatal(err)
-	}
 
 	loaded := LoadEffectiveForTool(project, home, "", "claude")
-	if len(loaded.Errors) != 0 {
-		t.Fatalf("unexpected errors: %v", loaded.Errors)
+	if len(loaded.Errors) == 0 {
+		t.Fatal("expected error")
 	}
-	if loaded.Pipeline.ClaudePermissionMergeMode != "cc_bash_guard_authoritative" {
-		t.Fatalf("mode=%q", loaded.Pipeline.ClaudePermissionMergeMode)
+	if !strings.Contains(loaded.Errors[0].Error(), "claude_permission_merge_mode is no longer supported; permission sources are merged using deny > ask > allow > abstain.") {
+		t.Fatalf("error=%v", loaded.Errors[0])
 	}
 }
 
