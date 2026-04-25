@@ -3,6 +3,7 @@ package policy
 import (
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	commandpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/command"
@@ -2089,6 +2090,19 @@ func TestValidateSemanticMatchRules(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestValidateSemanticUnsupportedFieldSuggestsSupportedFields(t *testing.T) {
+	issues := ValidatePipeline(PipelineSpec{Permission: PermissionSpec{Deny: []PermissionRuleSpec{{
+		Match: MatchSpec{Command: "git", Semantic: &SemanticMatchSpec{Namespace: "prod"}},
+	}}}})
+	want := "permission.deny[0].match.semantic.namespace is not supported for command git. Supported semantic fields for git:"
+	for _, issue := range issues {
+		if strings.Contains(issue, want) && strings.Contains(issue, "verb") && strings.Contains(issue, "flags_contains") {
+			return
+		}
+	}
+	t.Fatalf("issues=%#v, want supported-field suggestion", issues)
 }
 
 func TestEvaluateTraceIncludesMatchedRuleSource(t *testing.T) {

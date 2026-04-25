@@ -37,13 +37,10 @@ func Run(args []string, streams Streams, env Env) int {
 		return runInit(args[1:], streams, env)
 	case "version":
 		return runVersion(args[1:], streams)
+	case "semantic-schema":
+		return runSemanticSchema(args[1:], streams)
 	case "-h", "--help", "help":
-		if len(args) > 1 {
-			writeCommandHelp(streams.Stdout, args[1])
-		} else {
-			writeUsage(streams.Stdout)
-		}
-		return exitAllow
+		return writeHelp(streams.Stdout, streams.Stderr, args[1:])
 	default:
 		writeErr(streams.Stderr, "unknown command: "+args[0])
 		return exitError

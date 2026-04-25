@@ -10,6 +10,7 @@ import (
 	commandpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/command"
 	"github.com/tasuku43/cc-bash-proxy/internal/domain/directive"
 	"github.com/tasuku43/cc-bash-proxy/internal/domain/invocation"
+	semanticpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/semantic"
 )
 
 type PipelineSpec struct {
@@ -2313,38 +2314,61 @@ func validateMatchSpec(prefix string, match MatchSpec, allowSemantic bool) []str
 		if match.Subcommand != "" {
 			issues = append(issues, prefix+".subcommand cannot be used with semantic")
 		}
+		if match.Command != "" {
+			if _, ok := semanticpkg.Lookup(match.Command); !ok {
+				issues = append(issues, prefix+".semantic is only supported for "+strings.Join(supportedSemanticCommandLabels(), ", "))
+				return issues
+			}
+			unsupportedFields := unsupportedSemanticFields(match.Command, *match.Semantic)
+			if len(unsupportedFields) > 0 {
+				issues = append(issues, prefix+".semantic contains fields not supported for command: "+match.Command)
+			}
+			for _, field := range unsupportedFields {
+				issues = append(issues, unsupportedSemanticFieldIssue(prefix, match.Command, field))
+			}
+		}
 		switch match.Command {
 		case "git":
-			if hasAWSSemanticFields(*match.Semantic) || hasKubectlOnlySemanticFields(*match.Semantic) || hasGhNonSharedSemanticFields(*match.Semantic) || hasHelmfileOnlySemanticFields(*match.Semantic) {
-				issues = append(issues, prefix+".semantic contains fields not supported for command: git")
-			}
 			issues = append(issues, ValidateGitSemanticMatchSpec(prefix+".semantic", *match.Semantic)...)
 		case "aws":
-			if hasGitSemanticFields(*match.Semantic) || hasKubectlOnlySemanticFields(*match.Semantic) || hasGhSemanticFields(*match.Semantic) || hasHelmfileSemanticFields(*match.Semantic) {
-				issues = append(issues, prefix+".semantic contains fields not supported for command: aws")
-			}
 			issues = append(issues, ValidateAWSSemanticMatchSpec(prefix+".semantic", *match.Semantic)...)
 		case "kubectl":
-			if hasGitOnlySemanticFields(*match.Semantic) || hasAWSOnlySemanticFields(*match.Semantic) || hasGhNonSharedSemanticFields(*match.Semantic) || hasHelmfileOnlySemanticFields(*match.Semantic) {
-				issues = append(issues, prefix+".semantic contains fields not supported for command: kubectl")
-			}
 			issues = append(issues, ValidateKubectlSemanticMatchSpec(prefix+".semantic", *match.Semantic)...)
 		case "gh":
-			if hasGitOnlySemanticFields(*match.Semantic) || hasAWSOnlySemanticFields(*match.Semantic) || hasKubectlOnlySemanticFields(*match.Semantic) || hasHelmfileSemanticFields(*match.Semantic) || match.Semantic.DryRun != nil || match.Semantic.Recursive != nil || match.Semantic.Hard != nil || match.Semantic.IncludeIgnored != nil || match.Semantic.Cached != nil || match.Semantic.Staged != nil {
-				issues = append(issues, prefix+".semantic contains fields not supported for command: gh")
-			}
 			issues = append(issues, ValidateGhSemanticMatchSpec(prefix+".semantic", *match.Semantic)...)
 		case "helmfile":
-			if hasGitOnlySemanticFields(*match.Semantic) || hasAWSOnlySemanticFields(*match.Semantic) || hasKubectlOnlySemanticFieldsForHelmfile(*match.Semantic) || hasGhNonSharedSemanticFields(*match.Semantic) || match.Semantic.Force != nil || match.Semantic.Recursive != nil || match.Semantic.Hard != nil || match.Semantic.IncludeIgnored != nil || match.Semantic.Cached != nil || match.Semantic.Staged != nil || match.Semantic.NoCLIPager != nil {
-				issues = append(issues, prefix+".semantic contains fields not supported for command: helmfile")
-			}
 			issues = append(issues, ValidateHelmfileSemanticMatchSpec(prefix+".semantic", *match.Semantic)...)
 		case "":
-		default:
-			issues = append(issues, prefix+".semantic is only supported for command: git, command: aws, command: kubectl, command: gh, or command: helmfile")
 		}
 	}
 	return issues
+}
+
+func unsupportedSemanticFields(command string, semantic SemanticMatchSpec) []string {
+	var unsupported []string
+	for _, field := range semantic.fieldsUsed() {
+		if !semanticpkg.IsFieldSupported(command, field) {
+			unsupported = append(unsupported, field)
+		}
+	}
+	return unsupported
+}
+
+func unsupportedSemanticFieldIssue(prefix, command, field string) string {
+	return fmt.Sprintf("%s.semantic.%s is not supported for command %s. Supported semantic fields for %s: %s", prefix, field, command, command, strings.Join(semanticpkg.FieldNames(command), ", "))
+}
+
+func supportedSemanticCommandLabels() []string {
+	commands := semanticpkg.SupportedCommands()
+	labels := make([]string, 0, len(commands))
+	for i, command := range commands {
+		label := "command: " + command
+		if i == len(commands)-1 && len(commands) > 1 {
+			label = "or " + label
+		}
+		labels = append(labels, label)
+	}
+	return labels
 }
 
 func ValidateGitSemanticMatchSpec(prefix string, semantic SemanticMatchSpec) []string {

@@ -95,6 +95,12 @@ This keeps permission decisions stable even when external Bash hooks are not
 executed serially, and it ensures permission checks happen before `rtk`
 rewrites the visible command.
 
+`--rtk` is the replacement for the old `cmdproxy hook claude --rtk` invocation.
+`cc-bash-proxy help hook` and `cc-bash-proxy hook --help` must document that the
+rtk rewrite runs after cc-bash-proxy permission evaluation in the same hook
+invocation, and that stacking multiple Bash hooks can make the visible renamed
+command diverge from the permission-checked command.
+
 ## Auto Verify
 
 `cc-bash-proxy hook` fails closed when the verified artifact is missing or stale.

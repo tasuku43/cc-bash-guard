@@ -59,3 +59,13 @@ evaluation:
 - update related tests
 - update `README.md` if behavior is user-visible
 - update `docs/dev/spec/*` if contract-level behavior changes
+
+When adding or changing semantic parser fields for commands such as git, gh,
+aws, kubectl, or helmfile:
+
+- update the parser
+- update matcher behavior
+- update validation
+- update semantic schema metadata used by help
+- update CLI help/docs
+- update tests that keep help, schema, and verify behavior aligned

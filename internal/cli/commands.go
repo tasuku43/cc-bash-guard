@@ -7,6 +7,7 @@ import (
 
 	"github.com/tasuku43/cc-bash-proxy/internal/app"
 	"github.com/tasuku43/cc-bash-proxy/internal/app/doctoring"
+	semanticpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/semantic"
 )
 
 func runHook(args []string, streams Streams, env Env) int {
@@ -165,6 +166,50 @@ func runVersion(args []string, streams Streams) int {
 	}
 
 	writeVersionText(streams.Stdout, result)
+	return exitAllow
+}
+
+func runSemanticSchema(args []string, streams Streams) int {
+	if wantsHelp(args) {
+		writeCommandHelp(streams.Stdout, "semantic-schema")
+		return exitAllow
+	}
+	format, rest, err := parseCommonFlags(args)
+	if err != nil || len(rest) > 1 {
+		writeCommandHelp(streams.Stderr, "semantic-schema")
+		return exitError
+	}
+	if len(rest) == 1 {
+		schema, ok := semanticpkg.Lookup(rest[0])
+		if !ok {
+			writeErr(streams.Stderr, "unknown semantic command "+rest[0]+". Supported commands: "+strings.Join(semanticpkg.SupportedCommands(), ", "))
+			return exitError
+		}
+		if format == "json" {
+			if err := writeIndentedJSON(streams.Stdout, schema); err != nil {
+				writeErr(streams.Stderr, err.Error())
+				return exitError
+			}
+			return exitAllow
+		}
+		if err := writeSemanticHelp(streams.Stdout, rest); err != nil {
+			writeErr(streams.Stderr, err.Error())
+			return exitError
+		}
+		return exitAllow
+	}
+	if format == "json" {
+		payload := map[string]any{"schemas": semanticpkg.AllSchemas()}
+		if err := writeIndentedJSON(streams.Stdout, payload); err != nil {
+			writeErr(streams.Stderr, err.Error())
+			return exitError
+		}
+		return exitAllow
+	}
+	if err := writeSemanticHelp(streams.Stdout, nil); err != nil {
+		writeErr(streams.Stderr, err.Error())
+		return exitError
+	}
 	return exitAllow
 }
 

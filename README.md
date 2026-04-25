@@ -121,6 +121,10 @@ option keeps both steps in one hook invocation:
 - first evaluate `cc-bash-proxy` rewrite and permission
 - then apply the final `rtk` rewrite only after permission is settled
 
+This replaces the old `cmdproxy hook claude --rtk` form. Run
+`cc-bash-proxy help hook` or `cc-bash-proxy hook --help` for the current hook
+flags and ordering notes.
+
 By default, `cc-bash-proxy hook` fails closed when its verified artifact is
 missing or stale. Run `cc-bash-proxy verify` after editing policy so the hook
 uses a reviewed artifact. `cc-bash-proxy hook --auto-verify` restores the older
@@ -149,7 +153,9 @@ Supported values:
 Security-first setups should use the default `strict` mode or explicitly set
 `cc_bash_proxy_authoritative`. `migration_compat` exists only for legacy
 migration when existing Claude settings allow lists must keep their historical
-effect, and `doctor` reports it as a warning.
+effect, and `doctor` reports it as a warning. Run
+`cc-bash-proxy help config` for the CLI summary of merge modes, `deny / ask /
+allow / abstain`, and no-match fallback behavior.
 
 ### Compound Shell Commands
 
@@ -201,6 +207,15 @@ schemas. Semantic matching is best-effort static parsing from argv, is not
 attempted by the `GenericParser` fallback, and unsupported fields or value
 types fail during `verify`. Semantic matching is permission-only and cannot be
 used in rewrite selectors or with raw `pattern` / `patterns`.
+
+Discover supported semantic commands and command-specific fields from the CLI:
+
+```sh
+cc-bash-proxy help semantic
+cc-bash-proxy help semantic git
+cc-bash-proxy semantic-schema --format json
+cc-bash-proxy semantic-schema git --format json
+```
 
 ```yaml
 permission:
@@ -548,10 +563,16 @@ argument parsing. For example, `git -C repo status` can still match
 `args_contains: ["-C"]`, even though `-C` is a git global option and not a
 semantic positional argument.
 
+`semantic.flags_contains` and `semantic.flags_prefixes` are different: they
+inspect tokens recognized as options/flags by the command-specific semantic
+parser. They do not match when the command falls back to `GenericParser`.
+
 For `command: git`, `match.semantic` may use `verb`, `verb_in`, `remote`,
 `remote_in`, `branch`, `branch_in`, `ref`, `ref_in`, boolean fields `force`,
 `hard`, `recursive`, `include_ignored`, `cached`, `staged`, plus
-`flags_contains` and `flags_prefixes`.
+`flags_contains` and `flags_prefixes`. For `git push`, `force: true` includes
+`--force`, `-f`, `--force-with-lease`, and `--force-if-includes`; for
+`git clean`, it includes `-f` and `--force`.
 
 For `command: aws`, `match.semantic` may use `service`, `service_in`,
 `operation`, `operation_in`, `profile`, `profile_in`, `region`, `region_in`,

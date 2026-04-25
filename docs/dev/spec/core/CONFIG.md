@@ -36,6 +36,11 @@ Merge order is deterministic:
 - scalar options, such as `claude_permission_merge_mode`, use the last
   non-empty value, so project-local config can override user-wide config
 
+`claude_permission_merge_mode` accepts `strict`, `migration_compat`, and
+`cc_bash_proxy_authoritative`. `cc-bash-proxy help config` must describe these
+values, the `deny / ask / allow / abstain` merge relationship, the no-match
+fallback to `ask`, and why `strict` is recommended for security-first setups.
+
 Project root resolution is currently delegated to the Claude-aware runtime paths
 used by `cc-bash-proxy hook` and `cc-bash-proxy verify`.
 

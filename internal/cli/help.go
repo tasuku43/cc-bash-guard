@@ -1,8 +1,12 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"strings"
+
+	semanticpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/semantic"
 )
 
 func writeUsage(w io.Writer) {
@@ -26,6 +30,8 @@ Commands:
   verify   verify config tests, trust-critical setup, and build metadata
   version  print build and source metadata for the running binary
   hook     Claude Code hook entrypoint
+  semantic-schema
+           print supported semantic match schemas
 
 Help:
   cc-bash-proxy help <command>
@@ -33,14 +39,33 @@ Help:
   cc-bash-proxy help config
   cc-bash-proxy help rewrite
   cc-bash-proxy help match
+  cc-bash-proxy help semantic
+  cc-bash-proxy help semantic git
 
 Examples:
   cc-bash-proxy init
   cc-bash-proxy verify --format json
+  cc-bash-proxy semantic-schema --format json
   cc-bash-proxy version --format json
   cc-bash-proxy hook --rtk
   cc-bash-proxy doctor --format json
 `)
+}
+
+func writeHelp(stdout, stderr io.Writer, args []string) int {
+	if len(args) == 0 {
+		writeUsage(stdout)
+		return exitAllow
+	}
+	if args[0] == "semantic" {
+		if err := writeSemanticHelp(stdout, args[1:]); err != nil {
+			writeErr(stderr, err.Error())
+			return exitError
+		}
+		return exitAllow
+	}
+	writeCommandHelp(stdout, args[0])
+	return exitAllow
 }
 
 func writeCommandHelp(w io.Writer, command string) {
@@ -105,6 +130,13 @@ Note:
   while authoring policy instead. Without --auto-verify, the hook fails closed
   when verified artifacts are missing or stale. --auto-verify is convenient, but
   it lets hook-time config changes become active without a separate review step.
+
+RTK compatibility:
+  --rtk applies rtk rewrite after cc-bash-proxy permission evaluation in the same
+  hook invocation. Permission checks therefore see the command before the rtk
+  rename/rewrite is applied. Stacking multiple Bash hooks can make the visible
+  renamed command differ from the command that cc-bash-proxy checked. The old
+  command was cmdproxy hook claude --rtk; use cc-bash-proxy hook --rtk now.
 `)
 	case "version":
 		fmt.Fprint(w, `cc-bash-proxy version
@@ -119,6 +151,18 @@ Examples:
   cc-bash-proxy version
   cc-bash-proxy version --format json
 `)
+	case "semantic-schema":
+		fmt.Fprint(w, `cc-bash-proxy semantic-schema
+
+Print supported command-specific semantic match schemas.
+
+Usage:
+  cc-bash-proxy semantic-schema [command] [--format json]
+
+Examples:
+  cc-bash-proxy semantic-schema --format json
+  cc-bash-proxy semantic-schema git --format json
+`)
 	case "config":
 		fmt.Fprint(w, `cc-bash-proxy help config
 
@@ -127,9 +171,30 @@ Config files live at:
   - ./.cc-bash-proxy/cc-bash-proxy.yaml (project-local, optional)
 
 Top-level sections are:
+  - claude_permission_merge_mode: strict / migration_compat / cc_bash_proxy_authoritative
   - rewrite: ordered rewrite pipeline
   - permission: deny / ask / allow buckets
   - test: end-to-end expect cases
+
+Permission merge mode:
+  claude_permission_merge_mode controls how Claude settings.json permissions and
+  cc-bash-proxy rules combine.
+
+  strict:
+    Recommended for security-first setups. cc-bash-proxy is fail-closed and
+    settings.json allow entries do not silently broaden cc-bash-proxy policy.
+
+  migration_compat:
+    Use while migrating existing Claude permissions. Existing settings can still
+    contribute compatibility decisions, but cc-bash-proxy deny/ask remains the
+    safer override.
+
+  cc_bash_proxy_authoritative:
+    Use when cc-bash-proxy should be the authoritative policy surface.
+
+Decision order:
+  deny wins over ask, ask wins over allow, and abstain means no local rule
+  matched. When no permission rule matches, the fallback decision is ask.
 
 Rewrite step example:
   rewrite:
@@ -170,6 +235,9 @@ E2E test example:
 For matcher fields, run:
   cc-bash-proxy help match
 
+For semantic command schemas, run:
+  cc-bash-proxy help semantic
+
 For rewrite primitives, run:
   cc-bash-proxy help rewrite
 `)
@@ -179,14 +247,40 @@ For rewrite primitives, run:
 Supported match fields:
   - command: exact executable name
   - command_in: executable must be one of these names
+  - command_is_absolute_path: executable token must be an absolute path
   - subcommand: exact first subcommand
   - args_contains: legacy raw-word tokens that must exist
   - args_prefixes: legacy raw-word tokens that must start with these prefixes
   - env_requires: env vars that must be present
   - env_missing: env vars that must be absent
+  - semantic: command-specific structured matcher selected by match.command
 
 args_contains and args_prefixes inspect command words after the executable
 token, before command-specific semantic argument parsing.
+
+semantic:
+  match.semantic is command-specific. The schema is selected by exact
+  match.command. Do not write semantic.git or semantic.gh.
+
+  semantic can be used only inside permission rule match blocks.
+  rewrite.match.semantic is unsupported. GenericParser fallback never satisfies
+  semantic match. command_in + semantic is invalid. subcommand + semantic is
+  invalid because semantic fields are more precise.
+
+  semantic.flags_contains and semantic.flags_prefixes inspect tokens recognized
+  as options/flags by the command-specific parser. They do not run when a
+  semantic parser is unavailable.
+
+Selector kinds:
+  Each permission rule or rewrite step uses exactly one selector kind:
+  - match
+  - pattern
+  - patterns
+
+Discover semantic schemas:
+  cc-bash-proxy help semantic
+  cc-bash-proxy help semantic <command>
+  cc-bash-proxy semantic-schema --format json
 
 Example:
   match:
@@ -236,6 +330,87 @@ Each step may set exactly one rewrite primitive.
 	default:
 		writeUsage(w)
 	}
+}
+
+func writeSemanticHelp(w io.Writer, args []string) error {
+	if len(args) == 0 {
+		fmt.Fprint(w, `Semantic match schemas
+
+match.semantic is command-specific. The schema is selected by match.command.
+Do not nest another command key under semantic.
+
+Supported commands:
+`)
+		for _, schema := range semanticpkg.AllSchemas() {
+			fmt.Fprintf(w, "  %-10s %s\n", schema.Command, schema.Description)
+		}
+		fmt.Fprint(w, `
+Usage:
+  cc-bash-proxy help semantic <command>
+  cc-bash-proxy semantic-schema --format json
+  cc-bash-proxy semantic-schema <command> --format json
+
+Example:
+  permission:
+    deny:
+      - match:
+          command: git
+          semantic:
+            verb: push
+            force: true
+
+Notes:
+  args_contains / args_prefixes are legacy raw-word matchers after the executable
+  token. semantic.flags_contains / semantic.flags_prefixes inspect options
+  recognized by the command-specific parser and never match on GenericParser
+  fallback.
+`)
+		return nil
+	}
+	if len(args) > 1 {
+		return errors.New("usage: cc-bash-proxy help semantic [command]")
+	}
+	schema, ok := semanticpkg.Lookup(args[0])
+	if !ok {
+		return fmt.Errorf("unknown semantic command %q. Supported commands: %s", args[0], strings.Join(semanticpkg.SupportedCommands(), ", "))
+	}
+	fmt.Fprintf(w, "Semantic schema: %s\n\n", schema.Command)
+	fmt.Fprintf(w, "Description: %s\n", schema.Description)
+	fmt.Fprintf(w, "Parser support: %s\n\n", schema.Parser)
+	fmt.Fprint(w, "Fields:\n")
+	for _, field := range schema.Fields {
+		fmt.Fprintf(w, "  %-38s %-9s %s\n", field.Name, field.Type, field.Description)
+	}
+	if len(schema.Notes) > 0 {
+		fmt.Fprint(w, "\nBoolean field definitions and notes:\n")
+		for _, note := range schema.Notes {
+			fmt.Fprintf(w, "  - %s\n", note)
+		}
+	} else {
+		fmt.Fprint(w, "\nBoolean field definitions are included in the field descriptions above.\n")
+	}
+	fmt.Fprint(w, "\nValidation rules:\n")
+	fmt.Fprint(w, "  - semantic requires exact match.command.\n")
+	fmt.Fprint(w, "  - command_in + semantic is invalid.\n")
+	fmt.Fprint(w, "  - subcommand + semantic is invalid.\n")
+	fmt.Fprint(w, "  - rewrite.match.semantic is unsupported.\n")
+	fmt.Fprint(w, "  - unsupported fields and unsupported value types fail verify.\n")
+	fmt.Fprint(w, "  - GenericParser fallback never satisfies semantic match.\n")
+	if len(schema.Examples) > 0 {
+		fmt.Fprint(w, "\nExamples:\n")
+		for _, example := range schema.Examples {
+			fmt.Fprintf(w, "  %s:\n%s\n", example.Title, indent(example.YAML, "    "))
+		}
+	}
+	return nil
+}
+
+func indent(s, prefix string) string {
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		lines[i] = prefix + line
+	}
+	return strings.Join(lines, "\n")
 }
 
 func wantsHelp(args []string) bool {

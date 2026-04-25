@@ -230,6 +230,20 @@ for AWS rules and `semantic.verb` is valid for kubectl rules, while
 `semantic.aws.service`, `semantic.kubectl.verb`, `semantic.gh.area`, or
 `semantic.helmfile.verb` is invalid.
 
+The implemented semantic schemas are discoverable from the CLI:
+
+```sh
+cc-bash-proxy help semantic
+cc-bash-proxy help semantic git
+cc-bash-proxy semantic-schema --format json
+cc-bash-proxy semantic-schema git --format json
+```
+
+The schema metadata in code is the source of truth for both help output and
+unsupported-field validation. When adding a semantic field or parser, update
+the parser, matcher, validation, schema metadata, docs, and tests in the same
+change so help and `verify` do not drift.
+
 For `command: git`, the Git semantic schema is:
 
 - string selectors: `verb`, `remote`, `branch`, `ref`
@@ -256,6 +270,9 @@ Git semantic parsing is best-effort static parsing of the command argv. It
 does not query repository state; ambiguous operands are left conservative or
 classified by common CLI convention. `GenericParser` never satisfies
 `match.semantic`, so a command-specific parser must provide semantic data.
+For `git push`, `force: true` includes `--force`, `-f`,
+`--force-with-lease`, and `--force-if-includes`. For `git clean`,
+`force: true` includes `-f` and `--force`.
 
 For `command: aws`, the AWS semantic schema is:
 
@@ -503,6 +520,13 @@ Unsupported semantic fields, unsupported value types, `semantic` without exact
 `command`, `command_in` with `semantic`, `subcommand` with `semantic`, command
 and semantic schema mismatches, and rewrite selectors with `semantic` are
 validation errors. Generic parser fallback never satisfies semantic match.
+Unsupported semantic field errors must include the supported fields for the
+selected command.
+
+`args_contains` and `args_prefixes` are legacy raw-word matchers over command
+words after the executable token. `semantic.flags_contains` and
+`semantic.flags_prefixes` inspect options recognized by the command-specific
+semantic parser and do not match on GenericParser fallback.
 
 For `permission.allow`, `pattern` and `patterns` fail closed to `ask` unless
 the command is safe for evaluation. Syntax parse errors, diagnostics, unknown
