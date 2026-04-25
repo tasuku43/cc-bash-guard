@@ -8,12 +8,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/policy"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
 )
 
 func TestLoadEffectiveUsesUserConfig(t *testing.T) {
 	home := t.TempDir()
-	userPath := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	userPath := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 	if err := os.MkdirAll(filepath.Dir(userPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestLoadEffectiveForToolMergesUserAndProjectConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	userPath := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	userPath := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 	if err := os.MkdirAll(filepath.Dir(userPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -82,7 +82,7 @@ test:
 		t.Fatal(err)
 	}
 
-	localPath := filepath.Join(project, ".cc-bash-proxy", "cc-bash-proxy.yaml")
+	localPath := filepath.Join(project, ".cc-bash-guard", "cc-bash-guard.yaml")
 	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +131,7 @@ func TestLoadEffectiveForToolProjectOverridesClaudeMergeMode(t *testing.T) {
 	if err := os.Mkdir(filepath.Join(project, ".git"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	userPath := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	userPath := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 	if err := os.MkdirAll(filepath.Dir(userPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -156,11 +156,11 @@ test:
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	localPath := filepath.Join(project, ".cc-bash-proxy", "cc-bash-proxy.yml")
+	localPath := filepath.Join(project, ".cc-bash-guard", "cc-bash-guard.yml")
 	if err := os.MkdirAll(filepath.Dir(localPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(localPath, []byte(`claude_permission_merge_mode: cc_bash_proxy_authoritative
+	if err := os.WriteFile(localPath, []byte(`claude_permission_merge_mode: cc_bash_guard_authoritative
 permission:
   ask:
     - command:
@@ -186,14 +186,14 @@ test:
 	if len(loaded.Errors) != 0 {
 		t.Fatalf("unexpected errors: %v", loaded.Errors)
 	}
-	if loaded.Pipeline.ClaudePermissionMergeMode != "cc_bash_proxy_authoritative" {
+	if loaded.Pipeline.ClaudePermissionMergeMode != "cc_bash_guard_authoritative" {
 		t.Fatalf("mode=%q", loaded.Pipeline.ClaudePermissionMergeMode)
 	}
 }
 
 func TestLoadEffectiveRejectsPermissionCompositionConfig(t *testing.T) {
 	home := t.TempDir()
-	userPath := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	userPath := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 	if err := os.MkdirAll(filepath.Dir(userPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ test:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			home := t.TempDir()
-			userPath := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+			userPath := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 			if err := os.MkdirAll(filepath.Dir(userPath), 0o755); err != nil {
 				t.Fatal(err)
 			}
@@ -315,7 +315,7 @@ test:
 
 func TestLoadFileForEvalIfPresentSupportsAbsolutePathNormalization(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "cc-bash-proxy.yml")
+	path := filepath.Join(dir, "cc-bash-guard.yml")
 	cacheDir := t.TempDir()
 	body := `permission:
   allow:
@@ -349,7 +349,7 @@ test:
 
 func TestVerifyFileWritesVerifiedArtifactAndHookLoadsIt(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "cc-bash-proxy.yml")
+	path := filepath.Join(dir, "cc-bash-guard.yml")
 	cacheDir := filepath.Join(t.TempDir(), "cache")
 	body := `permission:
   allow:
@@ -648,7 +648,7 @@ test:
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			dir := t.TempDir()
-			path := filepath.Join(dir, "cc-bash-proxy.yml")
+			path := filepath.Join(dir, "cc-bash-guard.yml")
 			cacheDir := filepath.Join(t.TempDir(), "cache")
 			if err := os.WriteFile(path, []byte(tt.body), 0o644); err != nil {
 				t.Fatal(err)
@@ -667,8 +667,8 @@ func TestHookCacheDirsUseUserCacheOnly(t *testing.T) {
 
 	got := HookCacheDirs(home, xdg)
 	want := []string{
-		filepath.Join(xdg, "cc-bash-proxy"),
-		filepath.Join(home, ".cache", "cc-bash-proxy"),
+		filepath.Join(xdg, "cc-bash-guard"),
+		filepath.Join(home, ".cache", "cc-bash-guard"),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("HookCacheDirs() = %#v, want %#v", got, want)
@@ -676,7 +676,7 @@ func TestHookCacheDirsUseUserCacheOnly(t *testing.T) {
 
 	got = HookCacheDirs(home, "")
 	want = []string{
-		filepath.Join(home, ".cache", "cc-bash-proxy"),
+		filepath.Join(home, ".cache", "cc-bash-guard"),
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("HookCacheDirs() without xdg = %#v, want %#v", got, want)
@@ -685,7 +685,7 @@ func TestHookCacheDirsUseUserCacheOnly(t *testing.T) {
 
 func TestLoadVerifiedFileForHookRejectsMismatchedEvaluationSemantics(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "cc-bash-proxy.yml")
+	path := filepath.Join(dir, "cc-bash-guard.yml")
 	cacheDir := filepath.Join(t.TempDir(), "cache")
 	body := `permission:
   allow:
@@ -709,14 +709,14 @@ test:
 	removeJSONField(t, cachePath, "evaluation_semantics_version")
 
 	_, err := LoadVerifiedFileForHook(Source{Layer: LayerUser, Path: path}, []string{cacheDir})
-	if err == nil || !strings.Contains(err.Error(), "evaluation semantics version 0") || !strings.Contains(err.Error(), "run cc-bash-proxy verify") {
+	if err == nil || !strings.Contains(err.Error(), "evaluation semantics version 0") || !strings.Contains(err.Error(), "run cc-bash-guard verify") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
 func TestLoadVerifiedFileForHookRejectsUnsafeCachePermissions(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "cc-bash-proxy.yml")
+	path := filepath.Join(dir, "cc-bash-guard.yml")
 	cacheDir := filepath.Join(t.TempDir(), "cache")
 	body := `permission:
   allow:
@@ -765,7 +765,7 @@ test:
 
 func TestVerifyFileSupportsCompoundCommandAsExplicitAskE2E(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "cc-bash-proxy.yml")
+	path := filepath.Join(dir, "cc-bash-guard.yml")
 	cacheDir := t.TempDir()
 	body := `permission:
   allow:
@@ -804,7 +804,7 @@ test:
 
 func TestLoadVerifiedFileForHookFailsWhenArtifactMissing(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "cc-bash-proxy.yml")
+	path := filepath.Join(dir, "cc-bash-guard.yml")
 	body := `permission:
   allow:
     - command:
@@ -822,7 +822,7 @@ test:
 	}
 
 	_, err := LoadVerifiedFileForHook(Source{Layer: LayerUser, Path: path}, []string{t.TempDir()})
-	if err == nil || !strings.Contains(err.Error(), "run cc-bash-proxy verify") {
+	if err == nil || !strings.Contains(err.Error(), "run cc-bash-guard verify") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -835,7 +835,7 @@ func TestVerifyEffectiveToAllCachesIncludesToolSettingsFingerprint(t *testing.T)
 		t.Fatal(err)
 	}
 
-	configPath := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	configPath := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -875,7 +875,7 @@ test:
 	if len(pipeline.Permission.Ask) != 1 {
 		t.Fatalf("pipeline = %#v", pipeline)
 	}
-	data, err := os.ReadFile(singleCachePath(t, filepath.Join(cacheHome, "cc-bash-proxy")))
+	data, err := os.ReadFile(singleCachePath(t, filepath.Join(cacheHome, "cc-bash-guard")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -907,7 +907,7 @@ func TestLoadEffectiveForHookToolRejectsMismatchedEvaluationSemantics(t *testing
 	home := t.TempDir()
 	cwd := t.TempDir()
 	cacheHome := t.TempDir()
-	configPath := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	configPath := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 	if err := os.MkdirAll(filepath.Dir(configPath), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -934,7 +934,7 @@ test:
 	if _, err := VerifyEffectiveToAllCaches(cwd, home, "", cacheHome, "claude", "vtest"); err != nil {
 		t.Fatalf("VerifyEffectiveToAllCaches() error = %v", err)
 	}
-	cachePath := singleCachePath(t, filepath.Join(cacheHome, "cc-bash-proxy"))
+	cachePath := singleCachePath(t, filepath.Join(cacheHome, "cc-bash-guard"))
 	setJSONField(t, cachePath, "evaluation_semantics_version", float64(EvaluationSemanticsVersion+1))
 
 	loaded := LoadEffectiveForHookTool(cwd, home, "", cacheHome, "claude")
@@ -942,14 +942,14 @@ test:
 		t.Fatal("expected incompatible artifact error")
 	}
 	msg := loaded.Errors[0].Error()
-	if !strings.Contains(msg, "evaluation semantics version") || !strings.Contains(msg, "run cc-bash-proxy verify") {
+	if !strings.Contains(msg, "evaluation semantics version") || !strings.Contains(msg, "run cc-bash-guard verify") {
 		t.Fatalf("unexpected error: %v", loaded.Errors[0])
 	}
 }
 
 func TestLoadFileIfPresentRejectsUnsupportedBuiltInRewriteContract(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "cc-bash-proxy.yml")
+	path := filepath.Join(dir, "cc-bash-guard.yml")
 	body := `rewrite:
   - match:
       command: aws

@@ -8,7 +8,7 @@ date: 2026-04-25
 
 ## 1. Scope
 
-This document defines how `cc-bash-proxy` turns a shell invocation into a
+This document defines how `cc-bash-guard` turns a shell invocation into a
 `Command` before permission evaluation.
 
 Permission decisions depend on the meaning of `Command`, so parser behavior

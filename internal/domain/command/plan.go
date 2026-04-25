@@ -3,7 +3,7 @@ package command
 import (
 	"strings"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/invocation"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/invocation"
 	"mvdan.cc/sh/v3/syntax"
 )
 

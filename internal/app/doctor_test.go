@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/app/doctoring"
-	configrepo "github.com/tasuku43/cc-bash-proxy/internal/infra/config"
+	"github.com/tasuku43/cc-bash-guard/internal/app/doctoring"
+	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
 )
 
 func TestRunDoctorUsesEffectiveProjectConfig(t *testing.T) {
@@ -65,7 +65,7 @@ func TestRunDoctorReportsIncompatibleVerifiedArtifact(t *testing.T) {
 	if _, err := configrepo.VerifyEffectiveToAllCaches(cwd, home, "", xdgCacheHome, "claude", "test"); err != nil {
 		t.Fatalf("verify effective: %v", err)
 	}
-	appRemoveJSONField(t, singleAppCachePath(t, filepath.Join(xdgCacheHome, "cc-bash-proxy")), "evaluation_semantics_version")
+	appRemoveJSONField(t, singleAppCachePath(t, filepath.Join(xdgCacheHome, "cc-bash-guard")), "evaluation_semantics_version")
 
 	result := RunDoctor(Env{Cwd: cwd, Home: home, XDGCacheHome: xdgCacheHome})
 	if !result.Report.VerifiedArtifactExists {
@@ -105,7 +105,7 @@ test:
 
 func writeAppUserConfig(t *testing.T, home string, body string) string {
 	t.Helper()
-	path := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	path := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 	writeAppFile(t, path, body)
 	return path
 }
@@ -115,7 +115,7 @@ func writeAppProjectConfig(t *testing.T, cwd string, body string) string {
 	if err := os.Mkdir(filepath.Join(cwd, ".git"), 0o755); err != nil && !os.IsExist(err) {
 		t.Fatal(err)
 	}
-	path := filepath.Join(cwd, ".cc-bash-proxy", "cc-bash-proxy.yaml")
+	path := filepath.Join(cwd, ".cc-bash-guard", "cc-bash-guard.yaml")
 	writeAppFile(t, path, body)
 	return path
 }

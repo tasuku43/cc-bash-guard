@@ -1,25 +1,25 @@
 ---
-title: "cc-bash-proxy verify"
+title: "cc-bash-guard verify"
 status: proposed
 date: 2026-04-23
 ---
 
-# cc-bash-proxy verify
+# cc-bash-guard verify
 
 ## Purpose
 
-`cc-bash-proxy verify` is a stricter trust-oriented check than `cc-bash-proxy doctor`.
+`cc-bash-guard verify` is a stricter trust-oriented check than `cc-bash-guard doctor`.
 
 It exists to answer a narrower question:
 
-**Can the current local `cc-bash-proxy` setup be reasonably trusted as
+**Can the current local `cc-bash-guard` setup be reasonably trusted as
 part of the execution path?**
 
 ## Behavior
 
-`cc-bash-proxy verify` should:
+`cc-bash-guard verify` should:
 
-- resolve and merge global and project-local `cc-bash-proxy` policy
+- resolve and merge global and project-local `cc-bash-guard` policy
 - resolve global and project-local settings for the target tool
 - run the same config and rule validation used by `doctor`
 - run rewrite tests, permission rule tests, and top-level E2E tests against the
@@ -27,12 +27,12 @@ part of the execution path?**
 - compile and write a tool-specific verified hook artifact
 - require build metadata to be visible in the current binary
 - for Claude, fail if Claude Code settings exist but do not point at
-  `cc-bash-proxy hook`
-- for Claude, fail if Claude Code settings use `cc-bash-proxy hook` via PATH lookup
+  `cc-bash-guard hook`
+- for Claude, fail if Claude Code settings use `cc-bash-guard hook` via PATH lookup
   rather than an absolute binary path
 - for Claude, fail if an absolute Claude Code hook target does not exist or is not
   executable
-- for Claude, fail if Claude Code points at a different `cc-bash-proxy` binary than the one
+- for Claude, fail if Claude Code points at a different `cc-bash-guard` binary than the one
   currently being verified
 
 It should not require the target tool to be installed. If no tool settings file
@@ -53,7 +53,7 @@ The default output should include:
 
 ### JSON
 
-`cc-bash-proxy verify --format json` should expose:
+`cc-bash-guard verify --format json` should expose:
 
 - `verified`
 - `tool`
@@ -73,10 +73,10 @@ promote a smaller set of trust-critical conditions into failures.
 
 ## Hook Relationship
 
-`cc-bash-proxy hook` reads only verified artifacts at runtime.
+`cc-bash-guard hook` reads only verified artifacts at runtime.
 
 - If a verified artifact exists and matches the current config hash, the hook uses it
 - If the artifact is missing or stale, the hook returns a deny response with `invalid_config`
-- The deny reason should tell the user to run `cc-bash-proxy verify`
-- `cc-bash-proxy hook --auto-verify` opts in to the older implicit verify behavior:
+- The deny reason should tell the user to run `cc-bash-guard verify`
+- `cc-bash-guard hook --auto-verify` opts in to the older implicit verify behavior:
   the hook tries verify once and retries loading the artifact

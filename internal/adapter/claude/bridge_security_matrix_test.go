@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/policy"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
 )
 
 func TestSecurityRegressionMatrixClaudeMergeModes(t *testing.T) {
@@ -47,7 +47,7 @@ func TestSecurityRegressionMatrixClaudeMergeModes(t *testing.T) {
 			wantSettings:  "ask",
 		},
 		{
-			name:          "strict applies settings allow when cc-bash-proxy abstains",
+			name:          "strict applies settings allow when cc-bash-guard abstains",
 			mode:          MergeModeStrict,
 			baseOutcome:   "abstain",
 			claudeAllow:   []string{"git status"},
@@ -56,7 +56,7 @@ func TestSecurityRegressionMatrixClaudeMergeModes(t *testing.T) {
 			wantSettings:  "allow",
 		},
 		{
-			name:          "strict applies settings ask when cc-bash-proxy abstains",
+			name:          "strict applies settings ask when cc-bash-guard abstains",
 			mode:          MergeModeStrict,
 			baseOutcome:   "abstain",
 			claudeAsk:     []string{"git status"},
@@ -65,7 +65,7 @@ func TestSecurityRegressionMatrixClaudeMergeModes(t *testing.T) {
 			wantSettings:  "ask",
 		},
 		{
-			name:          "strict applies settings deny when cc-bash-proxy abstains",
+			name:          "strict applies settings deny when cc-bash-guard abstains",
 			mode:          MergeModeStrict,
 			baseOutcome:   "abstain",
 			claudeDeny:    []string{"git status"},

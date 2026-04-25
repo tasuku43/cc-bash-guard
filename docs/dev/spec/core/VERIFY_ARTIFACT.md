@@ -8,11 +8,11 @@ date: 2026-04-21
 
 ## Purpose
 
-`cc-bash-proxy` should not execute hook-time policy directly from the human-edited
+`cc-bash-guard` should not execute hook-time policy directly from the human-edited
 YAML source config.
 
-Instead, `cc-bash-proxy verify` compiles the current effective config into a
-machine-only JSON artifact. `cc-bash-proxy hook` reads only that artifact.
+Instead, `cc-bash-guard verify` compiles the current effective config into a
+machine-only JSON artifact. `cc-bash-guard hook` reads only that artifact.
 
 ## Required Fields
 
@@ -30,9 +30,9 @@ The runtime artifact must carry at least:
 
 ## Runtime Gate
 
-`cc-bash-proxy hook` should:
+`cc-bash-guard hook` should:
 
-1. resolve the current effective `cc-bash-proxy` sources for that tool
+1. resolve the current effective `cc-bash-guard` sources for that tool
 2. resolve the current tool settings files for that tool
 3. compute the effective fingerprint from both policy files and tool settings
 4. look for the artifact matching that fingerprint and tool
@@ -42,7 +42,7 @@ The runtime artifact must carry at least:
 
 `evaluation_semantics_version` is bumped when policy evaluation semantics change
 in a way that can affect allow/ask/deny outcomes. A mismatch must fail closed and
-tell the user to run `cc-bash-proxy verify`.
+tell the user to run `cc-bash-guard verify`.
 
 ## Non-Goals
 

@@ -17,7 +17,7 @@ Top-level keys:
 Top-level `rewrite` is no longer supported. If present, verification fails with:
 
 ```text
-top-level rewrite is no longer supported; cc-bash-proxy no longer rewrites commands. Use permission.command / env / patterns, and rely on parser-backed normalization for evaluation.
+top-level rewrite is no longer supported; cc-bash-guard no longer rewrites commands. Use permission.command / env / patterns, and rely on parser-backed normalization for evaluation.
 ```
 
 Permission rules use only `command`, `env`, and `patterns`. Singular
@@ -64,4 +64,4 @@ test:
     decision: allow
 ```
 
-`rewritten` is not supported because `cc-bash-proxy` does not rewrite commands.
+`rewritten` is not supported because `cc-bash-guard` does not rewrite commands.

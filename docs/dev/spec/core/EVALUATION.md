@@ -6,7 +6,7 @@ date: 2026-04-26
 
 # Evaluation Model
 
-`cc-bash-proxy` is a permission-only policy proxy.
+`cc-bash-guard` is a permission-only policy proxy.
 
 Evaluation flow:
 

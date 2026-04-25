@@ -1,9 +1,9 @@
 package app
 
 import (
-	"github.com/tasuku43/cc-bash-proxy/internal/adapter/claude"
-	"github.com/tasuku43/cc-bash-proxy/internal/app/doctoring"
-	configrepo "github.com/tasuku43/cc-bash-proxy/internal/infra/config"
+	"github.com/tasuku43/cc-bash-guard/internal/adapter/claude"
+	"github.com/tasuku43/cc-bash-guard/internal/app/doctoring"
+	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
 )
 
 func RunDoctor(env Env) DoctorResult {

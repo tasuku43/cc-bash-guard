@@ -112,7 +112,7 @@ func benchmarkConfig(ruleCount, examplesPerRule int) string {
 
 func writeUserConfigBenchmark(b *testing.B, home string, body string) {
 	b.Helper()
-	path := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	path := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		b.Fatal(err)
 	}

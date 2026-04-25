@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	commandpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/command"
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/invocation"
-	semanticpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/semantic"
+	commandpkg "github.com/tasuku43/cc-bash-guard/internal/domain/command"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/invocation"
+	semanticpkg "github.com/tasuku43/cc-bash-guard/internal/domain/semantic"
 )
 
 type PipelineSpec struct {
@@ -2250,15 +2250,15 @@ func commandMatchArgs(cmd commandpkg.Command) []string {
 func ValidatePipeline(spec PipelineSpec) []string {
 	var issues []string
 	if len(spec.Rewrite) > 0 {
-		issues = append(issues, "top-level rewrite is no longer supported; cc-bash-proxy no longer rewrites commands. Use permission.command / env / patterns, and rely on parser-backed normalization for evaluation.")
+		issues = append(issues, "top-level rewrite is no longer supported; cc-bash-guard no longer rewrites commands. Use permission.command / env / patterns, and rely on parser-backed normalization for evaluation.")
 	}
 	if IsZeroPermissionSpec(spec.Permission) {
 		issues = append(issues, "must set at least one permission entry")
 	}
 	switch strings.TrimSpace(spec.ClaudePermissionMergeMode) {
-	case "", "migration_compat", "strict", "cc_bash_proxy_authoritative":
+	case "", "migration_compat", "strict", "cc_bash_guard_authoritative":
 	default:
-		issues = append(issues, "claude_permission_merge_mode must be one of migration_compat, strict, or cc_bash_proxy_authoritative")
+		issues = append(issues, "claude_permission_merge_mode must be one of migration_compat, strict, or cc_bash_guard_authoritative")
 	}
 	for i, rule := range spec.Permission.Deny {
 		issues = append(issues, ValidatePermissionRule(fmt.Sprintf("permission.deny[%d]", i), rule, "deny")...)
@@ -2706,7 +2706,7 @@ func ValidatePipelineTest(prefix string, test PipelineTestSpec) []string {
 			issues = append(issues, fmt.Sprintf("%s[%d].in must be non-empty", prefix, i))
 		}
 		if strings.TrimSpace(c.Rewritten) != "" {
-			issues = append(issues, fmt.Sprintf("%s[%d].rewritten is no longer supported; cc-bash-proxy does not rewrite commands", prefix, i))
+			issues = append(issues, fmt.Sprintf("%s[%d].rewritten is no longer supported; cc-bash-guard does not rewrite commands", prefix, i))
 		}
 		switch c.Decision {
 		case "allow", "ask", "deny":

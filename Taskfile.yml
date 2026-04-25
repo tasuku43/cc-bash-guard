@@ -1,7 +1,7 @@
 version: "3"
 
 vars:
-  BIN: cc-bash-proxy
+  BIN: cc-bash-guard
 
 tasks:
   default:
@@ -9,9 +9,9 @@ tasks:
       - task: build
 
   build:
-    desc: Build the cc-bash-proxy binary into the repository root
+    desc: Build the cc-bash-guard binary into the repository root
     cmds:
-      - go build -o {{.BIN}} ./cmd/cc-bash-proxy
+      - go build -o {{.BIN}} ./cmd/cc-bash-guard
 
   test:
     desc: Run the Go test suite

@@ -8,7 +8,7 @@ date: 2026-04-25
 
 ## 1. Scope
 
-`cc-bash-proxy` tests are security boundary tests, not only feature tests. The
+`cc-bash-guard` tests are security boundary tests, not only feature tests. The
 regression matrix must keep the important allow/ask/deny boundaries stable
 across refactors.
 
@@ -47,7 +47,7 @@ The matrix must preserve these invariants:
 - unsafe shell shapes must not become automatic `allow`
 - `patterns` allow must not bypass fail-closed shell safety
 - parser removal or generic fallback must not widen a semantic rule to `allow`
-- Claude `migration_compat`, `strict`, and `cc_bash_proxy_authoritative` must
+- Claude `migration_compat`, `strict`, and `cc_bash_guard_authoritative` must
   have explicit, tested differences
 - rewrite steps must not hide the final shell shape used for permission
   evaluation
@@ -101,13 +101,13 @@ narrow and must not authorize unsafe shell syntax.
 
 - `strict`
 - `migration_compat`
-- `cc_bash_proxy_authoritative`
+- `cc_bash_guard_authoritative`
 
 The merge mode matrix must show where the modes differ. In particular, only
-`migration_compat` may upgrade a `cc-bash-proxy` `ask` to `allow` from Claude
+`migration_compat` may upgrade a `cc-bash-guard` `ask` to `allow` from Claude
 settings, and no mode may upgrade an existing `deny` to `allow`. The matrix
-must also cover `cc-bash-proxy` `abstain`: in `strict`, Claude `allow`, `ask`,
-and `deny` are honored when `cc-bash-proxy` abstains, while both sides
+must also cover `cc-bash-guard` `abstain`: in `strict`, Claude `allow`, `ask`,
+and `deny` are honored when `cc-bash-guard` abstains, while both sides
 abstaining falls back to final `ask`. E2E hook tests must assert trace
 distinguishes `no_match` from final fallback `default` ask.
 

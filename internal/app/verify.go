@@ -3,11 +3,11 @@ package app
 import (
 	"strings"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/adapter/claude"
-	"github.com/tasuku43/cc-bash-proxy/internal/app/doctoring"
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/policy"
-	"github.com/tasuku43/cc-bash-proxy/internal/infra/buildinfo"
-	configrepo "github.com/tasuku43/cc-bash-proxy/internal/infra/config"
+	"github.com/tasuku43/cc-bash-guard/internal/adapter/claude"
+	"github.com/tasuku43/cc-bash-guard/internal/app/doctoring"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
+	"github.com/tasuku43/cc-bash-guard/internal/infra/buildinfo"
+	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
 )
 
 func RunVerify(env Env) VerifyResult {

@@ -9,7 +9,7 @@ date: 2026-04-22
 ## 1. Scope
 
 This document defines the target output contract for the main hook entrypoint of
-`cc-bash-proxy`.
+`cc-bash-guard`.
 
 The command name is `hook`, and the contract below is for the current
 rewrite-plus-permission model.
@@ -104,6 +104,6 @@ The important distinction is:
 
 ## 6. Integration Note
 
-The central design goal is that `cc-bash-proxy` itself becomes the primary
+The central design goal is that `cc-bash-guard` itself becomes the primary
 permission authority for shell commands without changing the command string
 that will be executed.

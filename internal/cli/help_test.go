@@ -24,7 +24,7 @@ func TestHelpMatchExplainsSemantic(t *testing.T) {
 	}
 	for _, want := range []string{
 		"semantic",
-		"cc-bash-proxy help semantic",
+		"cc-bash-guard help semantic",
 		"Permission rules do not use match or pattern",
 		"patterns",
 		"command.name",

@@ -14,7 +14,7 @@ type Info struct {
 func Read() Info {
 	info := Info{
 		Version: "dev",
-		Module:  "github.com/tasuku43/cc-bash-proxy",
+		Module:  "github.com/tasuku43/cc-bash-guard",
 	}
 
 	if bi, ok := debug.ReadBuildInfo(); ok {

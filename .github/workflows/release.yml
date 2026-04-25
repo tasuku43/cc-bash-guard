@@ -72,13 +72,13 @@ jobs:
           app-id: ${{ secrets.HOMEBREW_APP_ID }}
           private-key: ${{ secrets.HOMEBREW_APP_KEY }}
           owner: tasuku43
-          repositories: homebrew-cc-bash-proxy
+          repositories: homebrew-cc-bash-guard
 
       - name: Checkout Homebrew tap
         if: steps.channel.outputs.stable == 'true'
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
         with:
-          repository: tasuku43/homebrew-cc-bash-proxy
+          repository: tasuku43/homebrew-cc-bash-guard
           token: ${{ steps.homebrew-token.outputs.token }}
           path: homebrew-tap
 
@@ -97,9 +97,9 @@ jobs:
           commit-message: "Update Homebrew formula for ${{ github.ref_name }}"
           title: "Update Homebrew formula for ${{ github.ref_name }}"
           body: |
-            Updates `Formula/cc-bash-proxy.rb` to point to GitHub Releases artifacts for `${{ github.ref_name }}`.
+            Updates `Formula/cc-bash-guard.rb` to point to GitHub Releases artifacts for `${{ github.ref_name }}`.
           add-paths: |
-            Formula/cc-bash-proxy.rb
+            Formula/cc-bash-guard.rb
           base: main
           branch: "chore/homebrew-formula-${{ github.ref_name }}"
           delete-branch: true

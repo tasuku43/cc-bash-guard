@@ -5,11 +5,11 @@ import (
 	"io"
 	"strings"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/app"
+	"github.com/tasuku43/cc-bash-guard/internal/app"
 )
 
 func writeVerifyText(w io.Writer, result app.VerifyResult) {
-	fmt.Fprintf(w, "cc-bash-proxy %s\n", result.BuildInfo.Version)
+	fmt.Fprintf(w, "cc-bash-guard %s\n", result.BuildInfo.Version)
 	fmt.Fprintf(w, "tool: %s\n", result.Tool)
 	if result.BuildInfo.VCSRevision != "" {
 		fmt.Fprintf(w, "vcs.revision: %s\n", result.BuildInfo.VCSRevision)
@@ -33,7 +33,7 @@ func writeVerifyText(w io.Writer, result app.VerifyResult) {
 }
 
 func writeVersionText(w io.Writer, result app.VersionResult) {
-	fmt.Fprintf(w, "cc-bash-proxy %s\n", result.Info.Version)
+	fmt.Fprintf(w, "cc-bash-guard %s\n", result.Info.Version)
 	fmt.Fprintf(w, "module: %s\n", result.Info.Module)
 	if result.Info.GoVersion != "" {
 		fmt.Fprintf(w, "go: %s\n", result.Info.GoVersion)

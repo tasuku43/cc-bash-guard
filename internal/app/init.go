@@ -4,16 +4,16 @@ import (
 	"errors"
 	"path/filepath"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/infra"
+	"github.com/tasuku43/cc-bash-guard/internal/infra"
 )
 
 func RunInit(env Env) (InitResult, error) {
-	configDir := filepath.Join(userConfigBase(env.Home, env.XDGConfigHome), "cc-bash-proxy")
+	configDir := filepath.Join(userConfigBase(env.Home, env.XDGConfigHome), "cc-bash-guard")
 	if err := infra.MkdirAll(configDir, 0o755); err != nil {
 		return InitResult{}, err
 	}
 
-	configPath := filepath.Join(configDir, "cc-bash-proxy.yml")
+	configPath := filepath.Join(configDir, "cc-bash-guard.yml")
 	created := false
 	exists, err := infra.Exists(configPath)
 	if err != nil {
@@ -37,7 +37,7 @@ func RunInit(env Env) (InitResult, error) {
 		Created:                created,
 		ClaudeSettingsPath:     claudeSettings,
 		ClaudeSettingsDetected: settingsDetected,
-		HookSnippet:            `{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-proxy hook --rtk"}]}`,
+		HookSnippet:            `{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-guard hook --rtk"}]}`,
 	}, nil
 }
 

@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/adapter/claude"
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/policy"
-	"github.com/tasuku43/cc-bash-proxy/internal/infra/buildinfo"
-	configrepo "github.com/tasuku43/cc-bash-proxy/internal/infra/config"
+	"github.com/tasuku43/cc-bash-guard/internal/adapter/claude"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
+	"github.com/tasuku43/cc-bash-guard/internal/infra/buildinfo"
+	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
 )
 
 type Status string
@@ -91,10 +91,10 @@ func Run(loaded configrepo.Loaded, tool string, cwd string, home string) Report 
 		checks = append(checks, Check{ID: "permission.claude-merge-mode", Category: "permission", Status: StatusPass, Message: "Claude permission merge mode: " + mergeMode})
 	}
 
-	if path, err := exec.LookPath("cc-bash-proxy"); err == nil {
-		checks = append(checks, Check{ID: "install.binary-on-path", Category: "install", Status: StatusPass, Message: "cc-bash-proxy found on PATH at " + path})
+	if path, err := exec.LookPath("cc-bash-guard"); err == nil {
+		checks = append(checks, Check{ID: "install.binary-on-path", Category: "install", Status: StatusPass, Message: "cc-bash-guard found on PATH at " + path})
 	} else {
-		checks = append(checks, Check{ID: "install.binary-on-path", Category: "install", Status: StatusWarn, Message: "cc-bash-proxy not found on PATH"})
+		checks = append(checks, Check{ID: "install.binary-on-path", Category: "install", Status: StatusWarn, Message: "cc-bash-guard not found on PATH"})
 	}
 
 	if exe, err := os.Executable(); err == nil {
@@ -270,14 +270,14 @@ func claudeHookRegistrationCheck(path string) Check {
 		return check
 	}
 	if registration.NonBashHookCommand != "" {
-		check.Message = "cc-bash-proxy hook exists but matcher is not Bash"
+		check.Message = "cc-bash-guard hook exists but matcher is not Bash"
 		return check
 	}
 	if registration.BashMatcher {
-		check.Message = "Bash matcher exists but cc-bash-proxy hook is missing"
+		check.Message = "Bash matcher exists but cc-bash-guard hook is missing"
 		return check
 	}
-	check.Message = "Claude Code settings found but cc-bash-proxy hook not detected"
+	check.Message = "Claude Code settings found but cc-bash-guard hook not detected"
 	return check
 }
 
@@ -307,7 +307,7 @@ func extractClaudeHookCommand(raw string) (string, bool) {
 func findHookCommand(node any) string {
 	switch v := node.(type) {
 	case map[string]any:
-		if command, ok := v["command"].(string); ok && strings.Contains(command, "cc-bash-proxy hook") {
+		if command, ok := v["command"].(string); ok && strings.Contains(command, "cc-bash-guard hook") {
 			return command
 		}
 		for _, value := range v {
@@ -336,7 +336,7 @@ func findClaudeHookRegistration(node any, inheritedMatcher string) claudeHookReg
 				result.BashMatcher = true
 			}
 		}
-		if command, ok := v["command"].(string); ok && strings.Contains(command, "cc-bash-proxy hook") {
+		if command, ok := v["command"].(string); ok && strings.Contains(command, "cc-bash-guard hook") {
 			if matcher == "Bash" {
 				result.BashHookCommand = command
 			} else {

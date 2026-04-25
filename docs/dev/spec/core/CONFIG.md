@@ -8,23 +8,23 @@ date: 2026-04-18
 
 ## 1. Scope
 
-This document defines where `cc-bash-proxy` looks for configuration in v1.
+This document defines where `cc-bash-guard` looks for configuration in v1.
 
 ## 2. Supported Locations
 
-`cc-bash-proxy` loads pure policy from two optional layers:
+`cc-bash-guard` loads pure policy from two optional layers:
 
 1. User-wide:
-   - `$XDG_CONFIG_HOME/cc-bash-proxy/cc-bash-proxy.yml`, or
-   - `~/.config/cc-bash-proxy/cc-bash-proxy.yml` by default
+   - `$XDG_CONFIG_HOME/cc-bash-guard/cc-bash-guard.yml`, or
+   - `~/.config/cc-bash-guard/cc-bash-guard.yml` by default
 2. Project-local:
-   - `<project-root>/.cc-bash-proxy/cc-bash-proxy.yml`
-   - `<project-root>/.cc-bash-proxy/cc-bash-proxy.yaml`
+   - `<project-root>/.cc-bash-guard/cc-bash-guard.yml`
+   - `<project-root>/.cc-bash-guard/cc-bash-guard.yaml`
 
 The effective policy is the merge of:
 
-- global `cc-bash-proxy` policy
-- project-local `cc-bash-proxy` policy
+- global `cc-bash-guard` policy
+- project-local `cc-bash-guard` policy
 
 Merge order is deterministic:
 
@@ -37,12 +37,12 @@ Merge order is deterministic:
   non-empty value, so project-local config can override user-wide config
 
 `claude_permission_merge_mode` accepts `strict`, `migration_compat`, and
-`cc_bash_proxy_authoritative`. `cc-bash-proxy help config` must describe these
+`cc_bash_guard_authoritative`. `cc-bash-guard help config` must describe these
 values, the `deny / ask / allow / abstain` merge relationship, the no-match
 fallback to `ask`, and why `strict` is recommended for security-first setups.
 
 Project root resolution is currently delegated to the Claude-aware runtime paths
-used by `cc-bash-proxy hook` and `cc-bash-proxy verify`.
+used by `cc-bash-guard hook` and `cc-bash-guard verify`.
 
 Missing files are allowed and treated as absent layers.
 
@@ -61,7 +61,7 @@ There is no ID-based override or collision behavior in the current contract.
 - Invalid YAML: invalid configuration
 - Valid YAML with schema errors: invalid configuration
 
-Invalid configuration causes `cc-bash-proxy hook` to return a deny response rather than
+Invalid configuration causes `cc-bash-guard hook` to return a deny response rather than
 silently falling back to partial policy enforcement.
 
 ## 5. Future Extensions

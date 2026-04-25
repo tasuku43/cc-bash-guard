@@ -6,7 +6,7 @@ date: 2026-04-21
 
 # Backlog
 
-This directory tracks implementation backlog items for `cc-bash-proxy`.
+This directory tracks implementation backlog items for `cc-bash-guard`.
 
 Backlog files are grouped by theme so release-readiness work can be planned and
 executed incrementally without mixing product concepts, specs, and operational

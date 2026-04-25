@@ -2,7 +2,7 @@
 
 ## Overview
 
-`cc-bash-proxy` releases are tag-driven.
+`cc-bash-guard` releases are tag-driven.
 
 The intended pipeline is:
 
@@ -11,7 +11,7 @@ The intended pipeline is:
 3. build archives with GoReleaser
 4. publish GitHub Release artifacts and `checksums.txt`
 5. for stable tags without prerelease suffixes, optionally open a PR against
-   `tasuku43/homebrew-cc-bash-proxy`
+   `tasuku43/homebrew-cc-bash-guard`
 
 This document describes the designed release process. If no public GitHub
 Release exists yet, treat these steps as the target release policy rather than
@@ -32,14 +32,14 @@ Every release should publish:
 - `checksums.txt`
 - artifact attestations for archives and `checksums.txt`
 
-Checksums are part of the security story for `cc-bash-proxy` because users are
+Checksums are part of the security story for `cc-bash-guard` because users are
 trusting a binary that can rewrite commands before execution.
 
 GitHub Artifact Attestations provide a signed provenance record for the release
 artifacts. Consumers should be able to verify release provenance with:
 
 ```sh
-gh attestation verify path/to/cc-bash-proxy_<tag>_<os>_<arch>.tar.gz -R tasuku43/cc-bash-proxy
+gh attestation verify path/to/cc-bash-guard_<tag>_<os>_<arch>.tar.gz -R tasuku43/cc-bash-guard
 ```
 
 Use `task release:preflight` before pushing a tag. It runs formatting checks,
@@ -71,8 +71,8 @@ After a release is published:
 1. download one artifact
 2. verify its checksum against `checksums.txt`
 3. run:
-   - `cc-bash-proxy version --format json`
-   - `cc-bash-proxy verify --format json`
+   - `cc-bash-guard version --format json`
+   - `cc-bash-guard verify --format json`
 4. run `gh attestation verify` against the downloaded artifact
 5. confirm the reported VCS revision matches the intended release commit
 

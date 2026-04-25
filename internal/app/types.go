@@ -1,8 +1,8 @@
 package app
 
 import (
-	"github.com/tasuku43/cc-bash-proxy/internal/app/doctoring"
-	"github.com/tasuku43/cc-bash-proxy/internal/infra/buildinfo"
+	"github.com/tasuku43/cc-bash-guard/internal/app/doctoring"
+	"github.com/tasuku43/cc-bash-guard/internal/infra/buildinfo"
 )
 
 type Env struct {

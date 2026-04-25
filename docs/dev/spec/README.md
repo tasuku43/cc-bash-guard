@@ -1,12 +1,12 @@
 ---
-title: "cc-bash-proxy specs"
+title: "cc-bash-guard specs"
 status: implemented
 date: 2026-04-25
 ---
 
-# cc-bash-proxy specs
+# cc-bash-guard specs
 
-This directory contains the implementation contracts for `cc-bash-proxy`.
+This directory contains the implementation contracts for `cc-bash-guard`.
 Each spec file declares its own status. Only `status: implemented` documents
 behavior that should be treated as current contract.
 
@@ -30,10 +30,10 @@ normalization for evaluation.
 
 ## Target priorities
 
-The current `cc-bash-proxy` contract prioritizes:
+The current `cc-bash-guard` contract prioritizes:
 
 1. Permission decisions without changing the executed command string
-2. `cc-bash-proxy`-owned permission decisions
+2. `cc-bash-guard`-owned permission decisions
 3. Simple caller input, rich internal normalization
 4. Deterministic permission bucket ordering
 5. Reviewable, testable policy authoring

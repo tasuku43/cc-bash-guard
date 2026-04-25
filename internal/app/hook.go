@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/adapter/claude"
-	"github.com/tasuku43/cc-bash-proxy/internal/adapter/hookinput"
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/policy"
-	"github.com/tasuku43/cc-bash-proxy/internal/infra"
-	"github.com/tasuku43/cc-bash-proxy/internal/infra/buildinfo"
-	configrepo "github.com/tasuku43/cc-bash-proxy/internal/infra/config"
+	"github.com/tasuku43/cc-bash-guard/internal/adapter/claude"
+	"github.com/tasuku43/cc-bash-guard/internal/adapter/hookinput"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
+	"github.com/tasuku43/cc-bash-guard/internal/infra"
+	"github.com/tasuku43/cc-bash-guard/internal/infra/buildinfo"
+	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
 )
 
 func RunHook(raw []byte, useRTK bool, autoVerify bool, env Env) HookResult {
@@ -36,7 +36,7 @@ func evaluateDecision(req hookinput.ExecRequest, env Env, autoVerify bool) (poli
 	if len(loaded.Errors) > 0 {
 		if shouldAttemptImplicitVerify(loaded.Errors) {
 			if !autoVerify {
-				return policy.Decision{}, "", errors.New("verified artifact missing or stale; run cc-bash-proxy verify")
+				return policy.Decision{}, "", errors.New("verified artifact missing or stale; run cc-bash-guard verify")
 			}
 			if err := ensureVerifiedArtifacts(env, claude.Tool); err == nil {
 				loaded = configrepo.LoadEffectiveForHookTool(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, claude.Tool)
@@ -74,7 +74,7 @@ func hookPayload(decision policy.Decision, originalCommand string) map[string]an
 	case "allow", "ask":
 		hookOutput := map[string]any{
 			"hookEventName":            "PreToolUse",
-			"permissionDecisionReason": "cc-bash-proxy permission evaluated",
+			"permissionDecisionReason": "cc-bash-guard permission evaluated",
 		}
 		if decision.Command != originalCommand {
 			hookOutput["updatedInput"] = map[string]any{"command": decision.Command}
@@ -84,7 +84,7 @@ func hookPayload(decision policy.Decision, originalCommand string) map[string]an
 		}
 		payload := map[string]any{
 			"hookSpecificOutput": hookOutput,
-			"cc-bash-proxy": map[string]any{
+			"cc-bash-guard": map[string]any{
 				"outcome":  decision.Outcome,
 				"explicit": decision.Explicit,
 				"reason":   decision.Reason,
@@ -98,7 +98,7 @@ func hookPayload(decision policy.Decision, originalCommand string) map[string]an
 	case "deny":
 		reason := decision.Message
 		if strings.TrimSpace(reason) == "" {
-			reason = "cc-bash-proxy denied by policy"
+			reason = "cc-bash-guard denied by policy"
 		}
 		return map[string]any{
 			"hookSpecificOutput": map[string]any{
@@ -106,7 +106,7 @@ func hookPayload(decision policy.Decision, originalCommand string) map[string]an
 				"permissionDecision":       "deny",
 				"permissionDecisionReason": reason,
 			},
-			"cc-bash-proxy": map[string]any{
+			"cc-bash-guard": map[string]any{
 				"outcome":  "deny",
 				"explicit": decision.Explicit,
 				"reason":   decision.Reason,
@@ -123,7 +123,7 @@ func hookErrorPayload(tool string, code string, message string) map[string]any {
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":            "PreToolUse",
 			"permissionDecision":       "deny",
-			"permissionDecisionReason": "cc-bash-proxy " + tool + " " + code + ": " + message,
+			"permissionDecisionReason": "cc-bash-guard " + tool + " " + code + ": " + message,
 		},
 	}
 }
@@ -154,5 +154,5 @@ func buildRewriteSystemMessage(decision policy.Decision) (string, bool) {
 	if len(ruleIDs) == 0 {
 		return "", false
 	}
-	return fmt.Sprintf("cc-bash-proxy: rewrote [%s] -> %s", strings.Join(ruleIDs, " -> "), decision.Command), true
+	return fmt.Sprintf("cc-bash-guard: rewrote [%s] -> %s", strings.Join(ruleIDs, " -> "), decision.Command), true
 }

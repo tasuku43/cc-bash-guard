@@ -28,17 +28,17 @@ before a fix is prepared.
 
 ## Verification Guidance
 
-Because `cc-bash-proxy` gates shell permission decisions before execution, users
+Because `cc-bash-guard` gates shell permission decisions before execution, users
 should treat the installed binary as part of their execution trust boundary.
 
 Before relying on a downloaded build:
 
 1. verify the published release checksum
-2. inspect the binary with `cc-bash-proxy version --format json`
-3. run `cc-bash-proxy verify --format json`
+2. inspect the binary with `cc-bash-guard version --format json`
+3. run `cc-bash-guard verify --format json`
 
 If no public GitHub Release exists yet, prefer building from source and then
-running `cc-bash-proxy version --format json` plus `cc-bash-proxy verify
+running `cc-bash-guard version --format json` plus `cc-bash-guard verify
 --format json` instead of relying on unpublished release expectations.
 
 ## Disclosure

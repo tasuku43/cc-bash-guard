@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	commandpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/command"
+	commandpkg "github.com/tasuku43/cc-bash-guard/internal/domain/command"
 )
 
 func TestEvaluateAWSProfileSemanticDoesNotRewriteCommand(t *testing.T) {
@@ -1613,7 +1613,7 @@ func TestEvaluateCompoundAskWinsUnlessACommandIsDenied(t *testing.T) {
 }
 
 func TestEvaluateCompoundTraceIncludesPerCommandComposition(t *testing.T) {
-	src := Source{Layer: "project", Path: "/repo/.cc-bash-proxy/cc-bash-proxy.yml"}
+	src := Source{Layer: "project", Path: "/repo/.cc-bash-guard/cc-bash-guard.yml"}
 	gitRule := func(subcommand string) PermissionRuleSpec {
 		return PermissionRuleSpec{Command: PermissionCommandSpec{Name: "git", Semantic: &SemanticMatchSpec{Verb: subcommand}}}
 	}
@@ -2289,7 +2289,7 @@ func TestValidateSemanticMatchRules(t *testing.T) {
 				},
 				"strip_command_path": true,
 			}}},
-			issue: "top-level rewrite is no longer supported; cc-bash-proxy no longer rewrites commands. Use permission.command / env / patterns, and rely on parser-backed normalization for evaluation.",
+			issue: "top-level rewrite is no longer supported; cc-bash-guard no longer rewrites commands. Use permission.command / env / patterns, and rely on parser-backed normalization for evaluation.",
 		},
 	}
 	for _, tt := range tests {
@@ -2316,7 +2316,7 @@ func TestValidateSemanticUnsupportedFieldSuggestsSupportedFields(t *testing.T) {
 }
 
 func TestEvaluateTraceIncludesMatchedRuleSource(t *testing.T) {
-	src := Source{Layer: "project", Path: "/repo/.cc-bash-proxy/cc-bash-proxy.yml"}
+	src := Source{Layer: "project", Path: "/repo/.cc-bash-guard/cc-bash-guard.yml"}
 	p := NewPipeline(PipelineSpec{
 		Permission: PermissionSpec{
 			Allow: []PermissionRuleSpec{{

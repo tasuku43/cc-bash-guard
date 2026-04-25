@@ -1,6 +1,6 @@
 # Concepts
 
-This directory stores product-level concept documents for `cc-bash-proxy`.
+This directory stores product-level concept documents for `cc-bash-guard`.
 
 - Scope: problem statement, target users, value proposition, non-goals
 - Out of scope: command contracts and implementation behavior under

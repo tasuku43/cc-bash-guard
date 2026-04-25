@@ -1,24 +1,24 @@
 ---
-title: "cc-bash-proxy init"
+title: "cc-bash-guard init"
 status: proposed
 date: 2026-04-19
 ---
 
-# cc-bash-proxy init
+# cc-bash-guard init
 
 ## Purpose
 
-`cc-bash-proxy init` bootstraps a local `cc-bash-proxy` setup without destructively
+`cc-bash-guard init` bootstraps a local `cc-bash-guard` setup without destructively
 modifying existing user configuration.
 
 ## Target Responsibilities
 
-`cc-bash-proxy init` should:
+`cc-bash-guard init` should:
 
 - create a starter user-wide config when one does not exist
 - explain where the user-wide config lives
 - detect compatible Claude Code settings files
-- print the hook snippet needed to register `cc-bash-proxy hook`
+- print the hook snippet needed to register `cc-bash-guard hook`
 
 ## Starter Config Goal
 
@@ -30,7 +30,7 @@ It should:
 - demonstrate at least one structured matcher
 - demonstrate a directive, preferably `rewrite` or `reject`
 - include examples that show the intended rule effect
-- be valid under `cc-bash-proxy verify`
+- be valid under `cc-bash-guard verify`
 
 ## Safety Principle
 

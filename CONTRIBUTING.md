@@ -1,4 +1,4 @@
-# Contributing to cc-bash-proxy
+# Contributing to cc-bash-guard
 
 Thanks for contributing.
 
@@ -66,4 +66,4 @@ Please include:
 
 - the intended release model is tag-driven (`v*`) via GitHub Actions
 - once public releases begin, artifacts are published to GitHub Releases
-- stable tags can update the Homebrew tap (`tasuku43/homebrew-cc-bash-proxy`)
+- stable tags can update the Homebrew tap (`tasuku43/homebrew-cc-bash-guard`)

@@ -1,4 +1,4 @@
-module github.com/tasuku43/cc-bash-proxy
+module github.com/tasuku43/cc-bash-guard
 
 go 1.25.0
 

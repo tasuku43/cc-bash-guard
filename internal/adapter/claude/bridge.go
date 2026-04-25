@@ -3,7 +3,7 @@ package claude
 import (
 	"strings"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/policy"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
 )
 
 const Tool = "claude"
@@ -11,7 +11,7 @@ const Tool = "claude"
 const (
 	MergeModeMigrationCompat          = "migration_compat"
 	MergeModeStrict                   = "strict"
-	MergeModeCCBashProxyAuthoritative = "cc_bash_proxy_authoritative"
+	MergeModeCCBashProxyAuthoritative = "cc_bash_guard_authoritative"
 )
 
 func Supported(tool string) bool {
@@ -153,17 +153,17 @@ func applyStrictPermissionBridge(decision policy.Decision, verdict PermissionVer
 func applyAuthoritativePermissionBridge(decision policy.Decision, verdict PermissionVerdict) policy.Decision {
 	switch verdict {
 	case PermissionDeny:
-		return applyClaudeDeny(decision, "Claude settings deny matched in cc_bash_proxy_authoritative merge mode")
+		return applyClaudeDeny(decision, "Claude settings deny matched in cc_bash_guard_authoritative merge mode")
 	case PermissionAsk, PermissionAllow:
 		decision.Trace = append(decision.Trace, policy.TraceStep{
 			Action:  "permission",
 			Name:    "claude_settings",
 			Effect:  string(verdict),
-			Message: "Claude settings allow/ask ignored in cc_bash_proxy_authoritative merge mode",
+			Message: "Claude settings allow/ask ignored in cc_bash_guard_authoritative merge mode",
 		})
 		return applyFinalAskFallback(decision)
 	case PermissionDefault:
-		return applyClaudeDefault(decision, "Claude settings did not define a matching permission in cc_bash_proxy_authoritative merge mode")
+		return applyClaudeDefault(decision, "Claude settings did not define a matching permission in cc_bash_guard_authoritative merge mode")
 	default:
 		return applyFinalAskFallback(decision)
 	}

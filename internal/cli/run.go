@@ -3,7 +3,7 @@ package cli
 import (
 	"io"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/app"
+	"github.com/tasuku43/cc-bash-guard/internal/app"
 )
 
 const (

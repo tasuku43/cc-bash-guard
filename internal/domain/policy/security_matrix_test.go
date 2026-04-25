@@ -3,7 +3,7 @@ package policy
 import (
 	"testing"
 
-	commandpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/command"
+	commandpkg "github.com/tasuku43/cc-bash-guard/internal/domain/command"
 )
 
 type securityTraceWant struct {

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/policy"
-	configrepo "github.com/tasuku43/cc-bash-proxy/internal/infra/config"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
+	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
 )
 
 func TestRunPassesWhenPipelineTestsMatch(t *testing.T) {
@@ -119,7 +119,7 @@ func TestClaudeHookRegistrationCheckDetectsStructuredSettings(t *testing.T) {
 	}{
 		{
 			name:        "compact JSON passes",
-			settings:    `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-proxy hook"}]}]}}`,
+			settings:    `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-guard hook"}]}]}}`,
 			wantStatus:  StatusPass,
 			wantMessage: "without --rtk",
 		},
@@ -133,7 +133,7 @@ func TestClaudeHookRegistrationCheckDetectsStructuredSettings(t *testing.T) {
         "hooks": [
           {
             "type": "command",
-            "command": "cc-bash-proxy hook"
+            "command": "cc-bash-guard hook"
           }
         ]
       }
@@ -145,25 +145,25 @@ func TestClaudeHookRegistrationCheckDetectsStructuredSettings(t *testing.T) {
 		},
 		{
 			name:        "reordered keys pass",
-			settings:    `{"hooks":{"PreToolUse":[{"hooks":[{"command":"cc-bash-proxy hook","type":"command","extra":true}],"matcher":"Bash","note":"ok"}]}}`,
+			settings:    `{"hooks":{"PreToolUse":[{"hooks":[{"command":"cc-bash-guard hook","type":"command","extra":true}],"matcher":"Bash","note":"ok"}]}}`,
 			wantStatus:  StatusPass,
 			wantMessage: "without --rtk",
 		},
 		{
 			name:        "wrong matcher warns",
-			settings:    `{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"cc-bash-proxy hook"}]}]}}`,
+			settings:    `{"hooks":{"PreToolUse":[{"matcher":"Write","hooks":[{"type":"command","command":"cc-bash-guard hook"}]}]}}`,
 			wantStatus:  StatusWarn,
 			wantMessage: "matcher is not Bash",
 		},
 		{
-			name:        "Bash matcher with no cc-bash-proxy hook warns",
+			name:        "Bash matcher with no cc-bash-guard hook warns",
 			settings:    `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"echo ok"}]}]}}`,
 			wantStatus:  StatusWarn,
-			wantMessage: "Bash matcher exists but cc-bash-proxy hook is missing",
+			wantMessage: "Bash matcher exists but cc-bash-guard hook is missing",
 		},
 		{
-			name:        "cc-bash-proxy hook with --rtk is detected correctly",
-			settings:    `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-proxy hook --rtk"}]}]}}`,
+			name:        "cc-bash-guard hook with --rtk is detected correctly",
+			settings:    `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-guard hook --rtk"}]}]}}`,
 			wantStatus:  StatusPass,
 			wantMessage: "with --rtk",
 		},

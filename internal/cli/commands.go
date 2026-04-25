@@ -5,9 +5,9 @@ import (
 	"io"
 	"strings"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/app"
-	"github.com/tasuku43/cc-bash-proxy/internal/app/doctoring"
-	semanticpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/semantic"
+	"github.com/tasuku43/cc-bash-guard/internal/app"
+	"github.com/tasuku43/cc-bash-guard/internal/app/doctoring"
+	semanticpkg "github.com/tasuku43/cc-bash-guard/internal/domain/semantic"
 )
 
 func runHook(args []string, streams Streams, env Env) int {
@@ -36,7 +36,7 @@ func runHook(args []string, streams Streams, env Env) int {
 				"hookSpecificOutput": map[string]any{
 					"hookEventName":            "PreToolUse",
 					"permissionDecision":       "deny",
-					"permissionDecisionReason": "cc-bash-proxy claude runtime_error: " + err.Error(),
+					"permissionDecisionReason": "cc-bash-guard claude runtime_error: " + err.Error(),
 				},
 			},
 		}.Payload)

@@ -8,9 +8,9 @@ date: 2026-04-22
 
 ## 1. Purpose
 
-This document defines the target product concept for `cc-bash-proxy`.
+This document defines the target product concept for `cc-bash-guard`.
 
-`cc-bash-proxy` is a local policy proxy that:
+`cc-bash-guard` is a local policy proxy that:
 
 1. rewrites commands into policy-approved canonical forms
 2. evaluates permissions on those rewritten commands
@@ -33,13 +33,13 @@ whether the invocation respected the team's calling conventions.
 
 ## 3. Product Thesis
 
-`cc-bash-proxy` should own both command canonicalization and permission evaluation.
+`cc-bash-guard` should own both command canonicalization and permission evaluation.
 
 The key design idea is:
 
 - users describe preferred invocation shape in one config file
-- `cc-bash-proxy` rewrites commands into that shape
-- `cc-bash-proxy` then decides `deny`, `ask`, or `allow`
+- `cc-bash-guard` rewrites commands into that shape
+- `cc-bash-guard` then decides `deny`, `ask`, or `allow`
 - hook runners consume that result rather than acting as the primary policy
   engine
 
@@ -55,7 +55,7 @@ The key design idea is:
 
 ## 5. Core Value Proposition
 
-`cc-bash-proxy` should make approved commands conform to policy-approved invocation
+`cc-bash-guard` should make approved commands conform to policy-approved invocation
 shape and then evaluate permissions on that canonical command.
 
 That value appears in three concrete ways:
@@ -70,10 +70,10 @@ That value appears in three concrete ways:
 
 ## 6. Operating Model
 
-`cc-bash-proxy` runs as a local CLI in front of command execution.
+`cc-bash-guard` runs as a local CLI in front of command execution.
 
 - the caller provides a requested invocation, usually as a raw command string
-- `cc-bash-proxy` parses that invocation internally
+- `cc-bash-guard` parses that invocation internally
 - ordered rewrite steps canonicalize command shape
 - permission buckets are evaluated in order `deny -> ask -> allow`
 - the resulting decision is returned to the caller

@@ -9,16 +9,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/app"
-	"github.com/tasuku43/cc-bash-proxy/internal/app/doctoring"
-	"github.com/tasuku43/cc-bash-proxy/internal/infra/buildinfo"
-	configrepo "github.com/tasuku43/cc-bash-proxy/internal/infra/config"
+	"github.com/tasuku43/cc-bash-guard/internal/app"
+	"github.com/tasuku43/cc-bash-guard/internal/app/doctoring"
+	"github.com/tasuku43/cc-bash-guard/internal/infra/buildinfo"
+	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
 )
 
 type hookPayload struct {
 	HookSpecificOutput map[string]any `json:"hookSpecificOutput"`
 	SystemMessage      string         `json:"systemMessage"`
-	Cmdproxy           map[string]any `json:"cc-bash-proxy"`
+	Cmdproxy           map[string]any `json:"cc-bash-guard"`
 }
 
 type hookEnvSpec struct {
@@ -510,7 +510,7 @@ test:
 
 func TestRunHookClaudeAuthoritativeMergeIgnoresClaudeAsk(t *testing.T) {
 	payload := runClaudeHookTest(t, hookEnvSpec{
-		UserConfig: `claude_permission_merge_mode: cc_bash_proxy_authoritative
+		UserConfig: `claude_permission_merge_mode: cc_bash_guard_authoritative
 permission:
   allow:
     - command:
@@ -537,7 +537,7 @@ test:
 		Command: "git status",
 	})
 	if payload.HookSpecificOutput["permissionDecision"] != "allow" {
-		t.Fatalf("authoritative mode should keep cc-bash-proxy allow, payload=%+v", payload)
+		t.Fatalf("authoritative mode should keep cc-bash-guard allow, payload=%+v", payload)
 	}
 	if payload.Cmdproxy["outcome"] != "allow" {
 		t.Fatalf("outcome=%v payload=%+v", payload.Cmdproxy["outcome"], payload)
@@ -546,7 +546,7 @@ test:
 
 func TestRunHookClaudeAuthoritativeMergeStillHonorsClaudeDeny(t *testing.T) {
 	payload := runClaudeHookTest(t, hookEnvSpec{
-		UserConfig: `claude_permission_merge_mode: cc_bash_proxy_authoritative
+		UserConfig: `claude_permission_merge_mode: cc_bash_guard_authoritative
 permission:
   allow:
     - command:
@@ -662,7 +662,7 @@ test:
 			}{{name: "claude_settings", effect: "allow"}},
 		},
 		{
-			name: "settings allow fills cc-bash-proxy no match in strict mode",
+			name: "settings allow fills cc-bash-guard no match in strict mode",
 			cmdproxyPermission: `permission:
   allow:
     - command:
@@ -697,7 +697,7 @@ test:
 			}{{name: "no_match", effect: "abstain"}, {name: "claude_settings", effect: "allow"}},
 		},
 		{
-			name: "settings deny beats cc-bash-proxy allow",
+			name: "settings deny beats cc-bash-guard allow",
 			cmdproxyPermission: `permission:
   allow:
     - command:
@@ -759,7 +759,7 @@ test:
 			wantReason:          "claude_settings",
 		},
 		{
-			name: "settings ask fills cc-bash-proxy no match",
+			name: "settings ask fills cc-bash-guard no match",
 			cmdproxyPermission: `permission:
   allow:
     - command:
@@ -794,7 +794,7 @@ test:
 			}{{name: "no_match", effect: "abstain"}, {name: "claude_settings", effect: "ask"}},
 		},
 		{
-			name: "cc-bash-proxy allow plus settings abstain stays allow",
+			name: "cc-bash-guard allow plus settings abstain stays allow",
 			cmdproxyPermission: `permission:
   allow:
     - command:
@@ -852,7 +852,7 @@ test:
 			}{{name: "no_match", effect: "abstain"}, {name: "claude_settings", effect: "abstain"}, {name: "default", effect: "ask"}},
 		},
 		{
-			name: "cc-bash-proxy ask plus settings abstain stays ask",
+			name: "cc-bash-guard ask plus settings abstain stays ask",
 			cmdproxyPermission: `permission:
   ask:
     - command:
@@ -1110,7 +1110,7 @@ test:
 		t.Fatalf("payload = %+v", payload)
 	}
 	reason, _ := hookOut["permissionDecisionReason"].(string)
-	if !strings.Contains(reason, "verified artifact missing or stale; run cc-bash-proxy verify") {
+	if !strings.Contains(reason, "verified artifact missing or stale; run cc-bash-guard verify") {
 		t.Fatalf("reason = %q", reason)
 	}
 }
@@ -1176,7 +1176,7 @@ test:
 		t.Fatalf("payload = %+v", payload)
 	}
 	reason, _ := hookOut["permissionDecisionReason"].(string)
-	if !strings.Contains(reason, "verified artifact missing or stale; run cc-bash-proxy verify") {
+	if !strings.Contains(reason, "verified artifact missing or stale; run cc-bash-guard verify") {
 		t.Fatalf("reason = %q", reason)
 	}
 }
@@ -1206,7 +1206,7 @@ test:
 	if _, err := configrepo.VerifyEffectiveToAllCaches(cwd, home, "", cacheHome, "claude", "test"); err != nil {
 		t.Fatalf("verify effective: %v", err)
 	}
-	removeCLIJSONField(t, singleCLICachePath(t, filepath.Join(cacheHome, "cc-bash-proxy")), "evaluation_semantics_version")
+	removeCLIJSONField(t, singleCLICachePath(t, filepath.Join(cacheHome, "cc-bash-guard")), "evaluation_semantics_version")
 
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"hook"}, Streams{
@@ -1226,7 +1226,7 @@ test:
 		t.Fatalf("payload = %+v", payload)
 	}
 	reason, _ := hookOut["permissionDecisionReason"].(string)
-	if !strings.Contains(reason, "evaluation semantics version 0") || !strings.Contains(reason, "run cc-bash-proxy verify") {
+	if !strings.Contains(reason, "evaluation semantics version 0") || !strings.Contains(reason, "run cc-bash-guard verify") {
 		t.Fatalf("reason = %q", reason)
 	}
 }
@@ -1306,7 +1306,7 @@ test:
 	if _, ok := hookOut["permissionDecision"]; ok {
 		t.Fatalf("payload = %+v", payload)
 	}
-	ccPayload := payload["cc-bash-proxy"].(map[string]any)
+	ccPayload := payload["cc-bash-guard"].(map[string]any)
 	if ccPayload["outcome"] != "ask" {
 		t.Fatalf("payload = %+v", payload)
 	}
@@ -1451,7 +1451,7 @@ func TestVerifyStatus(t *testing.T) {
 			{ID: "tests.pass", Status: doctoring.StatusPass},
 		},
 	}
-	ok, reasons := app.VerifyStatus(report, buildinfo.Info{Version: "dev", Module: "github.com/tasuku43/cc-bash-proxy", VCSRevision: "abc123"}, "claude")
+	ok, reasons := app.VerifyStatus(report, buildinfo.Info{Version: "dev", Module: "github.com/tasuku43/cc-bash-guard", VCSRevision: "abc123"}, "claude")
 	if !ok || len(reasons) != 0 {
 		t.Fatalf("ok=%v reasons=%v", ok, reasons)
 	}
@@ -1469,7 +1469,7 @@ func TestRunInitCreatesStarterConfig(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("code = %d stderr=%s", code, stderr.String())
 	}
-	data, err := os.ReadFile(filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml"))
+	data, err := os.ReadFile(filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml"))
 	if err != nil {
 		t.Fatalf("read config: %v", err)
 	}
@@ -1480,7 +1480,7 @@ func TestRunInitCreatesStarterConfig(t *testing.T) {
 
 func writeUserConfig(t *testing.T, home string, body string) {
 	t.Helper()
-	path := filepath.Join(home, ".config", "cc-bash-proxy", "cc-bash-proxy.yml")
+	path := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -1494,7 +1494,7 @@ func writeProjectConfig(t *testing.T, cwd string, body string) {
 	if err := os.Mkdir(filepath.Join(cwd, ".git"), 0o755); err != nil && !os.IsExist(err) {
 		t.Fatal(err)
 	}
-	path := filepath.Join(cwd, ".cc-bash-proxy", "cc-bash-proxy.yaml")
+	path := filepath.Join(cwd, ".cc-bash-guard", "cc-bash-guard.yaml")
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		t.Fatal(err)
 	}

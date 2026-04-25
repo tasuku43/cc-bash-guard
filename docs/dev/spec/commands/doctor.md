@@ -1,14 +1,14 @@
 ---
-title: "cc-bash-proxy doctor"
+title: "cc-bash-guard doctor"
 status: proposed
 date: 2026-04-19
 ---
 
-# cc-bash-proxy doctor
+# cc-bash-guard doctor
 
 ## Purpose
 
-`cc-bash-proxy doctor` reports the health of the current `cc-bash-proxy` setup,
+`cc-bash-guard doctor` reports the health of the current `cc-bash-guard` setup,
 configuration, and integration posture.
 
 ## Categories
@@ -38,7 +38,7 @@ invalid rule definitions.
 
 Useful install checks include:
 
-- whether `cc-bash-proxy` is on `PATH`
+- whether `cc-bash-guard` is on `PATH`
 - which executable path is currently running
 - whether the binary exposes build metadata such as VCS revision
-- whether Claude Code is wired to `cc-bash-proxy hook`
+- whether Claude Code is wired to `cc-bash-guard hook`

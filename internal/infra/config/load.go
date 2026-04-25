@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/tasuku43/cc-bash-proxy/internal/adapter/claude"
-	"github.com/tasuku43/cc-bash-proxy/internal/domain/policy"
+	"github.com/tasuku43/cc-bash-guard/internal/adapter/claude"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
 	"gopkg.in/yaml.v3"
 )
 
@@ -61,7 +61,7 @@ func ConfigPaths(home string, xdgConfigHome string) []Source {
 	}
 	return []Source{{
 		Layer: LayerUser,
-		Path:  filepath.Join(userConfigBase, "cc-bash-proxy", "cc-bash-proxy.yml"),
+		Path:  filepath.Join(userConfigBase, "cc-bash-guard", "cc-bash-guard.yml"),
 	}}
 }
 
@@ -87,7 +87,7 @@ func ResolveEffectiveInputs(cwd string, home string, xdgConfigHome string, tool 
 func HookCacheDir(home string, xdgCacheHome string) string {
 	dirs := HookCacheDirs(home, xdgCacheHome)
 	if len(dirs) == 0 {
-		return filepath.Join(home, ".cache", "cc-bash-proxy")
+		return filepath.Join(home, ".cache", "cc-bash-guard")
 	}
 	return dirs[0]
 }
@@ -99,7 +99,7 @@ func HookCacheDirs(home string, xdgCacheHome string) []string {
 		if strings.TrimSpace(base) == "" {
 			return
 		}
-		path := filepath.Join(base, "cc-bash-proxy")
+		path := filepath.Join(base, "cc-bash-guard")
 		if _, ok := seen[path]; ok {
 			return
 		}
@@ -277,7 +277,7 @@ func VerifiedEffectiveArtifactStatus(cwd string, home string, xdgConfigHome stri
 			return EffectiveArtifactStatus{Exists: true, Compatible: false, Path: cachePath, Message: err.Error()}
 		}
 	}
-	return EffectiveArtifactStatus{Exists: false, Compatible: false, Message: "verified artifact not found; run cc-bash-proxy verify"}
+	return EffectiveArtifactStatus{Exists: false, Compatible: false, Message: "verified artifact not found; run cc-bash-guard verify"}
 }
 
 func loadFileForEval(src Source, cacheDir string, requireVerified bool, cmdproxyVersion string) (policy.Pipeline, error) {
@@ -296,7 +296,7 @@ func loadFileForEval(src Source, cacheDir string, requireVerified bool, cmdproxy
 		return pipeline, nil
 	}
 	if requireVerified {
-		return policy.Pipeline{}, fmt.Errorf("%s config %s changed since last verify; run cc-bash-proxy verify", src.Layer, src.Path)
+		return policy.Pipeline{}, fmt.Errorf("%s config %s changed since last verify; run cc-bash-guard verify", src.Layer, src.Path)
 	}
 	return compileEvalData(src, cacheDir, cmdproxyVersion, data, sourceHash)
 }
@@ -358,7 +358,7 @@ func loadVerifiedFileForHook(src Source, cacheDirs []string) (policy.Pipeline, e
 			return pipeline, nil
 		}
 	}
-	return policy.Pipeline{}, fmt.Errorf("%s config %s changed since last verify; verified artifact not found in %s; run cc-bash-proxy verify", src.Layer, src.Path, strings.Join(cacheDirs, ", "))
+	return policy.Pipeline{}, fmt.Errorf("%s config %s changed since last verify; verified artifact not found in %s; run cc-bash-guard verify", src.Layer, src.Path, strings.Join(cacheDirs, ", "))
 }
 
 func loadVerifiedEffectivePipeline(inputs EffectiveInputs, cacheDirs []string) (policy.Pipeline, error) {
@@ -370,7 +370,7 @@ func loadVerifiedEffectivePipeline(inputs EffectiveInputs, cacheDirs []string) (
 			return pipeline, nil
 		}
 	}
-	return policy.Pipeline{}, fmt.Errorf("effective config for %s changed since last verify; verified artifact not found in %s; run cc-bash-proxy verify", inputs.Tool, strings.Join(cacheDirs, ", "))
+	return policy.Pipeline{}, fmt.Errorf("effective config for %s changed since last verify; verified artifact not found in %s; run cc-bash-guard verify", inputs.Tool, strings.Join(cacheDirs, ", "))
 }
 
 func decodeFile(src Source, data string) (File, error) {
@@ -429,7 +429,7 @@ func loadEffectiveEvalCache(cachePath string, inputs EffectiveInputs) (policy.Pi
 }
 
 func incompatibleEvaluationSemanticsError(cachePath string, got int) error {
-	return fmt.Errorf("verified artifact %s is incompatible: evaluation semantics version %d, current %d; run cc-bash-proxy verify", cachePath, got, EvaluationSemanticsVersion)
+	return fmt.Errorf("verified artifact %s is incompatible: evaluation semantics version %d, current %d; run cc-bash-guard verify", cachePath, got, EvaluationSemanticsVersion)
 }
 
 func writeEvalCache(cachePath string, cache evalCacheFile) error {
@@ -719,18 +719,18 @@ func resolveUserConfigCandidates(home string, xdgConfigHome string) []string {
 	if base == "" {
 		base = filepath.Join(home, ".config")
 	}
-	dir := filepath.Join(base, "cc-bash-proxy")
+	dir := filepath.Join(base, "cc-bash-guard")
 	return configCandidates(dir)
 }
 
 func resolveProjectConfigCandidates(root string) []string {
-	return configCandidates(filepath.Join(root, ".cc-bash-proxy"))
+	return configCandidates(filepath.Join(root, ".cc-bash-guard"))
 }
 
 func configCandidates(dir string) []string {
 	candidates := []string{
-		filepath.Join(dir, "cc-bash-proxy.yml"),
-		filepath.Join(dir, "cc-bash-proxy.yaml"),
+		filepath.Join(dir, "cc-bash-guard.yml"),
+		filepath.Join(dir, "cc-bash-guard.yaml"),
 	}
 	var existing []string
 	for _, path := range candidates {
