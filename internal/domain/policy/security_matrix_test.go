@@ -1,0 +1,376 @@
+package policy
+
+import (
+	"testing"
+
+	commandpkg "github.com/tasuku43/cc-bash-proxy/internal/domain/command"
+)
+
+type securityTraceWant struct {
+	name   string
+	effect string
+}
+
+func TestSecurityRegressionMatrixEvaluationBoundaries(t *testing.T) {
+	gitRule := func(subcommand string) PermissionRuleSpec {
+		return PermissionRuleSpec{Match: MatchSpec{Command: "git", Subcommand: subcommand}}
+	}
+	allowGitReadOnly := []PermissionRuleSpec{gitRule("status"), gitRule("diff"), gitRule("log")}
+
+	tests := []struct {
+		name       string
+		category   string
+		command    string
+		permission PermissionSpec
+		want       string
+		shape      commandpkg.ShellShapeKind
+		flags      []string
+		trace      []securityTraceWant
+	}{
+		{
+			name:       "and list composes per command",
+			category:   "compound",
+			command:    "git status && git diff",
+			permission: PermissionSpec{Allow: allowGitReadOnly},
+			want:       "allow",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"conditional"},
+			trace:      []securityTraceWant{{name: "composition", effect: "allow"}},
+		},
+		{
+			name:       "or list composes per command",
+			category:   "compound",
+			command:    "git status || git diff",
+			permission: PermissionSpec{Allow: allowGitReadOnly},
+			want:       "allow",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"conditional"},
+			trace:      []securityTraceWant{{name: "composition", effect: "allow"}},
+		},
+		{
+			name:       "pipeline requires right side allow",
+			category:   "compound",
+			command:    "git status | sh",
+			permission: PermissionSpec{Allow: []PermissionRuleSpec{gitRule("status")}},
+			want:       "ask",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"pipeline"},
+			trace:      []securityTraceWant{{name: "composition", effect: "ask"}},
+		},
+		{
+			name:       "sequence composes per command",
+			category:   "compound",
+			command:    "git status; git diff",
+			permission: PermissionSpec{Allow: allowGitReadOnly},
+			want:       "allow",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"sequence"},
+			trace:      []securityTraceWant{{name: "composition", effect: "allow"}},
+		},
+		{
+			name:       "nested compound fails closed",
+			category:   "compound",
+			command:    "git status && (git diff)",
+			permission: PermissionSpec{Allow: allowGitReadOnly},
+			want:       "ask",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"conditional", "subshell"},
+			trace:      []securityTraceWant{{name: "fail_closed", effect: "ask"}, {name: "composition", effect: "ask"}},
+		},
+		{
+			name:       "subshell is never auto allowed",
+			category:   "shell_features",
+			command:    "(git status)",
+			permission: PermissionSpec{Allow: allowGitReadOnly},
+			want:       "ask",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"subshell"},
+			trace:      []securityTraceWant{{name: "fail_closed", effect: "ask"}, {name: "composition", effect: "ask"}},
+		},
+		{
+			name:       "command substitution is never auto allowed",
+			category:   "shell_features",
+			command:    "echo $(git status)",
+			permission: PermissionSpec{Allow: append([]PermissionRuleSpec{{Match: MatchSpec{Command: "echo"}}}, allowGitReadOnly...)},
+			want:       "ask",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"command_substitution"},
+			trace:      []securityTraceWant{{name: "fail_closed", effect: "ask"}, {name: "composition", effect: "ask"}},
+		},
+		{
+			name:       "process substitution extracts deny but cannot allow",
+			category:   "shell_features",
+			command:    "cat <(rm -rf /tmp/x)",
+			permission: PermissionSpec{Deny: []PermissionRuleSpec{{Match: MatchSpec{Command: "rm", ArgsContains: []string{"-rf"}}}}},
+			want:       "deny",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"process_substitution"},
+			trace:      []securityTraceWant{{name: "fail_closed", effect: "ask"}, {name: "composition", effect: "deny"}},
+		},
+		{
+			name:       "redirection is never auto allowed",
+			category:   "shell_features",
+			command:    "git status > /tmp/out",
+			permission: PermissionSpec{Allow: allowGitReadOnly},
+			want:       "ask",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"redirection"},
+			trace:      []securityTraceWant{{name: "fail_closed", effect: "ask"}, {name: "composition", effect: "ask"}},
+		},
+		{
+			name:       "raw deny cannot be upgraded by allow",
+			category:   "permission",
+			command:    "git status",
+			permission: PermissionSpec{Deny: []PermissionRuleSpec{{Pattern: `^\s*git\s+status\s*$`}}, Allow: []PermissionRuleSpec{gitRule("status")}},
+			want:       "deny",
+			shape:      commandpkg.ShellShapeSimple,
+			trace:      []securityTraceWant{{effect: "deny"}},
+		},
+		{
+			name:       "raw ask cannot be upgraded by allow",
+			category:   "permission",
+			command:    "git status",
+			permission: PermissionSpec{Ask: []PermissionRuleSpec{{Pattern: `^\s*git\s+status\s*$`}}, Allow: []PermissionRuleSpec{gitRule("status")}},
+			want:       "ask",
+			shape:      commandpkg.ShellShapeSimple,
+			trace:      []securityTraceWant{{effect: "ask"}},
+		},
+		{
+			name:       "raw allow does not broaden without unsafe opt in",
+			category:   "permission",
+			command:    "git status && rm -rf /tmp/x",
+			permission: PermissionSpec{Allow: []PermissionRuleSpec{{Pattern: `^\s*git\s+status\s*&&\s*rm\s+-rf\s+/tmp/x\s*$`}}},
+			want:       "ask",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"conditional"},
+			trace:      []securityTraceWant{{name: "composition", effect: "ask"}},
+		},
+		{
+			name:       "structured deny beats unsafe raw allow",
+			category:   "permission",
+			command:    "git status && rm -rf /tmp/x",
+			permission: PermissionSpec{Deny: []PermissionRuleSpec{{Match: MatchSpec{Command: "rm"}}}, Allow: []PermissionRuleSpec{{Pattern: `.*`, AllowUnsafeShell: true, Message: "broad raw allow"}}},
+			want:       "deny",
+			shape:      commandpkg.ShellShapeCompound,
+			flags:      []string{"conditional"},
+			trace:      []securityTraceWant{{name: "composition", effect: "deny"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.category+"/"+tt.name, func(t *testing.T) {
+			p := NewPipeline(PipelineSpec{Permission: tt.permission}, Source{})
+			got, err := Evaluate(p, tt.command)
+			if err != nil {
+				t.Fatalf("Evaluate() error = %v", err)
+			}
+			assertSecurityDecision(t, got, tt.want, tt.shape, tt.flags, tt.trace)
+		})
+	}
+}
+
+func TestSecurityRegressionMatrixParserBoundaries(t *testing.T) {
+	tests := []struct {
+		name           string
+		command        string
+		registry       *commandpkg.CommandParserRegistry
+		permission     PermissionSpec
+		want           string
+		wantParser     string
+		wantSemantic   string
+		wantActionPath []string
+	}{
+		{
+			name:           "git semantic parser preserves deny",
+			command:        "git status",
+			registry:       commandpkg.DefaultParserRegistry(),
+			permission:     PermissionSpec{Deny: []PermissionRuleSpec{{Match: MatchSpec{Command: "git", Subcommand: "status"}}}, Allow: []PermissionRuleSpec{{Match: MatchSpec{Command: "git"}}}},
+			want:           "deny",
+			wantParser:     "git",
+			wantSemantic:   "git",
+			wantActionPath: []string{"status"},
+		},
+		{
+			name:         "generic fallback asks instead of widening to command allow",
+			command:      "git -C repo status",
+			registry:     commandpkg.NewCommandParserRegistry(),
+			permission:   PermissionSpec{Deny: []PermissionRuleSpec{{Match: MatchSpec{Command: "git", Subcommand: "status"}}}, Allow: []PermissionRuleSpec{{Match: MatchSpec{Command: "git"}}}},
+			want:         "ask",
+			wantParser:   "generic",
+			wantSemantic: "",
+		},
+		{
+			name:         "unknown command asks by default",
+			command:      "unknown-tool status",
+			registry:     commandpkg.DefaultParserRegistry(),
+			permission:   PermissionSpec{Allow: []PermissionRuleSpec{{Match: MatchSpec{Command: "git"}}}},
+			want:         "ask",
+			wantParser:   "generic",
+			wantSemantic: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("parser/"+tt.name, func(t *testing.T) {
+			plan := commandpkg.ParseWithRegistry(tt.command, tt.registry)
+			if plan.Shape.Kind != commandpkg.ShellShapeSimple {
+				t.Fatalf("Shape.Kind = %q, want simple; plan=%+v", plan.Shape.Kind, plan)
+			}
+			if len(plan.Commands) != 1 {
+				t.Fatalf("len(Commands) = %d, want 1; plan=%+v", len(plan.Commands), plan)
+			}
+			cmd := plan.Commands[0]
+			if cmd.Parser != tt.wantParser || cmd.SemanticParser != tt.wantSemantic {
+				t.Fatalf("parser=(%q,%q), want (%q,%q); cmd=%+v", cmd.Parser, cmd.SemanticParser, tt.wantParser, tt.wantSemantic, cmd)
+			}
+			if len(tt.wantActionPath) > 0 && !sameStrings(cmd.ActionPath, tt.wantActionPath) {
+				t.Fatalf("ActionPath=%#v, want %#v", cmd.ActionPath, tt.wantActionPath)
+			}
+
+			p := NewPipeline(PipelineSpec{Permission: tt.permission}, Source{})
+			decision := evaluatePreparedCommand(p.prepared.Deny, p.prepared.Ask, p.prepared.Allow, cmd)
+			if decision.Outcome != tt.want {
+				t.Fatalf("Outcome = %q, want %q; decision=%+v cmd=%+v", decision.Outcome, tt.want, decision, cmd)
+			}
+			if tt.want == "ask" && decision.Outcome == "allow" {
+				t.Fatalf("unsafe parser fallback widened to allow; decision=%+v", decision)
+			}
+		})
+	}
+}
+
+func TestSecurityRegressionMatrixRewriteBoundaries(t *testing.T) {
+	tests := []struct {
+		name       string
+		command    string
+		rewrite    []RewriteStepSpec
+		permission PermissionSpec
+		want       string
+		wantCmd    string
+		shape      commandpkg.ShellShapeKind
+		trace      []securityTraceWant
+	}{
+		{
+			name:    "unwrap shell dash c preserves allow boundary",
+			command: "bash -c 'git status'",
+			rewrite: []RewriteStepSpec{{UnwrapShellDashC: true}},
+			permission: PermissionSpec{Allow: []PermissionRuleSpec{{
+				Match: MatchSpec{Command: "git", Subcommand: "status"},
+			}}},
+			want:    "allow",
+			wantCmd: "git status",
+			shape:   commandpkg.ShellShapeSimple,
+			trace:   []securityTraceWant{{name: "unwrap_shell_dash_c"}, {effect: "allow"}},
+		},
+		{
+			name:    "move flag to env evaluates only rewritten command",
+			command: "aws --profile dev sts get-caller-identity",
+			rewrite: []RewriteStepSpec{{MoveFlagToEnv: MoveFlagToEnvSpec{Flag: "--profile", Env: "AWS_PROFILE"}}},
+			permission: PermissionSpec{
+				Deny: []PermissionRuleSpec{{Pattern: `^\s*aws\s+--profile\s+dev\s+`}},
+				Allow: []PermissionRuleSpec{{
+					Match: MatchSpec{Command: "aws", Subcommand: "sts", EnvRequires: []string{"AWS_PROFILE"}},
+				}},
+			},
+			want:    "allow",
+			wantCmd: "AWS_PROFILE=dev aws sts get-caller-identity",
+			shape:   commandpkg.ShellShapeSimple,
+			trace:   []securityTraceWant{{name: "move_flag_to_env"}, {effect: "allow"}},
+		},
+		{
+			name:    "continue chain unwraps then moves flag",
+			command: "env aws --profile dev sts get-caller-identity",
+			rewrite: []RewriteStepSpec{
+				{UnwrapWrapper: UnwrapWrapperSpec{Wrappers: []string{"env"}}, Continue: true},
+				{MoveFlagToEnv: MoveFlagToEnvSpec{Flag: "--profile", Env: "AWS_PROFILE"}},
+			},
+			permission: PermissionSpec{Allow: []PermissionRuleSpec{{
+				Match: MatchSpec{Command: "aws", Subcommand: "sts", EnvRequires: []string{"AWS_PROFILE"}},
+			}}},
+			want:    "allow",
+			wantCmd: "AWS_PROFILE=dev aws sts get-caller-identity",
+			shape:   commandpkg.ShellShapeSimple,
+			trace:   []securityTraceWant{{name: "unwrap_wrapper"}, {name: "move_flag_to_env"}, {effect: "allow"}},
+		},
+		{
+			name:    "unsafe unwrap payload remains ask",
+			command: "bash -c 'git status && rm -rf /tmp/x'",
+			rewrite: []RewriteStepSpec{{UnwrapShellDashC: true}},
+			permission: PermissionSpec{Allow: []PermissionRuleSpec{{
+				Match: MatchSpec{Command: "git", Subcommand: "status"},
+			}}},
+			want:    "ask",
+			wantCmd: "bash -c 'git status && rm -rf /tmp/x'",
+			shape:   commandpkg.ShellShapeSimple,
+			trace:   []securityTraceWant{{effect: "ask"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run("rewrite/"+tt.name, func(t *testing.T) {
+			p := NewPipeline(PipelineSpec{Rewrite: tt.rewrite, Permission: tt.permission}, Source{})
+			got, err := Evaluate(p, tt.command)
+			if err != nil {
+				t.Fatalf("Evaluate() error = %v", err)
+			}
+			if got.Command != tt.wantCmd {
+				t.Fatalf("Command = %q, want %q; decision=%+v", got.Command, tt.wantCmd, got)
+			}
+			assertSecurityDecision(t, got, tt.want, tt.shape, nil, tt.trace)
+			for _, step := range got.Trace {
+				if step.Action == "rewrite" && (step.FromShape == "" || step.ToShape == "" || step.FromSafe == nil || step.ToSafe == nil) {
+					t.Fatalf("rewrite trace missing shape/safety: %+v trace=%+v", step, got.Trace)
+				}
+			}
+		})
+	}
+}
+
+func assertSecurityDecision(t *testing.T, got Decision, wantOutcome string, wantShape commandpkg.ShellShapeKind, wantFlags []string, wantTrace []securityTraceWant) {
+	t.Helper()
+	if got.Outcome != wantOutcome {
+		t.Fatalf("Outcome = %q, want %q; decision=%+v", got.Outcome, wantOutcome, got)
+	}
+	if len(got.Trace) == 0 {
+		t.Fatalf("Trace is empty; decision=%+v", got)
+	}
+	plan := commandpkg.Parse(got.Command)
+	if plan.Shape.Kind != wantShape {
+		t.Fatalf("Shape.Kind = %q, want %q; command=%q decision=%+v plan=%+v", plan.Shape.Kind, wantShape, got.Command, got, plan)
+	}
+	for _, flag := range wantFlags {
+		if !containsString(plan.Shape.Flags(), flag) {
+			t.Fatalf("Shape.Flags() = %#v, want %q; command=%q decision=%+v", plan.Shape.Flags(), flag, got.Command, got)
+		}
+	}
+	for _, want := range wantTrace {
+		if !traceContains(got.Trace, want) {
+			t.Fatalf("trace does not contain %+v; trace=%+v", want, got.Trace)
+		}
+	}
+}
+
+func traceContains(trace []TraceStep, want securityTraceWant) bool {
+	for _, step := range trace {
+		if want.name != "" && step.Name != want.name {
+			continue
+		}
+		if want.effect != "" && step.Effect != want.effect {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func sameStrings(got []string, want []string) bool {
+	if len(got) != len(want) {
+		return false
+	}
+	for i := range got {
+		if got[i] != want[i] {
+			return false
+		}
+	}
+	return true
+}

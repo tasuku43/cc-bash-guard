@@ -53,6 +53,7 @@ The current `cc-bash-proxy` contract prioritizes:
 | `core/INPUT_MODEL.md` | implemented | supported stdin payloads and normalized invocation model |
 | `core/PARSER_MODEL.md` | implemented | command parser layers and match stability rules |
 | `core/RULE_SCHEMA.md` | implemented | YAML schema for `rewrite`, `permission`, and `test` |
+| `core/TEST_MATRIX.md` | implemented | security regression test matrix and invariants |
 | `core/OUTPUT_CONTRACT.md` | proposed | output contract for allow, ask, deny, and error |
 | `core/VERIFY_ARTIFACT.md` | proposed | trust-oriented verified policy artifact details |
 

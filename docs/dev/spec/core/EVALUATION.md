@@ -189,6 +189,11 @@ Top-level E2E tests assert:
 - optionally the rewritten command
 - the final decision
 
+Security-sensitive behavior is also covered by the implemented security test
+matrix in `core/TEST_MATRIX.md`. Matrix cases assert the final outcome, trace,
+and shell shape for compound commands, unsafe shell features, parser fallback,
+permission priority, merge mode differences, and rewrite interaction.
+
 ## 9. Consequences Of This Model
 
 Because the contract is pipeline-based:
