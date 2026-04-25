@@ -81,6 +81,8 @@ type SemanticMatchSpec struct {
 	Ref                              string   `yaml:"ref" json:"ref,omitempty"`
 	RefIn                            []string `yaml:"ref_in" json:"ref_in,omitempty"`
 	Force                            *bool    `yaml:"force" json:"force,omitempty"`
+	ForceWithLease                   *bool    `yaml:"force_with_lease" json:"force_with_lease,omitempty"`
+	ForceIfIncludes                  *bool    `yaml:"force_if_includes" json:"force_if_includes,omitempty"`
 	Hard                             *bool    `yaml:"hard" json:"hard,omitempty"`
 	Recursive                        *bool    `yaml:"recursive" json:"recursive,omitempty"`
 	IncludeIgnored                   *bool    `yaml:"include_ignored" json:"include_ignored,omitempty"`
@@ -1448,6 +1450,12 @@ func (s SemanticMatchSpec) matchesGit(cmd commandpkg.Command) bool {
 	if s.Force != nil && git.Force != *s.Force {
 		return false
 	}
+	if s.ForceWithLease != nil && git.ForceWithLease != *s.ForceWithLease {
+		return false
+	}
+	if s.ForceIfIncludes != nil && git.ForceIfIncludes != *s.ForceIfIncludes {
+		return false
+	}
 	if s.Hard != nil && git.Hard != *s.Hard {
 		return false
 	}
@@ -1569,6 +1577,9 @@ func (s SemanticMatchSpec) matchesKubectl(cmd commandpkg.Command) bool {
 	if len(s.NamespaceIn) > 0 && !containsString(s.NamespaceIn, k.Namespace) {
 		return false
 	}
+	if s.NamespaceMissing != nil && (k.Namespace == "") != *s.NamespaceMissing {
+		return false
+	}
 	if s.Context != "" && k.Context != s.Context {
 		return false
 	}
@@ -1604,10 +1615,16 @@ func (s SemanticMatchSpec) matchesKubectl(cmd commandpkg.Command) bool {
 	if s.Selector != "" && !containsString(k.Selectors, s.Selector) {
 		return false
 	}
+	if len(s.SelectorIn) > 0 && !containsAnyString(k.Selectors, s.SelectorIn) {
+		return false
+	}
 	for _, value := range s.SelectorContains {
 		if !containsSubstring(k.Selectors, value) {
 			return false
 		}
+	}
+	if s.SelectorMissing != nil && (len(k.Selectors) == 0) != *s.SelectorMissing {
+		return false
 	}
 	if s.Container != "" && k.Container != s.Container {
 		return false
@@ -1921,6 +1938,12 @@ func (s SemanticMatchSpec) fieldsUsed() []string {
 	}
 	if s.Force != nil {
 		fields = append(fields, "force")
+	}
+	if s.ForceWithLease != nil {
+		fields = append(fields, "force_with_lease")
+	}
+	if s.ForceIfIncludes != nil {
+		fields = append(fields, "force_if_includes")
 	}
 	if s.Hard != nil {
 		fields = append(fields, "hard")
@@ -2317,7 +2340,7 @@ func ValidatePermissionCommandSpec(prefix string, command PermissionCommandSpec)
 		}
 		name := strings.TrimSpace(command.Name)
 		if _, ok := semanticpkg.Lookup(name); !ok {
-			issues = append(issues, prefix+".semantic is only supported for "+strings.Join(supportedSemanticCommandLabels(), ", "))
+			issues = append(issues, unsupportedSemanticCommandIssue(prefix, name))
 			return issues
 		}
 		unsupportedFields := unsupportedSemanticFields(name, *command.Semantic)
@@ -2416,7 +2439,7 @@ func validateMatchSpec(prefix string, match MatchSpec, allowSemantic bool) []str
 		}
 		if match.Command != "" {
 			if _, ok := semanticpkg.Lookup(match.Command); !ok {
-				issues = append(issues, prefix+".semantic is only supported for "+strings.Join(supportedSemanticCommandLabels(), ", "))
+				issues = append(issues, unsupportedSemanticCommandIssue(prefix, match.Command))
 				return issues
 			}
 			unsupportedFields := unsupportedSemanticFields(match.Command, *match.Semantic)
@@ -2455,20 +2478,11 @@ func unsupportedSemanticFields(command string, semantic SemanticMatchSpec) []str
 }
 
 func unsupportedSemanticFieldIssue(prefix, command, field string) string {
-	return fmt.Sprintf("%s.semantic.%s is not supported for command %s. Supported semantic fields for %s: %s", prefix, field, command, command, strings.Join(semanticpkg.FieldNames(command), ", "))
+	return fmt.Sprintf("%s.semantic.%s is not supported for command %s. Supported semantic fields for %s: %s. See cc-bash-guard help semantic %s or docs/user/SEMANTIC_SCHEMAS.md.", prefix, field, command, command, strings.Join(semanticpkg.FieldNames(command), ", "), command)
 }
 
-func supportedSemanticCommandLabels() []string {
-	commands := semanticpkg.SupportedCommands()
-	labels := make([]string, 0, len(commands))
-	for i, command := range commands {
-		label := "command: " + command
-		if i == len(commands)-1 && len(commands) > 1 {
-			label = "or " + label
-		}
-		labels = append(labels, label)
-	}
-	return labels
+func unsupportedSemanticCommandIssue(prefix, command string) string {
+	return fmt.Sprintf("%s.semantic is not available for command %s. Use patterns, or add a semantic schema/parser for %s. Supported semantic commands: %s. See cc-bash-guard help semantic and docs/user/SEMANTIC_SCHEMAS.md.", prefix, command, command, strings.Join(semanticpkg.SupportedCommands(), ", "))
 }
 
 func ValidateGitSemanticMatchSpec(prefix string, semantic SemanticMatchSpec) []string {
@@ -2763,6 +2777,8 @@ func hasGitSemanticFields(semantic SemanticMatchSpec) bool {
 		len(semantic.VerbIn) > 0 ||
 		hasGitOnlySemanticFields(semantic) ||
 		semantic.Force != nil ||
+		semantic.ForceWithLease != nil ||
+		semantic.ForceIfIncludes != nil ||
 		semantic.Recursive != nil
 }
 

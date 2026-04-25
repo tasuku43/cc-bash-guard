@@ -15,6 +15,7 @@ import (
 
 	"github.com/tasuku43/cc-bash-guard/internal/adapter/claude"
 	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
+	semanticpkg "github.com/tasuku43/cc-bash-guard/internal/domain/semantic"
 	"gopkg.in/yaml.v3"
 )
 
@@ -381,6 +382,9 @@ func decodeFile(src Source, data string) (File, error) {
 	if yamlMappingHasKey(root, "claude_permission_merge_mode") {
 		return File{}, fmt.Errorf("%s config %s is invalid: claude_permission_merge_mode is no longer supported; permission sources are merged using deny > ask > allow > abstain.", src.Layer, src.Path)
 	}
+	if issues := validateSemanticYAML(root); len(issues) > 0 {
+		return File{}, fmt.Errorf("%s config %s is invalid: %s", src.Layer, src.Path, strings.Join(issues, "; "))
+	}
 	dec := yaml.NewDecoder(strings.NewReader(data))
 	dec.KnownFields(true)
 	var file File
@@ -388,6 +392,136 @@ func decodeFile(src Source, data string) (File, error) {
 		return File{}, fmt.Errorf("%s config %s is invalid: %w", src.Layer, src.Path, err)
 	}
 	return file, nil
+}
+
+func validateSemanticYAML(root yaml.Node) []string {
+	doc := &root
+	if doc.Kind == yaml.DocumentNode && len(doc.Content) > 0 {
+		doc = doc.Content[0]
+	}
+	if doc.Kind != yaml.MappingNode {
+		return nil
+	}
+	permission := yamlMapValue(doc, "permission")
+	if permission == nil || permission.Kind != yaml.MappingNode {
+		return nil
+	}
+	var issues []string
+	for _, bucket := range []string{"deny", "ask", "allow"} {
+		rules := yamlMapValue(permission, bucket)
+		if rules == nil || rules.Kind != yaml.SequenceNode {
+			continue
+		}
+		for i, rule := range rules.Content {
+			prefix := fmt.Sprintf("permission.%s[%d].command", bucket, i)
+			issues = append(issues, validatePermissionCommandSemanticYAML(prefix, rule)...)
+		}
+	}
+	return issues
+}
+
+func validatePermissionCommandSemanticYAML(prefix string, rule *yaml.Node) []string {
+	if rule == nil || rule.Kind != yaml.MappingNode {
+		return nil
+	}
+	command := yamlMapValue(rule, "command")
+	if command == nil || command.Kind != yaml.MappingNode {
+		return nil
+	}
+	semantic := yamlMapValue(command, "semantic")
+	if semantic == nil {
+		return nil
+	}
+	nameNode := yamlMapValue(command, "name")
+	name := ""
+	if nameNode != nil && nameNode.Kind == yaml.ScalarNode {
+		name = strings.TrimSpace(nameNode.Value)
+	}
+	if name == "" {
+		return nil
+	}
+	schema, ok := semanticpkg.Lookup(name)
+	if !ok {
+		return []string{fmt.Sprintf("%s.semantic is not available for command %s. Use patterns, or add a semantic schema/parser for %s. See cc-bash-guard help semantic and docs/user/SEMANTIC_SCHEMAS.md.", prefix, name, name)}
+	}
+	if semantic.Kind != yaml.MappingNode {
+		return []string{fmt.Sprintf("%s.semantic must be a mapping", prefix)}
+	}
+	fields := map[string]string{}
+	for _, field := range schema.Fields {
+		fields[field.Name] = field.Type
+	}
+	var issues []string
+	for i := 0; i+1 < len(semantic.Content); i += 2 {
+		key := semantic.Content[i]
+		value := semantic.Content[i+1]
+		field := key.Value
+		wantType, ok := fields[field]
+		if !ok {
+			issues = append(issues, unsupportedSemanticYAMLIssue(prefix, name, field))
+			continue
+		}
+		if gotType, ok := semanticYAMLTypeMismatch(value, wantType); ok {
+			issues = append(issues, fmt.Sprintf("%s.semantic.%s must be %s, got %s.", prefix, field, wantType, gotType))
+		}
+	}
+	return issues
+}
+
+func unsupportedSemanticYAMLIssue(prefix, command, field string) string {
+	return fmt.Sprintf("%s.semantic.%s is not supported for command %s. Supported semantic fields for %s: %s. See cc-bash-guard help semantic %s or docs/user/SEMANTIC_SCHEMAS.md.", prefix, field, command, command, strings.Join(semanticpkg.FieldNames(command), ", "), command)
+}
+
+func semanticYAMLTypeMismatch(node *yaml.Node, want string) (string, bool) {
+	switch want {
+	case "string":
+		if node.Kind == yaml.ScalarNode && node.Tag == "!!str" {
+			return "", false
+		}
+	case "[]string":
+		if node.Kind != yaml.SequenceNode {
+			return yamlNodeType(node), true
+		}
+		for _, item := range node.Content {
+			if item.Kind != yaml.ScalarNode || item.Tag != "!!str" {
+				return "[]" + yamlNodeType(item), true
+			}
+		}
+		return "", false
+	case "bool":
+		if node.Kind == yaml.ScalarNode && node.Tag == "!!bool" {
+			return "", false
+		}
+	}
+	return yamlNodeType(node), true
+}
+
+func yamlNodeType(node *yaml.Node) string {
+	if node == nil {
+		return "null"
+	}
+	switch node.Kind {
+	case yaml.SequenceNode:
+		return "[]"
+	case yaml.MappingNode:
+		return "mapping"
+	case yaml.ScalarNode:
+		switch node.Tag {
+		case "!!str":
+			return "string"
+		case "!!bool":
+			return "bool"
+		case "!!int":
+			return "int"
+		case "!!float":
+			return "float"
+		case "!!null":
+			return "null"
+		default:
+			return strings.TrimPrefix(node.Tag, "!!")
+		}
+	}
+	return "unknown"
 }
 
 func yamlMappingHasKey(root yaml.Node, key string) bool {
@@ -404,6 +538,18 @@ func yamlMappingHasKey(root yaml.Node, key string) bool {
 		}
 	}
 	return false
+}
+
+func yamlMapValue(node *yaml.Node, key string) *yaml.Node {
+	if node == nil || node.Kind != yaml.MappingNode {
+		return nil
+	}
+	for i := 0; i+1 < len(node.Content); i += 2 {
+		if node.Content[i].Value == key {
+			return node.Content[i+1]
+		}
+	}
+	return nil
 }
 
 func validateFile(file File) []string {

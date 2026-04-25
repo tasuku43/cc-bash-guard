@@ -241,10 +241,10 @@ Git read-only allow:
               - log
               - show
 
-Git force push deny:
+Git destructive force push deny:
   permission:
     deny:
-      - name: git force push
+      - name: git destructive force push
         command:
           name: git
           semantic:

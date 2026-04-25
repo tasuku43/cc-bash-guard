@@ -121,6 +121,8 @@ func TestGitParserBuildsSemanticFields(t *testing.T) {
 	}{
 		{name: "push force", raw: "git push --force origin main", want: GitSemantic{Verb: "push", Force: true, Remote: "origin", Branch: "main", Ref: "main"}},
 		{name: "push short force", raw: "git push -f origin main", want: GitSemantic{Verb: "push", Force: true, Remote: "origin", Branch: "main", Ref: "main"}},
+		{name: "push force with lease", raw: "git push --force-with-lease origin main", want: GitSemantic{Verb: "push", ForceWithLease: true, Remote: "origin", Branch: "main", Ref: "main"}},
+		{name: "push force if includes", raw: "git push --force-if-includes origin main", want: GitSemantic{Verb: "push", ForceIfIncludes: true, Remote: "origin", Branch: "main", Ref: "main"}},
 		{name: "diff cached", raw: "git diff --cached", want: GitSemantic{Verb: "diff", Cached: true, Staged: true}},
 		{name: "reset hard", raw: "git reset --hard HEAD", want: GitSemantic{Verb: "reset", Hard: true, Ref: "HEAD"}},
 		{name: "clean combined flags", raw: "git clean -fdx", want: GitSemantic{Verb: "clean", Force: true, Recursive: true, IncludeIgnored: true}},
@@ -143,7 +145,8 @@ func TestGitParserBuildsSemanticFields(t *testing.T) {
 				t.Fatalf("Git semantic = nil")
 			}
 			if got.Verb != tt.want.Verb || got.Remote != tt.want.Remote || got.Branch != tt.want.Branch || got.Ref != tt.want.Ref ||
-				got.Force != tt.want.Force || got.Hard != tt.want.Hard || got.Recursive != tt.want.Recursive ||
+				got.Force != tt.want.Force || got.ForceWithLease != tt.want.ForceWithLease || got.ForceIfIncludes != tt.want.ForceIfIncludes ||
+				got.Hard != tt.want.Hard || got.Recursive != tt.want.Recursive ||
 				got.IncludeIgnored != tt.want.IncludeIgnored || got.Cached != tt.want.Cached || got.Staged != tt.want.Staged {
 				t.Fatalf("Git semantic = %+v, want %+v", *got, tt.want)
 			}

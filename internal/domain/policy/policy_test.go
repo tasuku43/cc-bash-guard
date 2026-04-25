@@ -1,11 +1,13 @@
 package policy
 
 import (
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
 
 	commandpkg "github.com/tasuku43/cc-bash-guard/internal/domain/command"
+	semanticpkg "github.com/tasuku43/cc-bash-guard/internal/domain/semantic"
 )
 
 func TestEvaluateAWSProfileSemanticDoesNotRewriteCommand(t *testing.T) {
@@ -416,6 +418,48 @@ func TestPermissionRuleMatchesGitSemantic(t *testing.T) {
 			want:    true,
 		},
 		{
+			name:    "short force push",
+			command: "git push -f origin main",
+			match:   MatchSpec{Command: "git", Semantic: &SemanticMatchSpec{Verb: "push", Force: boolPtr(true)}},
+			want:    true,
+		},
+		{
+			name:    "force with lease push uses separate field",
+			command: "git push --force-with-lease origin main",
+			match:   MatchSpec{Command: "git", Semantic: &SemanticMatchSpec{Verb: "push", ForceWithLease: boolPtr(true)}},
+			want:    true,
+		},
+		{
+			name:    "force with lease is not destructive force",
+			command: "git push --force-with-lease origin main",
+			match:   MatchSpec{Command: "git", Semantic: &SemanticMatchSpec{Verb: "push", Force: boolPtr(true)}},
+			want:    false,
+		},
+		{
+			name:    "force if includes push uses separate field",
+			command: "git push --force-if-includes origin main",
+			match:   MatchSpec{Command: "git", Semantic: &SemanticMatchSpec{Verb: "push", ForceIfIncludes: boolPtr(true)}},
+			want:    true,
+		},
+		{
+			name:    "force if includes is not destructive force",
+			command: "git push --force-if-includes origin main",
+			match:   MatchSpec{Command: "git", Semantic: &SemanticMatchSpec{Verb: "push", Force: boolPtr(true)}},
+			want:    false,
+		},
+		{
+			name:    "flags contains matches parser recognized flag",
+			command: "git push --force origin main",
+			match:   MatchSpec{Command: "git", Semantic: &SemanticMatchSpec{Verb: "push", FlagsContains: []string{"--force"}}},
+			want:    true,
+		},
+		{
+			name:    "flags contains does not scan raw positional args",
+			command: "git push origin main",
+			match:   MatchSpec{Command: "git", Semantic: &SemanticMatchSpec{Verb: "push", FlagsContains: []string{"main"}}},
+			want:    false,
+		},
+		{
 			name:    "status verb in",
 			command: "git status",
 			match:   MatchSpec{Command: "git", Semantic: &SemanticMatchSpec{VerbIn: []string{"status", "diff", "log"}}},
@@ -487,6 +531,18 @@ func TestPermissionRuleMatchesAWSSemantic(t *testing.T) {
 			name:    "dry run unknown does not match true",
 			command: "aws ec2 terminate-instances --instance-ids i-123",
 			match:   MatchSpec{Command: "aws", Semantic: &SemanticMatchSpec{DryRun: boolPtr(true)}},
+			want:    false,
+		},
+		{
+			name:    "flags contains matches parser recognized aws flag",
+			command: "aws --no-cli-pager sts get-caller-identity",
+			match:   MatchSpec{Command: "aws", Semantic: &SemanticMatchSpec{Service: "sts", FlagsContains: []string{"--no-cli-pager"}}},
+			want:    true,
+		},
+		{
+			name:    "flags contains does not scan raw aws operation",
+			command: "aws s3 --delete-object bucket/key",
+			match:   MatchSpec{Command: "aws", Semantic: &SemanticMatchSpec{Service: "s3", FlagsContains: []string{"--delete-object"}}},
 			want:    false,
 		},
 		{
@@ -2207,7 +2263,14 @@ func TestValidateSemanticMatchRules(t *testing.T) {
 			spec: PipelineSpec{Permission: PermissionSpec{Deny: []PermissionRuleSpec{{
 				Command: PermissionCommandSpec{Name: "ls", Semantic: &SemanticMatchSpec{Verb: "push"}},
 			}}}},
-			issue: "permission.deny[0].command.semantic is only supported for command: git, command: aws, command: kubectl, command: gh, or command: helmfile",
+			issue: "permission.deny[0].command.semantic is not available for command ls. Use patterns, or add a semantic schema/parser for ls.",
+		},
+		{
+			name: "unknown command with semantic",
+			spec: PipelineSpec{Permission: PermissionSpec{Ask: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{Name: "unknown-tool", Semantic: &SemanticMatchSpec{Verb: "delete"}},
+			}}}},
+			issue: "permission.ask[0].command.semantic is not available for command unknown-tool. Use patterns, or add a semantic schema/parser for unknown-tool.",
 		},
 		{
 			name: "git command with aws semantic fields",
@@ -2279,7 +2342,7 @@ func TestValidateSemanticMatchRules(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			issues := ValidatePipeline(tt.spec)
-			if !containsString(issues, tt.issue) {
+			if !containsIssue(issues, tt.issue) {
 				t.Fatalf("issues=%#v, want %q", issues, tt.issue)
 			}
 		})
@@ -2297,6 +2360,52 @@ func TestValidateSemanticUnsupportedFieldSuggestsSupportedFields(t *testing.T) {
 		}
 	}
 	t.Fatalf("issues=%#v, want supported-field suggestion", issues)
+}
+
+func TestRegisteredSemanticFieldsAreAcceptedByValidation(t *testing.T) {
+	for _, schema := range semanticpkg.AllSchemas() {
+		for _, field := range schema.Fields {
+			t.Run(schema.Command+"/"+field.Name, func(t *testing.T) {
+				semantic := semanticSpecWithField(t, field.Name, field.Type)
+				issues := ValidatePermissionCommandSpec("permission.deny[0].command", PermissionCommandSpec{
+					Name:     schema.Command,
+					Semantic: &semantic,
+				})
+				for _, issue := range issues {
+					if strings.Contains(issue, "not supported for command") {
+						t.Fatalf("registered field rejected: %s", issue)
+					}
+				}
+			})
+		}
+	}
+}
+
+func semanticSpecWithField(t *testing.T, fieldName string, fieldType string) SemanticMatchSpec {
+	t.Helper()
+	var semantic SemanticMatchSpec
+	v := reflect.ValueOf(&semantic).Elem()
+	st := v.Type()
+	for i := 0; i < st.NumField(); i++ {
+		if strings.Split(st.Field(i).Tag.Get("yaml"), ",")[0] != fieldName {
+			continue
+		}
+		f := v.Field(i)
+		switch fieldType {
+		case "string":
+			f.SetString("value")
+		case "[]string":
+			f.Set(reflect.ValueOf([]string{"value"}))
+		case "bool":
+			b := true
+			f.Set(reflect.ValueOf(&b))
+		default:
+			t.Fatalf("unknown semantic field type %q for %s", fieldType, fieldName)
+		}
+		return semantic
+	}
+	t.Fatalf("semantic field %q is registered but missing from SemanticMatchSpec", fieldName)
+	return semantic
 }
 
 func TestEvaluateTraceIncludesMatchedRuleSource(t *testing.T) {

@@ -230,7 +230,7 @@ test:
   - in: "gh api repos/OWNER/REPO"
     decision: deny
 `,
-			want: "semantic contains fields not supported for command: gh",
+			want: "permission.deny[0].command.semantic.service is not supported for command gh. Supported semantic fields for gh:",
 		},
 		{
 			name: "unsupported bool type",
@@ -246,7 +246,7 @@ test:
   - in: "gh api --paginate repos/OWNER/REPO"
     decision: deny
 `,
-			want: "cannot unmarshal !!str `true` into bool",
+			want: "permission.deny[0].command.semantic.paginate must be bool, got string.",
 		},
 		{
 			name: "nested semantic gh form",
@@ -263,7 +263,7 @@ test:
   - in: "gh api repos/OWNER/REPO"
     decision: deny
 `,
-			want: "field gh not found",
+			want: "permission.deny[0].command.semantic.gh is not supported for command gh. Supported semantic fields for gh:",
 		},
 	}
 
@@ -424,7 +424,24 @@ test:
   - in: "git push"
     decision: deny
 `,
-			want: "semantic contains fields not supported for command: git",
+			want: "permission.deny[0].command.semantic.namespace is not supported for command git. Supported semantic fields for git:",
+		},
+		{
+			name: "unknown command with semantic",
+			body: `permission:
+  ask:
+    - command:
+        name: unknown-tool
+        semantic:
+          verb: delete
+      test:
+        ask: ["unknown-tool delete prod"]
+        pass: ["unknown-tool list"]
+test:
+  - in: "unknown-tool delete prod"
+    decision: ask
+`,
+			want: "permission.ask[0].command.semantic is not available for command unknown-tool. Use patterns, or add a semantic schema/parser for unknown-tool.",
 		},
 		{
 			name: "unsupported semantic type",
@@ -442,7 +459,41 @@ test:
   - in: "git push --force origin main"
     decision: deny
 `,
-			want: "cannot unmarshal !!str `true` into bool",
+			want: "permission.deny[0].command.semantic.force must be bool, got string.",
+		},
+		{
+			name: "unsupported semantic list type",
+			body: `permission:
+  deny:
+    - command:
+        name: git
+        semantic:
+          verb_in: push
+      test:
+        deny: ["git push origin main"]
+        pass: ["git status"]
+test:
+  - in: "git push origin main"
+    decision: deny
+`,
+			want: "permission.deny[0].command.semantic.verb_in must be []string, got string.",
+		},
+		{
+			name: "unsupported semantic string type",
+			body: `permission:
+  deny:
+    - command:
+        name: git
+        semantic:
+          verb: [push]
+      test:
+        deny: ["git push origin main"]
+        pass: ["git status"]
+test:
+  - in: "git push origin main"
+    decision: deny
+`,
+			want: "permission.deny[0].command.semantic.verb must be string, got [].",
 		},
 		{
 			name: "unknown aws semantic field",
@@ -461,7 +512,7 @@ test:
   - in: "aws sts get-caller-identity"
     decision: deny
 `,
-			want: "semantic contains fields not supported for command: aws",
+			want: "permission.deny[0].command.semantic.namespace is not supported for command aws. Supported semantic fields for aws:",
 		},
 		{
 			name: "unsupported aws semantic type",
@@ -480,7 +531,7 @@ test:
   - in: "aws ec2 terminate-instances --no-dry-run"
     decision: deny
 `,
-			want: "cannot unmarshal !!str `false` into bool",
+			want: "permission.deny[0].command.semantic.dry_run must be bool, got string.",
 		},
 		{
 			name: "nested aws semantic key",
@@ -500,7 +551,7 @@ test:
   - in: "aws sts get-caller-identity"
     decision: deny
 `,
-			want: "field aws not found",
+			want: "permission.deny[0].command.semantic.aws is not supported for command aws. Supported semantic fields for aws:",
 		},
 		{
 			name: "unknown kubectl semantic field",
@@ -519,7 +570,7 @@ test:
   - in: "kubectl get pods"
     decision: deny
 `,
-			want: "semantic contains fields not supported for command: kubectl",
+			want: "permission.deny[0].command.semantic.service is not supported for command kubectl. Supported semantic fields for kubectl:",
 		},
 		{
 			name: "unsupported kubectl semantic type",
@@ -538,7 +589,7 @@ test:
   - in: "kubectl get pods -A"
     decision: deny
 `,
-			want: "cannot unmarshal !!str `true` into bool",
+			want: "permission.deny[0].command.semantic.all_namespaces must be bool, got string.",
 		},
 		{
 			name: "nested kubectl semantic key",
@@ -558,7 +609,7 @@ test:
   - in: "kubectl get pods"
     decision: deny
 `,
-			want: "field kubectl not found",
+			want: "permission.deny[0].command.semantic.kubectl is not supported for command kubectl. Supported semantic fields for kubectl:",
 		},
 		{
 			name: "unknown helmfile semantic field",
@@ -577,7 +628,7 @@ test:
   - in: "helmfile sync"
     decision: deny
 `,
-			want: "semantic contains fields not supported for command: helmfile",
+			want: "permission.deny[0].command.semantic.service is not supported for command helmfile. Supported semantic fields for helmfile:",
 		},
 		{
 			name: "unsupported helmfile semantic type",
@@ -596,7 +647,7 @@ test:
   - in: "helmfile destroy"
     decision: deny
 `,
-			want: "cannot unmarshal !!str `true` into bool",
+			want: "permission.deny[0].command.semantic.interactive must be bool, got string.",
 		},
 		{
 			name: "nested helmfile semantic key",
@@ -616,7 +667,7 @@ test:
   - in: "helmfile sync"
     decision: deny
 `,
-			want: "field helmfile not found",
+			want: "permission.deny[0].command.semantic.helmfile is not supported for command helmfile. Supported semantic fields for helmfile:",
 		},
 	}
 

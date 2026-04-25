@@ -30,7 +30,7 @@ Start with a small policy and verify it before relying on the hook.
 ```yaml
 permission:
   deny:
-    - name: git force push
+    - name: git destructive force push
       command:
         name: git
         semantic:

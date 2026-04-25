@@ -19,12 +19,12 @@ permission:
             - show
 ```
 
-## Git Force Push Deny
+## Git Destructive Force Push Deny
 
 ```yaml
 permission:
   deny:
-    - name: git force push
+    - name: git destructive force push
       command:
         name: git
         semantic:

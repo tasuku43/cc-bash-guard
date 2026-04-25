@@ -42,17 +42,19 @@ type Option struct {
 }
 
 type GitSemantic struct {
-	Verb           string
-	Remote         string
-	Branch         string
-	Ref            string
-	Force          bool
-	Hard           bool
-	Recursive      bool
-	IncludeIgnored bool
-	Cached         bool
-	Staged         bool
-	Flags          []string
+	Verb            string
+	Remote          string
+	Branch          string
+	Ref             string
+	Force           bool
+	ForceWithLease  bool
+	ForceIfIncludes bool
+	Hard            bool
+	Recursive       bool
+	IncludeIgnored  bool
+	Cached          bool
+	Staged          bool
+	Flags           []string
 }
 
 type AWSSemantic struct {

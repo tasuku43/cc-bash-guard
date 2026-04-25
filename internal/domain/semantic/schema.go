@@ -36,17 +36,19 @@ var schemas = []Schema{
 			stringListField("branch_in", "Allowed branches."),
 			stringField("ref", "Ref positional for push, reset, checkout, or switch."),
 			stringListField("ref_in", "Allowed refs."),
-			boolField("force", "For git push, true when --force, -f, --force-with-lease, or --force-if-includes is present. For git clean, true when -f or --force is present."),
+			boolField("force", "For git push, true only when --force or -f is present. For git clean, true when -f or --force is present."),
+			boolField("force_with_lease", "For git push, true when --force-with-lease is present."),
+			boolField("force_if_includes", "For git push, true when --force-if-includes is present."),
 			boolField("hard", "True for git reset --hard."),
 			boolField("recursive", "True for git clean -d."),
 			boolField("include_ignored", "True for git clean -x or --ignored."),
 			boolField("cached", "True for git diff --cached or --staged."),
 			boolField("staged", "True for git diff --cached or --staged."),
-			stringListField("flags_contains", "Parser-recognized git option tokens that must be present."),
-			stringListField("flags_prefixes", "Parser-recognized git option tokens that must start with these prefixes."),
+			stringListField("flags_contains", "Parser-recognized git option tokens that must be present; this does not scan raw argv words."),
+			stringListField("flags_prefixes", "Parser-recognized git option tokens that must start with these prefixes; this depends on the git parser."),
 		},
 		Examples: []Example{
-			{Title: "Deny force pushes", YAML: `permission:
+			{Title: "Deny destructive force pushes", YAML: `permission:
   deny:
     - command:
         name: git
@@ -55,8 +57,8 @@ var schemas = []Schema{
           force: true`},
 		},
 		Notes: []string{
-			"`force` intentionally treats --force-with-lease and --force-if-includes as force-like for git push.",
-			"`flags_contains` and `flags_prefixes` inspect parser-recognized option tokens, not raw argv words.",
+			"`force`, `force_with_lease`, and `force_if_includes` are separate git push fields; use all three when a policy should cover every force-like push syntax.",
+			"`flags_contains` and `flags_prefixes` inspect parser-recognized option tokens, not raw argv words. GenericParser fallback never satisfies semantic flags.",
 		},
 	},
 	{
@@ -74,10 +76,10 @@ var schemas = []Schema{
 			stringListField("region_in", "Allowed AWS regions."),
 			stringField("endpoint_url", "Exact --endpoint-url value."),
 			stringField("endpoint_url_prefix", "--endpoint-url prefix."),
-			boolField("dry_run", "True when the parser recognizes an AWS dry-run option or operation shape."),
+			boolField("dry_run", "True when --dry-run is present, false when --no-dry-run is present, and unset when neither form is recognized."),
 			boolField("no_cli_pager", "True when --no-cli-pager is present."),
-			stringListField("flags_contains", "Parser-recognized AWS option tokens that must be present."),
-			stringListField("flags_prefixes", "Parser-recognized AWS option tokens that must start with these prefixes."),
+			stringListField("flags_contains", "Parser-recognized AWS option tokens that must be present; this does not scan raw argv words."),
+			stringListField("flags_prefixes", "Parser-recognized AWS option tokens that must start with these prefixes; this depends on the AWS parser."),
 		},
 		Examples: []Example{
 			{Title: "Ask for IAM writes", YAML: `permission:
@@ -116,11 +118,11 @@ var schemas = []Schema{
 			stringListField("selector_contains", "Selectors that must be present."),
 			boolField("selector_missing", "True when no selector was selected."),
 			stringField("container", "Container selected by -c or --container."),
-			boolField("dry_run", "True when --dry-run or a dry-run value is present."),
+			boolField("dry_run", "True when --dry-run or a --dry-run value other than none is present; false when --dry-run=none is present; unset when absent."),
 			boolField("force", "True when --force is present."),
 			boolField("recursive", "True when -R or --recursive is present."),
-			stringListField("flags_contains", "Parser-recognized kubectl option tokens that must be present."),
-			stringListField("flags_prefixes", "Parser-recognized kubectl option tokens that must start with these prefixes."),
+			stringListField("flags_contains", "Parser-recognized kubectl option tokens that must be present; this does not scan raw argv words."),
+			stringListField("flags_prefixes", "Parser-recognized kubectl option tokens that must start with these prefixes; this depends on the kubectl parser."),
 		},
 		Examples: []Example{
 			{Title: "Deny production deletes", YAML: `permission:
@@ -174,8 +176,8 @@ var schemas = []Schema{
 			stringField("job", "Job selected by gh run rerun --job."),
 			boolField("debug", "True when gh run rerun --debug is present."),
 			boolField("exit_status", "True when gh run view --exit-status is present."),
-			stringListField("flags_contains", "Parser-recognized gh option tokens that must be present."),
-			stringListField("flags_prefixes", "Parser-recognized gh option tokens that must start with these prefixes."),
+			stringListField("flags_contains", "Parser-recognized gh option tokens that must be present; this does not scan raw argv words."),
+			stringListField("flags_prefixes", "Parser-recognized gh option tokens that must start with these prefixes; this depends on the gh parser."),
 		},
 		Examples: []Example{
 			{Title: "Deny mutating GitHub API calls", YAML: `permission:
@@ -227,8 +229,8 @@ var schemas = []Schema{
 			stringListField("state_values_file_in", "Allowed state values files."),
 			stringListField("state_values_set_keys_contains", "Keys selected by --state-values-set that must be present."),
 			stringListField("state_values_set_string_keys_contains", "Keys selected by --state-values-set-string that must be present."),
-			stringListField("flags_contains", "Parser-recognized helmfile option tokens that must be present."),
-			stringListField("flags_prefixes", "Parser-recognized helmfile option tokens that must start with these prefixes."),
+			stringListField("flags_contains", "Parser-recognized helmfile option tokens that must be present; this does not scan raw argv words."),
+			stringListField("flags_prefixes", "Parser-recognized helmfile option tokens that must start with these prefixes; this depends on the helmfile parser."),
 		},
 		Examples: []Example{
 			{Title: "Ask before production destroy", YAML: `permission:

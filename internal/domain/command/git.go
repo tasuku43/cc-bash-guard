@@ -133,9 +133,11 @@ func buildGitSemantic(actionPath []string, options []Option, args []string) *Git
 			semantic.Staged = true
 		}
 	case "push":
-		if gitHasAnyOption(options, "--force", "-f", "--force-with-lease", "--force-if-includes") {
+		if gitHasAnyOption(options, "--force", "-f") {
 			semantic.Force = true
 		}
+		semantic.ForceWithLease = gitHasAnyOption(options, "--force-with-lease")
+		semantic.ForceIfIncludes = gitHasAnyOption(options, "--force-if-includes")
 		positional := gitPositionalArgs(args)
 		if len(positional) > 0 {
 			semantic.Remote = positional[0]

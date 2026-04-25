@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -113,7 +115,9 @@ func TestHelpSemanticGitShowsSchema(t *testing.T) {
 		"Semantic schema: git",
 		"verb",
 		"force",
-		"--force, -f, --force-with-lease, or --force-if-includes",
+		"--force or -f",
+		"force_with_lease",
+		"force_if_includes",
 		"--force-with-lease",
 		"parser-recognized option tokens, not raw argv words",
 		"Examples:",
@@ -170,6 +174,38 @@ func TestSemanticSchemaJSON(t *testing.T) {
 	}
 }
 
+func TestHelpSemanticAndSchemaJSONListSameCommands(t *testing.T) {
+	code, helpOut, stderr := runCLIHelpTest("help", "semantic")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, stderr)
+	}
+	code, jsonOut, stderr := runCLIHelpTest("semantic-schema", "--format", "json")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, stderr)
+	}
+	var payload struct {
+		Schemas []struct {
+			Command string `json:"command"`
+		} `json:"schemas"`
+	}
+	if err := json.Unmarshal([]byte(jsonOut), &payload); err != nil {
+		t.Fatalf("invalid json: %v\n%s", err, jsonOut)
+	}
+	var jsonCommands []string
+	for _, schema := range payload.Schemas {
+		jsonCommands = append(jsonCommands, schema.Command)
+		if !strings.Contains(helpOut, schema.Command) {
+			t.Fatalf("help semantic missing json command %q:\n%s", schema.Command, helpOut)
+		}
+	}
+	registryCommands := semanticpkg.SupportedCommands()
+	sort.Strings(jsonCommands)
+	sort.Strings(registryCommands)
+	if !reflect.DeepEqual(jsonCommands, registryCommands) {
+		t.Fatalf("json commands=%#v registry=%#v", jsonCommands, registryCommands)
+	}
+}
+
 func TestSemanticSchemaJSONAndGitHelpUseSameRegistry(t *testing.T) {
 	code, jsonOut, stderr := runCLIHelpTest("semantic-schema", "git", "--format", "json")
 	if code != 0 {
@@ -205,7 +241,7 @@ func TestHelpExamplesUseCurrentSyntax(t *testing.T) {
 		"command:",
 		"env:",
 		"patterns:",
-		"git force push",
+		"git destructive force push",
 		"AWS identity",
 		"kubectl read-only",
 		"Unknown command fallback",

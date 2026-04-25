@@ -85,7 +85,7 @@ be combined in one rule. `env` can be combined with either.
 ```yaml
 permission:
   deny:
-    - name: git force push
+    - name: git destructive force push
       command:
         name: git
         semantic:

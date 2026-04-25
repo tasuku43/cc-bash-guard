@@ -32,7 +32,7 @@ Permission rules use only `command`, `env`, and `patterns`. Singular
 ```yaml
 permission:
   deny:
-    - name: git force push
+    - name: git destructive force push
       command:
         name: git
         semantic:
