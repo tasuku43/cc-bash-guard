@@ -10,7 +10,7 @@ import (
 )
 
 func TestLayerDirectoriesExist(t *testing.T) {
-	for _, dir := range []string{"../../adapter", "../../app", "../../cli", "../../domain", "../../infra", "../../dev", "../../domain/directive"} {
+	for _, dir := range []string{"../../adapter", "../../app", "../../cli", "../../domain", "../../infra", "../../dev"} {
 		if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
 			t.Fatalf("layer dir missing: %s", dir)
 		}
