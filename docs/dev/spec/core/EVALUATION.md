@@ -17,8 +17,7 @@ Evaluation flow:
 5. return `allow`, `ask`, or `deny`
 
 The command string is not rewritten before execution. `Decision.Command` remains
-the original command unless an explicitly external compatibility path such as
-`--rtk` is enabled after policy evaluation.
+the original command.
 
 Evaluation-only normalization includes:
 

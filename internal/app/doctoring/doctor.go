@@ -244,12 +244,12 @@ func claudeHookRegistrationCheck(path string) Check {
 		return check
 	}
 	if registration.BashHookCommand != "" {
-		check.Status = StatusPass
 		if strings.Contains(registration.BashHookCommand, "--rtk") {
-			check.Message = "Claude Code Bash hook registration detected with --rtk"
-		} else {
-			check.Message = "Claude Code Bash hook registration detected without --rtk"
+			check.Message = "Claude Code Bash hook registration uses retired --rtk option"
+			return check
 		}
+		check.Status = StatusPass
+		check.Message = "Claude Code Bash hook registration detected"
 		return check
 	}
 	if registration.NonBashHookCommand != "" {

@@ -74,7 +74,7 @@ func TestClaudeHookRegistrationCheckDetectsStructuredSettings(t *testing.T) {
 			name:        "compact JSON passes",
 			settings:    `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-guard hook"}]}]}}`,
 			wantStatus:  StatusPass,
-			wantMessage: "without --rtk",
+			wantMessage: "registration detected",
 		},
 		{
 			name: "pretty JSON passes",
@@ -94,13 +94,13 @@ func TestClaudeHookRegistrationCheckDetectsStructuredSettings(t *testing.T) {
   }
 }`,
 			wantStatus:  StatusPass,
-			wantMessage: "without --rtk",
+			wantMessage: "registration detected",
 		},
 		{
 			name:        "reordered keys pass",
 			settings:    `{"hooks":{"PreToolUse":[{"hooks":[{"command":"cc-bash-guard hook","type":"command","extra":true}],"matcher":"Bash","note":"ok"}]}}`,
 			wantStatus:  StatusPass,
-			wantMessage: "without --rtk",
+			wantMessage: "registration detected",
 		},
 		{
 			name:        "wrong matcher warns",
@@ -115,10 +115,10 @@ func TestClaudeHookRegistrationCheckDetectsStructuredSettings(t *testing.T) {
 			wantMessage: "Bash matcher exists but cc-bash-guard hook is missing",
 		},
 		{
-			name:        "cc-bash-guard hook with --rtk is detected correctly",
+			name:        "cc-bash-guard hook with retired --rtk warns",
 			settings:    `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-guard hook --rtk"}]}]}}`,
-			wantStatus:  StatusPass,
-			wantMessage: "with --rtk",
+			wantStatus:  StatusWarn,
+			wantMessage: "retired --rtk",
 		},
 		{
 			name:        "malformed JSON gives clear warning",

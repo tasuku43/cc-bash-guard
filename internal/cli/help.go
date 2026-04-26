@@ -50,7 +50,7 @@ Examples:
   cc-bash-guard init
   cc-bash-guard verify
   cc-bash-guard semantic-schema --format json
-  cc-bash-guard hook --rtk
+  cc-bash-guard hook
 
 Docs:
   docs/user/QUICKSTART.md
@@ -123,10 +123,9 @@ Reads stdin JSON, parses the command, evaluates permission policy, and
 returns Claude Code hook JSON for allow, ask, deny, or error outcomes.
 
 Usage:
-  cc-bash-guard hook [--rtk] [--auto-verify]
+  cc-bash-guard hook [--auto-verify]
 
 Options:
-  --rtk          run "rtk rewrite" once after cc-bash-guard policy evaluation
   --auto-verify  regenerate verified hook artifacts when they are missing or stale
 
 Note:
@@ -135,12 +134,6 @@ Note:
   when verified artifacts are missing or stale. --auto-verify is convenient, but
   it lets hook-time config changes become active without a separate review step.
 
-RTK compatibility:
-  --rtk applies rtk rewrite after cc-bash-guard permission evaluation in the same
-  hook invocation. Permission checks therefore see the command before the rtk
-  rename/rewrite is applied. Stacking multiple Bash hooks can make the visible
-  renamed command differ from the command that cc-bash-guard checked. The old
-  command was cmdproxy hook claude --rtk; use cc-bash-guard hook --rtk now.
 `)
 	case "version":
 		fmt.Fprint(w, `cc-bash-guard version

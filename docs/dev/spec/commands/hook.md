@@ -27,6 +27,5 @@ when all sources abstain.
 because it does not rewrite commands. Parser-backed normalization is
 evaluation-only.
 
-If `--rtk` is enabled, `rtk rewrite` is invoked after `cc-bash-guard` permission
-evaluation. rtk behavior is a compatibility path outside this permission-only
-policy model.
+`cc-bash-guard hook` does not rewrite commands. Rewrite tools such as `rtk`
+must be configured separately from this permission-only policy model.

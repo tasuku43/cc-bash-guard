@@ -157,8 +157,8 @@ aws --profile myprof eks list-clusters
 `profile`, `service`, and `operation` semantically for policy evaluation. Use
 policy `ask` or `deny` rules for ambiguous or dangerous command styles.
 
-`rtk` integration is outside this policy model. When `--rtk` is used, permission
-evaluation still happens before `rtk` is invoked.
+`cc-bash-guard` does not rewrite commands, so it can be composed with separate
+rewrite tools such as `rtk` without a compatibility flag.
 
 ## Shell Evaluation
 

@@ -37,7 +37,7 @@ func RunInit(env Env) (InitResult, error) {
 		Created:                created,
 		ClaudeSettingsPath:     claudeSettings,
 		ClaudeSettingsDetected: settingsDetected,
-		HookSnippet:            `{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-guard hook --rtk"}]}`,
+		HookSnippet:            `{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-guard hook"}]}`,
 	}, nil
 }
 

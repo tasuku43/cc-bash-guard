@@ -27,7 +27,6 @@ type hookEnvSpec struct {
 	ClaudeSettings      string
 	ClaudeLocalSettings string
 	Command             string
-	UseRTK              bool
 	DisableAutoVerify   bool
 }
 
@@ -99,9 +98,6 @@ func runClaudeHookMapTest(t *testing.T, spec hookEnvSpec) map[string]any {
 	}
 
 	args := []string{"hook"}
-	if spec.UseRTK {
-		args = append(args, "--rtk")
-	}
 	if !spec.DisableAutoVerify {
 		args = append(args, "--auto-verify")
 	}
@@ -121,6 +117,21 @@ func runClaudeHookMapTest(t *testing.T, spec hookEnvSpec) map[string]any {
 		t.Fatalf("json error: %v stdout=%s", err, stdout.String())
 	}
 	return payload
+}
+
+func TestRunHookRejectsRetiredRTKOption(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"hook", "--rtk"}, Streams{
+		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git status"}}`),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{Cwd: t.TempDir(), Home: t.TempDir()})
+	if code == 0 {
+		t.Fatalf("expected --rtk to fail, stdout=%s stderr=%s", stdout.String(), stderr.String())
+	}
+	if !strings.Contains(stderr.String(), "cc-bash-guard hook [--auto-verify]") {
+		t.Fatalf("expected hook usage without --rtk, stderr=%s", stderr.String())
+	}
 }
 
 func TestRunHookClaudeAllowReturnsAllowWithoutUpdatedInput(t *testing.T) {
@@ -844,68 +855,6 @@ test:
 	}
 	if got := hookOut["permissionDecisionReason"]; got != "git diff requires confirmation" {
 		t.Fatalf("permissionDecisionReason = %q, want rule message; payload=%+v", got, payload)
-	}
-}
-
-func TestRunHookClaudeRTKEvaluatesPermissionsBeforeRTKRewrite(t *testing.T) {
-	home := t.TempDir()
-	toolDir := t.TempDir()
-	rtkPath := filepath.Join(toolDir, "rtk")
-	script := "#!/bin/sh\nif [ \"$1\" = \"rewrite\" ]; then\n  printf 'rtk %s\\n' \"$2\"\n  exit 0\nfi\nexit 1\n"
-	if err := os.WriteFile(rtkPath, []byte(script), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	t.Setenv("PATH", fmt.Sprintf("%s:%s", toolDir, os.Getenv("PATH")))
-
-	writeClaudeSettings(t, home, `{
-  "permissions": {
-    "allow": ["Bash(git diff goal.md)"]
-  }
-}`)
-	writeUserConfig(t, home, `permission:
-  allow:
-    - command:
-
-        name: git
-
-        semantic:
-
-          verb: diff
-      test:
-        allow:
-          - "git diff goal.md"
-        pass:
-          - "git status"
-test:
-  - in: "git diff goal.md"
-    decision: allow
-`)
-
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--rtk", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git diff goal.md"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v", err)
-	}
-	hookOut := payload["hookSpecificOutput"].(map[string]any)
-	if hookOut["permissionDecision"] != "allow" {
-		t.Fatalf("payload = %+v", payload)
-	}
-	updatedInput := hookOut["updatedInput"].(map[string]any)
-	if updatedInput["command"] != "rtk git diff goal.md" {
-		t.Fatalf("payload = %+v", payload)
-	}
-	message, ok := payload["systemMessage"].(string)
-	if !ok || !strings.Contains(message, "rtk") {
-		t.Fatalf("expected rtk rewrite systemMessage, payload=%+v", payload)
 	}
 }
 
