@@ -1,7 +1,6 @@
 package app
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -18,32 +17,16 @@ func RunHook(raw []byte, autoVerify bool, env Env) HookResult {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_input", err.Error())}
 	}
 
-	decision, err := evaluateDecision(req, env, autoVerify)
+	_, decision, err := EvaluateForCommand(req.Command, env, autoVerify)
 	if err != nil {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_config", err.Error())}
 	}
-	decision = claude.ApplyPermissionBridge(claude.Tool, decision, env.Cwd, env.Home)
 
 	return HookResult{Payload: hookPayload(decision, req.Command)}
 }
 
 func evaluateDecision(req hookinput.ExecRequest, env Env, autoVerify bool) (policy.Decision, error) {
-	loaded := configrepo.LoadEffectiveForHookTool(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, claude.Tool)
-	if len(loaded.Errors) > 0 {
-		if shouldAttemptImplicitVerify(loaded.Errors) {
-			if !autoVerify {
-				return policy.Decision{}, errors.New("verified artifact missing or stale; run cc-bash-guard verify")
-			}
-			if err := ensureVerifiedArtifacts(env, claude.Tool); err == nil {
-				loaded = configrepo.LoadEffectiveForHookTool(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, claude.Tool)
-			}
-		}
-		if len(loaded.Errors) > 0 {
-			return policy.Decision{}, errors.New(strings.Join(policy.ErrorStrings(loaded.Errors), "; "))
-		}
-	}
-
-	decision, err := policy.Evaluate(loaded.Pipeline, req.Command)
+	_, decision, err := EvaluateForCommand(req.Command, env, autoVerify)
 	return decision, err
 }
 

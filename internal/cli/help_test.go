@@ -35,6 +35,7 @@ func TestRootHelpOrientsNewUsers(t *testing.T) {
 		"cc-bash-guard init",
 		"cc-bash-guard verify",
 		"cc-bash-guard doctor",
+		"cc-bash-guard explain",
 		"PreToolUse Bash snippet",
 		"permission.deny",
 		"top-level include",
@@ -52,8 +53,24 @@ func TestRootHelpOrientsNewUsers(t *testing.T) {
 			t.Fatalf("root help missing %q:\n%s", want, stdout)
 		}
 	}
-	if strings.Contains(stdout, "explain") {
-		t.Fatalf("root help mentions explain:\n%s", stdout)
+}
+
+func TestHelpExplainDescribesDiagnosticBehavior(t *testing.T) {
+	code, stdout, stderr := runCLIHelpTest("help", "explain")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, stderr)
+	}
+	for _, want := range []string{
+		"Diagnose why a command would be allowed, asked, or denied.",
+		"does not execute",
+		"verified policy artifact",
+		"run verify after",
+		"cc-bash-guard explain [--format text|json]",
+		"cc-bash-guard explain --format json",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("help explain missing %q:\n%s", want, stdout)
+		}
 	}
 }
 
@@ -345,7 +362,6 @@ func TestUserDocsExamplesUseCurrentPermissionShape(t *testing.T) {
 		}
 		body := string(bodyBytes)
 		for _, bad := range []string{
-			"explain",
 			"match:",
 			"pattern:",
 			"command_in:",

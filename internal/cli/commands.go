@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 
@@ -41,6 +42,54 @@ func runHook(args []string, streams Streams, env Env) int {
 
 	result := app.RunHook(raw, autoVerify, env)
 	return writeJSON(streams.Stdout, result.Payload)
+}
+
+func runExplain(args []string, streams Streams, env Env) int {
+	if wantsHelp(args) {
+		writeCommandHelp(streams.Stdout, "explain")
+		return exitAllow
+	}
+	format := "text"
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--format":
+			if i+1 >= len(args) {
+				writeCommandHelp(streams.Stderr, "explain")
+				return exitError
+			}
+			format = args[i+1]
+			i++
+		case strings.HasPrefix(arg, "--format="):
+			format = strings.TrimPrefix(arg, "--format=")
+		default:
+			rest = append(rest, arg)
+		}
+	}
+	if format != "text" && format != "json" {
+		writeErr(streams.Stderr, "unknown format: "+format)
+		writeCommandHelp(streams.Stderr, "explain")
+		return exitError
+	}
+	if len(rest) == 0 {
+		writeCommandHelp(streams.Stderr, "explain")
+		return exitError
+	}
+	command := strings.Join(rest, " ")
+	result, err := app.RunExplain(command, env)
+	if format == "json" {
+		if encErr := writeIndentedJSON(streams.Stdout, result); encErr != nil {
+			writeErr(streams.Stderr, encErr.Error())
+			return exitError
+		}
+	} else {
+		writeExplainText(streams.Stdout, result)
+	}
+	if err != nil || app.ExplainHasParseError(result) {
+		return exitError
+	}
+	return exitAllow
 }
 
 func runDoctor(args []string, streams Streams, env Env) int {
@@ -223,4 +272,87 @@ func writeIndentedJSON(w io.Writer, payload any) error {
 
 func writeDoctorCheck(w io.Writer, check doctoring.Check) {
 	writeLine(w, "["+strings.ToUpper(string(check.Status))+"] "+check.ID+": "+check.Message)
+}
+
+func writeExplainText(w io.Writer, result app.ExplainResult) {
+	writeLine(w, "Command:")
+	writeLine(w, "  "+result.Command)
+	writeLine(w, "")
+	writeLine(w, "Parsed:")
+	writeLine(w, "  shape: "+result.Parsed.Shape)
+	if len(result.Parsed.ShapeFlags) > 0 {
+		writeLine(w, "  shape_flags: "+strings.Join(result.Parsed.ShapeFlags, ", "))
+	}
+	if len(result.Parsed.Diagnostics) > 0 {
+		writeLine(w, "  diagnostics:")
+		for _, diagnostic := range result.Parsed.Diagnostics {
+			writeLine(w, "    - "+diagnostic)
+		}
+	}
+	if result.Parsed.EvaluatedInner != nil {
+		writeLine(w, "  evaluated inner command:")
+		writeExplainSegment(w, *result.Parsed.EvaluatedInner, "    ")
+		writeLine(w, "  note: evaluation-only normalization; command string is not rewritten or executed")
+	} else {
+		writeLine(w, "  segments:")
+		for _, segment := range result.Parsed.Segments {
+			writeLine(w, "    - command.name: "+segment.CommandName)
+			writeExplainSegmentFields(w, segment, "      ")
+		}
+	}
+	writeLine(w, "")
+	writeLine(w, "cc-bash-guard policy:")
+	writeLine(w, "  outcome: "+result.Policy.Outcome)
+	writeMatchedRule(w, result.Policy.MatchedRule)
+	writeLine(w, "")
+	writeLine(w, "Claude settings:")
+	writeLine(w, "  outcome: "+result.ClaudeSettings.Outcome)
+	if result.ClaudeSettings.Matched == nil {
+		writeLine(w, "  matched: none")
+	} else {
+		writeLine(w, fmt.Sprintf("  matched: %+v", result.ClaudeSettings.Matched))
+	}
+	writeLine(w, "")
+	writeLine(w, "Final decision:")
+	writeLine(w, "  outcome: "+result.Final.Outcome)
+	writeLine(w, "  reason: "+result.Final.Reason)
+}
+
+func writeExplainSegment(w io.Writer, segment app.ExplainSegment, prefix string) {
+	writeLine(w, prefix+"command.name: "+segment.CommandName)
+	writeExplainSegmentFields(w, segment, prefix)
+}
+
+func writeExplainSegmentFields(w io.Writer, segment app.ExplainSegment, prefix string) {
+	if segment.ProgramToken != "" {
+		writeLine(w, prefix+"program_token: "+segment.ProgramToken)
+	}
+	writeLine(w, prefix+"parser: "+segment.Parser)
+	if len(segment.Semantic) > 0 {
+		writeLine(w, prefix+"semantic:")
+		for _, key := range app.SortedSemanticKeys(segment.Semantic) {
+			writeLine(w, fmt.Sprintf("%s  %s: %v", prefix, key, segment.Semantic[key]))
+		}
+	}
+}
+
+func writeMatchedRule(w io.Writer, matched *app.ExplainRuleMatch) {
+	if matched == nil {
+		writeLine(w, "  matched: none")
+		return
+	}
+	writeLine(w, "  matched rule:")
+	if matched.Name != "" {
+		writeLine(w, "    name: "+matched.Name)
+	}
+	if matched.Source != "" {
+		writeLine(w, "    source: "+matched.Source)
+	}
+	if matched.Bucket != "" {
+		writeLine(w, "    bucket: "+matched.Bucket)
+	}
+	writeLine(w, fmt.Sprintf("    index: %d", matched.Index))
+	if matched.Message != "" {
+		writeLine(w, "    message: "+matched.Message)
+	}
 }

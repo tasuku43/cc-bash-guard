@@ -24,9 +24,24 @@ const (
 	PermissionDefault PermissionVerdict = "default"
 )
 
+type PermissionExplanation struct {
+	Outcome string           `json:"outcome"`
+	Matched *PermissionMatch `json:"matched"`
+}
+
+type PermissionMatch struct {
+	Bucket  string `json:"bucket"`
+	Pattern string `json:"pattern"`
+}
+
 func CheckCommand(cmd string, cwd string, home string) PermissionVerdict {
 	denyRules, askRules, allowRules := loadPermissionRules(cwd, home)
 	return checkCommandWithRules(cmd, denyRules, askRules, allowRules)
+}
+
+func ExplainCommand(cmd string, cwd string, home string) PermissionExplanation {
+	denyRules, askRules, allowRules := loadPermissionRules(cwd, home)
+	return explainCommandWithRules(cmd, denyRules, askRules, allowRules)
 }
 
 func SettingsPaths(cwd string, home string) []string {
@@ -38,10 +53,26 @@ func ProjectRoot(cwd string) string {
 }
 
 func checkCommandWithRules(cmd string, denyRules []string, askRules []string, allowRules []string) PermissionVerdict {
+	explained := explainCommandWithRules(cmd, denyRules, askRules, allowRules)
+	switch explained.Outcome {
+	case "deny":
+		return PermissionDeny
+	case "ask":
+		return PermissionAsk
+	case "allow":
+		return PermissionAllow
+	default:
+		return PermissionDefault
+	}
+}
+
+func explainCommandWithRules(cmd string, denyRules []string, askRules []string, allowRules []string) PermissionExplanation {
 	plan := commandpkg.Parse(cmd)
 	segments := commandSegmentsForPermission(cmd, plan)
 	anyAsk := false
+	var askPattern string
 	allSegmentsAllowed := true
+	var allowPattern string
 	sawSegment := false
 
 	for _, segment := range segments {
@@ -53,13 +84,14 @@ func checkCommandWithRules(cmd string, denyRules []string, askRules []string, al
 
 		for _, pattern := range denyRules {
 			if commandMatchesPattern(segment, pattern) {
-				return PermissionDeny
+				return PermissionExplanation{Outcome: "deny", Matched: &PermissionMatch{Bucket: "permission.deny", Pattern: pattern}}
 			}
 		}
 		if !anyAsk {
 			for _, pattern := range askRules {
 				if commandMatchesPattern(segment, pattern) {
 					anyAsk = true
+					askPattern = pattern
 					break
 				}
 			}
@@ -69,6 +101,9 @@ func checkCommandWithRules(cmd string, denyRules []string, askRules []string, al
 			for _, pattern := range allowRules {
 				if commandMatchesPattern(segment, pattern) {
 					matched = true
+					if allowPattern == "" {
+						allowPattern = pattern
+					}
 					break
 				}
 			}
@@ -79,12 +114,12 @@ func checkCommandWithRules(cmd string, denyRules []string, askRules []string, al
 	}
 
 	if anyAsk {
-		return PermissionAsk
+		return PermissionExplanation{Outcome: "ask", Matched: &PermissionMatch{Bucket: "permission.ask", Pattern: askPattern}}
 	}
 	if sawSegment && allSegmentsAllowed && len(allowRules) > 0 && claudeCompositionAllows(plan.Shape) {
-		return PermissionAllow
+		return PermissionExplanation{Outcome: "allow", Matched: &PermissionMatch{Bucket: "permission.allow", Pattern: allowPattern}}
 	}
-	return PermissionDefault
+	return PermissionExplanation{Outcome: "abstain"}
 }
 
 func loadPermissionRules(cwd string, home string) ([]string, []string, []string) {

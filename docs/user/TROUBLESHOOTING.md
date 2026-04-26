@@ -57,6 +57,17 @@ Use `patterns` for raw regex rules when a command has no semantic schema.
 
 Add an explicit `allow`, `ask`, or `deny` rule when you want a stable decision.
 
+To see why a specific command reached `allow`, `ask`, or `deny`, run:
+
+```sh
+cc-bash-guard explain "unknown-tool foo"
+```
+
+`explain` does not execute the command. It shows parser output, semantic fields,
+the matched cc-bash-guard rule and source YAML file when available, the Claude
+settings decision, and the final merged reason. Use `--format json` when another
+tool needs to consume the diagnostic result.
+
 ## Regex Pattern Not Matching
 
 `patterns` match the original command string and parsed command elements,

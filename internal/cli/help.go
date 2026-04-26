@@ -27,6 +27,7 @@ Usage:
 
 Commands:
   init     create the user config and print the Claude Code hook snippet
+  explain  diagnose why a command would be allowed, asked, or denied
   doctor   inspect config quality and installation state
   verify   verify config tests, trust-critical setup, and build metadata
   version  print build and source metadata for the running binary
@@ -45,6 +46,7 @@ Policy model:
 
 Learn more:
   cc-bash-guard help init
+  cc-bash-guard help explain
   cc-bash-guard help config
   cc-bash-guard help permission
   cc-bash-guard help semantic
@@ -55,6 +57,7 @@ Learn more:
 Examples:
   cc-bash-guard init
   cc-bash-guard verify
+  cc-bash-guard explain "git status"
   cc-bash-guard semantic-schema --format json
   cc-bash-guard hook
 
@@ -148,6 +151,26 @@ Note:
   when verified artifacts are missing or stale. --auto-verify is convenient, but
   it lets hook-time config changes become active without a separate review step.
 
+`)
+	case "explain":
+		fmt.Fprint(w, `cc-bash-guard explain
+
+Diagnose why a command would be allowed, asked, or denied.
+This command does not execute the command.
+It uses the verified policy artifact used by the hook, so run verify after
+editing policy or included policy files.
+
+Usage:
+  cc-bash-guard explain [--format text|json] "<command>"
+
+Examples:
+  cc-bash-guard explain "git status"
+  cc-bash-guard explain --format json "git push --force origin main"
+
+Notes:
+  - text output is for humans
+  - JSON output is stable enough for tooling and tests
+  - stale or missing verified artifacts fail with a hint to run verify
 `)
 	case "version":
 		fmt.Fprint(w, `cc-bash-guard version

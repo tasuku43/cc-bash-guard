@@ -991,6 +991,358 @@ test:
 	}
 }
 
+func runExplainCLI(t *testing.T, home string, cwd string, cacheHome string, command string, args ...string) (int, string, string) {
+	t.Helper()
+	allArgs := append([]string{"explain"}, args...)
+	allArgs = append(allArgs, command)
+	var stdout, stderr bytes.Buffer
+	code := Run(allArgs, Streams{
+		Stdin:  strings.NewReader(""),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{Cwd: cwd, Home: home, XDGCacheHome: cacheHome})
+	return code, stdout.String(), stderr.String()
+}
+
+func verifyExplainConfig(t *testing.T, home string, cwd string, cacheHome string) {
+	t.Helper()
+	if _, err := configrepo.VerifyEffectiveToAllCaches(cwd, home, "", cacheHome, "claude", "test"); err != nil {
+		t.Fatalf("verify effective: %v", err)
+	}
+}
+
+func TestRunExplainSimpleAllow(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	cacheHome := t.TempDir()
+	writeUserConfig(t, home, `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow:
+          - "git status"
+        pass:
+          - "git diff"
+test:
+  - in: "git status"
+    decision: allow
+`)
+	verifyExplainConfig(t, home, cwd, cacheHome)
+
+	code, stdout, stderr := runExplainCLI(t, home, cwd, cacheHome, "git status")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	for _, want := range []string{
+		"outcome: allow",
+		"name: git status",
+		"parser: git",
+		"verb: status",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("explain output missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestRunExplainDenyWithIncludedSource(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	cacheHome := t.TempDir()
+	configDir := filepath.Join(home, ".config", "cc-bash-guard")
+	if err := os.MkdirAll(filepath.Join(configDir, "policies"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "policies", "git.yml"), []byte(`permission:
+  deny:
+    - name: git force push
+      command:
+        name: git
+        semantic:
+          verb: push
+          force: true
+      test:
+        deny:
+          - "git push --force origin main"
+        pass:
+          - "git status"
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeUserConfig(t, home, `include:
+  - ./policies/git.yml
+test:
+  - in: "git push --force origin main"
+    decision: deny
+`)
+	verifyExplainConfig(t, home, cwd, cacheHome)
+
+	code, stdout, stderr := runExplainCLI(t, home, cwd, cacheHome, "git push --force origin main")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	for _, want := range []string{
+		"outcome: deny",
+		"name: git force push",
+		"policies/git.yml",
+		"bucket: permission.deny",
+		"force: true",
+		"reason: cc-bash-guard policy denied",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("explain output missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestRunExplainFallbackAsk(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	cacheHome := t.TempDir()
+	writeUserConfig(t, home, `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow:
+          - "git status"
+        pass:
+          - "git diff"
+test:
+  - in: "git status"
+    decision: allow
+`)
+	verifyExplainConfig(t, home, cwd, cacheHome)
+
+	code, stdout, stderr := runExplainCLI(t, home, cwd, cacheHome, "unknown-tool foo")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	for _, want := range []string{
+		"cc-bash-guard policy:",
+		"outcome: abstain",
+		"Claude settings:",
+		"outcome: abstain",
+		"Final decision:",
+		"outcome: ask",
+		"all permission sources abstained; fallback ask",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("explain output missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestRunExplainJSON(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	cacheHome := t.TempDir()
+	writeUserConfig(t, home, `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow:
+          - "git status"
+        pass:
+          - "git diff"
+test:
+  - in: "git status"
+    decision: allow
+`)
+	verifyExplainConfig(t, home, cwd, cacheHome)
+
+	code, stdout, stderr := runExplainCLI(t, home, cwd, cacheHome, "git status", "--format", "json")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("json error: %v stdout=%s", err, stdout)
+	}
+	if payload["command"] != "git status" {
+		t.Fatalf("payload=%+v", payload)
+	}
+	parsed := payload["parsed"].(map[string]any)
+	if len(parsed["segments"].([]any)) == 0 {
+		t.Fatalf("payload=%+v", payload)
+	}
+	final := payload["final"].(map[string]any)
+	if final["outcome"] != "allow" {
+		t.Fatalf("payload=%+v", payload)
+	}
+	policy := payload["policy"].(map[string]any)
+	if policy["matched_rule"] == nil {
+		t.Fatalf("payload=%+v", payload)
+	}
+}
+
+func TestRunExplainShellC(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	cacheHome := t.TempDir()
+	writeUserConfig(t, home, `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow:
+          - "bash -c 'git status'"
+        pass:
+          - "git diff"
+test:
+  - in: "bash -c 'git status'"
+    decision: allow
+`)
+	verifyExplainConfig(t, home, cwd, cacheHome)
+
+	code, stdout, stderr := runExplainCLI(t, home, cwd, cacheHome, "bash -c 'git status'")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	for _, want := range []string{
+		"bash -c 'git status'",
+		"shape: shell_c",
+		"evaluated inner command:",
+		"command.name: git",
+		"verb: status",
+		"not rewritten or executed",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("explain output missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestRunExplainAbsolutePath(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	cacheHome := t.TempDir()
+	writeUserConfig(t, home, `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow:
+          - "/usr/bin/git status"
+        pass:
+          - "git diff"
+test:
+  - in: "/usr/bin/git status"
+    decision: allow
+`)
+	verifyExplainConfig(t, home, cwd, cacheHome)
+
+	code, stdout, stderr := runExplainCLI(t, home, cwd, cacheHome, "/usr/bin/git status")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	for _, want := range []string{
+		"program_token: /usr/bin/git",
+		"command.name: git",
+		"parser: git",
+		"verb: status",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("explain output missing %q:\n%s", want, stdout)
+		}
+	}
+}
+
+func TestRunExplainParseErrorReturnsNonZero(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	cacheHome := t.TempDir()
+	writeUserConfig(t, home, `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow:
+          - "git status"
+        pass:
+          - "git diff"
+test:
+  - in: "git status"
+    decision: allow
+`)
+	verifyExplainConfig(t, home, cwd, cacheHome)
+
+	code, stdout, _ := runExplainCLI(t, home, cwd, cacheHome, "bash -c 'echo $('")
+	if code == 0 {
+		t.Fatalf("expected non-zero stdout=%s", stdout)
+	}
+	if !strings.Contains(stdout, "diagnostics:") || strings.Contains(stdout, "outcome: allow") {
+		t.Fatalf("stdout=%s", stdout)
+	}
+}
+
+func TestRunExplainStaleArtifact(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	cacheHome := t.TempDir()
+	writeUserConfig(t, home, `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow:
+          - "git status"
+        pass:
+          - "git diff"
+test:
+  - in: "git status"
+    decision: allow
+`)
+	verifyExplainConfig(t, home, cwd, cacheHome)
+	writeUserConfig(t, home, `permission:
+  allow:
+    - name: git diff
+      command:
+        name: git
+        semantic:
+          verb: diff
+      test:
+        allow:
+          - "git diff"
+        pass:
+          - "git status"
+test:
+  - in: "git diff"
+    decision: allow
+`)
+
+	code, stdout, _ := runExplainCLI(t, home, cwd, cacheHome, "git diff")
+	if code == 0 {
+		t.Fatalf("expected non-zero stdout=%s", stdout)
+	}
+	if !strings.Contains(stdout, "verified artifact missing or stale") || !strings.Contains(stdout, "run cc-bash-guard verify") {
+		t.Fatalf("stdout=%s", stdout)
+	}
+}
+
 func TestRunHookClaudeDeniesWhenArtifactEvaluationSemanticsIncompatible(t *testing.T) {
 	home := t.TempDir()
 	cwd := t.TempDir()
