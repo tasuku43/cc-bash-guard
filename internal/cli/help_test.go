@@ -37,6 +37,7 @@ func TestRootHelpOrientsNewUsers(t *testing.T) {
 		"cc-bash-guard doctor",
 		"PreToolUse Bash snippet",
 		"permission.deny",
+		"top-level include",
 		"deny > ask > allow",
 		"unmatched commands fall back to ask",
 		"cc-bash-guard help init",
@@ -288,6 +289,8 @@ func TestHelpExamplesUseCurrentSyntax(t *testing.T) {
 		"command:",
 		"env:",
 		"patterns:",
+		"include:",
+		"./policies/git.yml",
 		"git destructive force push",
 		"AWS identity",
 		"kubectl read-only",
@@ -310,6 +313,7 @@ func TestHelpTroubleshootCoversCommonFailures(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Verified artifact missing or stale",
+		"Include error",
 		"Unsupported semantic field",
 		"Command has no semantic schema",
 		"All permission sources abstained",

@@ -39,6 +39,7 @@ Policy model:
   Use env for environment variable predicates.
   Use patterns for raw regex fallbacks and commands without semantic support.
   Rules live under permission.deny, permission.ask, and permission.allow.
+  Use top-level include to split policy and E2E tests across local YAML files.
   Decision order is deny > ask > allow; unmatched commands fall back to ask.
   cc-bash-guard evaluates commands but does not rewrite them.
 
@@ -237,6 +238,16 @@ Docs:
 		fmt.Fprint(w, `cc-bash-guard help examples
 
 Copyable permission policy examples using the current rule shape.
+
+Split policy and tests:
+  include:
+    - ./policies/git.yml
+    - ./tests/git.yml
+
+  # ./tests/git.yml
+  test:
+    - in: "git status"
+      decision: allow
 
 Git read-only allow:
   permission:
