@@ -42,7 +42,8 @@ Add an explicit `allow`, `ask`, or `deny` rule when you want a stable decision.
 
 ## Regex Pattern Not Matching
 
-`patterns` match the raw command string. Anchor patterns carefully:
+`patterns` match the original command string and parsed command elements,
+including shell `-c` inner commands. Anchor patterns carefully:
 
 ```yaml
 permission:

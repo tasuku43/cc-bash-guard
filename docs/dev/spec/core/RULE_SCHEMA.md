@@ -27,7 +27,9 @@ top-level rewrite is no longer supported; cc-bash-guard no longer rewrites comma
 ```
 
 Permission rules use only `command`, `env`, and `patterns`. Singular
-`pattern` and permission `match` are not supported.
+`pattern` and permission `match` are not supported. `patterns` evaluate the
+original command string and parsed command elements, including shell `-c` inner
+commands.
 
 ```yaml
 permission:

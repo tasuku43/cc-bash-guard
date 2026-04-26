@@ -407,8 +407,8 @@ func Evaluate(p Pipeline, command string) (Decision, error) {
 		trace = append(trace, unsafeCommandTraceStep(plan, safety))
 	}
 
-	if rule, ok := firstPreparedPatternPermissionMatch(prepared.Deny, command); ok {
-		trace = append(trace, permissionTraceStep("deny", permissionRuleTypeRaw, rule))
+	if rule, cmd, ok := firstPreparedPatternPermissionMatch(prepared.Deny, command, plan); ok {
+		trace = append(trace, permissionPatternTraceStep("deny", rule, cmd))
 		return Decision{Outcome: "deny", Explicit: true, Reason: "rule_match", Command: command, OriginalCommand: command, Message: rule.Message, Trace: trace}, nil
 	}
 	if rule, cmd, ok := firstPreparedStructuredPermissionMatch(prepared.Deny, command); ok {
@@ -421,8 +421,8 @@ func Evaluate(p Pipeline, command string) (Decision, error) {
 			return Decision{Outcome: decision.Outcome, Explicit: true, Reason: "composition", Command: command, OriginalCommand: command, Message: decision.Message, Trace: trace}, nil
 		}
 	}
-	if rule, ok := firstPreparedPatternPermissionMatch(prepared.Ask, command); ok {
-		trace = append(trace, permissionTraceStep("ask", permissionRuleTypeRaw, rule))
+	if rule, cmd, ok := firstPreparedPatternPermissionMatch(prepared.Ask, command, plan); ok {
+		trace = append(trace, permissionPatternTraceStep("ask", rule, cmd))
 		return Decision{Outcome: "ask", Explicit: true, Reason: "rule_match", Command: command, OriginalCommand: command, Message: rule.Message, Trace: trace}, nil
 	}
 	if rule, cmd, ok := firstPreparedStructuredPermissionMatch(prepared.Ask, command); ok {
@@ -445,8 +445,8 @@ func Evaluate(p Pipeline, command string) (Decision, error) {
 		trace = append(trace, decision.Trace...)
 		return Decision{Outcome: decision.Outcome, Explicit: true, Reason: "composition", Command: command, OriginalCommand: command, Message: decision.Message, Trace: trace}, nil
 	}
-	if rule, ok := firstPreparedPatternAllowPermissionMatch(prepared.Allow, command); ok {
-		trace = append(trace, permissionTraceStep("allow", permissionRuleTypeRaw, rule))
+	if rule, cmd, ok := firstPreparedPatternAllowPermissionMatch(prepared.Allow, command, plan); ok {
+		trace = append(trace, permissionPatternTraceStep("allow", rule, cmd))
 		return Decision{Outcome: "allow", Explicit: true, Reason: "rule_match", Command: command, OriginalCommand: command, Message: rule.Message, Trace: trace}, nil
 	}
 	if decision, ok := evaluateCommandPlanComposition(prepared.Deny, prepared.Ask, prepared.Allow, plan, true, true); ok {
@@ -542,6 +542,9 @@ func permissionTraceStep(effect string, ruleType string, rule PermissionRuleSpec
 
 func permissionTraceStepForCommand(effect string, ruleType string, rule PermissionRuleSpec, cmd commandpkg.Command) TraceStep {
 	step := permissionTraceStep(effect, ruleType, rule)
+	step.Command = cmd.Raw
+	step.Program = cmd.Program
+	step.ActionPath = append([]string(nil), cmd.ActionPath...)
 	step.Parser = cmd.Parser
 	step.SemanticParser = cmd.SemanticParser
 	if cmd.AWS != nil {
@@ -582,13 +585,25 @@ func permissionTraceStepForCommand(effect string, ruleType string, rule Permissi
 	return step
 }
 
-func firstPreparedPatternPermissionMatch(rules []preparedPermissionRule, command string) (PermissionRuleSpec, bool) {
+func permissionPatternTraceStep(effect string, rule PermissionRuleSpec, cmd commandpkg.Command) TraceStep {
+	if cmd.Program != "" {
+		return permissionTraceStepForCommand(effect, permissionRuleTypeRaw, rule, cmd)
+	}
+	return permissionTraceStep(effect, permissionRuleTypeRaw, rule)
+}
+
+func firstPreparedPatternPermissionMatch(rules []preparedPermissionRule, command string, plan commandpkg.CommandPlan) (PermissionRuleSpec, commandpkg.Command, bool) {
 	for _, rule := range rules {
 		if rule.Selector.matchesPatterns(command) {
-			return rule.Spec, true
+			return rule.Spec, commandpkg.Command{}, true
+		}
+		for _, cmd := range plan.Commands {
+			if rule.Selector.matchesCommandPatternsValue(cmd) {
+				return rule.Spec, cmd, true
+			}
 		}
 	}
-	return PermissionRuleSpec{}, false
+	return PermissionRuleSpec{}, commandpkg.Command{}, false
 }
 
 func firstPreparedStructuredPermissionMatch(rules []preparedPermissionRule, command string) (PermissionRuleSpec, commandpkg.Command, bool) {
@@ -612,16 +627,19 @@ func firstPreparedStructuredAllowPermissionMatch(rules []preparedPermissionRule,
 	return PermissionRuleSpec{}, commandpkg.Command{}, false
 }
 
-func firstPreparedPatternAllowPermissionMatch(rules []preparedPermissionRule, command string) (PermissionRuleSpec, bool) {
+func firstPreparedPatternAllowPermissionMatch(rules []preparedPermissionRule, command string, plan commandpkg.CommandPlan) (PermissionRuleSpec, commandpkg.Command, bool) {
 	for _, rule := range rules {
 		if !allowRuleCanMatch(rule.Spec, command) {
 			continue
 		}
 		if rule.Selector.matchesPatterns(command) {
-			return rule.Spec, true
+			return rule.Spec, commandpkg.Command{}, true
+		}
+		if len(plan.Commands) == 1 && commandAllowRuleCanMatch(plan.Commands[0]) && rule.Selector.matchesCommandPatternsValue(plan.Commands[0]) {
+			return rule.Spec, plan.Commands[0], true
 		}
 	}
-	return PermissionRuleSpec{}, false
+	return PermissionRuleSpec{}, commandpkg.Command{}, false
 }
 
 type commandDecision struct {
@@ -1182,7 +1200,10 @@ func PermissionRuleMatches(rule PermissionRuleSpec, command string) bool {
 		_, ok := selector.matchesCommand(command)
 		return ok
 	}
-	return selector.matchesPatterns(command)
+	plan := commandpkg.Parse(command)
+	prepared := preparedPermissionRule{Spec: rule, Selector: selector}
+	_, _, ok := firstPreparedPatternPermissionMatch([]preparedPermissionRule{prepared}, command, plan)
+	return ok
 }
 
 func PermissionAllowRuleMatches(rule PermissionRuleSpec, command string) bool {
@@ -1191,7 +1212,10 @@ func PermissionAllowRuleMatches(rule PermissionRuleSpec, command string) bool {
 		_, ok := selector.matchesCommand(command)
 		return allowRuleCanMatch(rule, command) && ok
 	}
-	return allowRuleCanMatch(rule, command) && selector.matchesPatterns(command)
+	plan := commandpkg.Parse(command)
+	prepared := preparedPermissionRule{Spec: rule, Selector: selector}
+	_, _, ok := firstPreparedPatternAllowPermissionMatch([]preparedPermissionRule{prepared}, command, plan)
+	return ok
 }
 
 func selectorMatches(command string, match MatchSpec, pattern string, patterns []string) bool {

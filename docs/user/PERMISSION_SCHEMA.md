@@ -61,8 +61,11 @@ variable must not be present.
 
 ## patterns
 
-Use `patterns` for raw regular expression matching against the command string.
-This is the fallback for commands without semantic support.
+Use `patterns` for raw regular expression matching against the original command
+string and parsed command elements. Shell `-c` wrappers are unwrapped for
+evaluation, so a pattern such as `^aws(\s|$)` also matches
+`bash -c 'aws s3 ls'`. This is the fallback for commands without semantic
+support.
 
 ```yaml
 permission:

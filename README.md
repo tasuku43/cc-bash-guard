@@ -81,7 +81,10 @@ merge behavior. For compound commands such as `A && B`, permission sources are
 merged for each command element before the compound decision is aggregated.
 
 Each rule uses `command`, `env`, or `patterns`. `command` and `patterns` cannot
-be combined in one rule. `env` can be combined with either.
+be combined in one rule. `env` can be combined with either. Shell `-c`
+wrappers such as `bash -c 'aws s3 ls'` are unwrapped for evaluation:
+`command` rules and `patterns` rules both evaluate the inner command while the
+executed command string is preserved.
 
 ```yaml
 permission:
@@ -117,7 +120,9 @@ permission:
 ```
 
 Use `patterns` for commands without a semantic parser, including read-only
-basics such as `ls`, `cat`, `grep`, `head`, `tail`, and `pwd`:
+basics such as `ls`, `cat`, `grep`, `head`, `tail`, and `pwd`. Patterns match
+the original command string and each parsed command element, including shell
+`-c` inner commands:
 
 ```yaml
 permission:

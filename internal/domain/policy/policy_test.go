@@ -54,6 +54,53 @@ func TestEvaluatePermissionUsesOriginalCommandForRawPatterns(t *testing.T) {
 	}
 }
 
+func TestEvaluatePatternsMatchShellDashCInnerCommand(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Deny: []PermissionRuleSpec{{
+				Name:     "aws without AWS_PROFILE env",
+				Patterns: []string{`^\s*aws(\s|$)`},
+				Env: PermissionEnvSpec{
+					Missing: []string{"AWS_PROFILE"},
+				},
+			}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "bash -c 'aws s3 ls'")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "deny" {
+		t.Fatalf("Outcome = %q, want deny; decision=%+v", got.Outcome, got)
+	}
+	last := got.Trace[len(got.Trace)-1]
+	if last.Name != "aws without AWS_PROFILE env" || last.RuleType != permissionRuleTypeRaw || last.Command != "aws s3 ls" || last.Program != "aws" {
+		t.Fatalf("last trace = %+v, want raw patterns match against inner aws command", last)
+	}
+}
+
+func TestEvaluatePatternsEnvUsesShellDashCInnerCommandEnv(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Deny: []PermissionRuleSpec{{
+				Patterns: []string{`^\s*aws(\s|$)`},
+				Env: PermissionEnvSpec{
+					Missing: []string{"AWS_PROFILE"},
+				},
+			}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "bash -c 'AWS_PROFILE=dev aws s3 ls'")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome == "deny" {
+		t.Fatalf("Outcome = deny, want env-scoped patterns rule not to match; decision=%+v", got)
+	}
+}
+
 func TestEvaluateShellDashCBuiltInEvaluationAllowsInnerCommand(t *testing.T) {
 	p := NewPipeline(PipelineSpec{
 		Permission: PermissionSpec{
@@ -401,6 +448,21 @@ func TestPermissionRuleMatchesPatterns(t *testing.T) {
 	}
 	if PermissionRuleMatches(rule, "cd repo") {
 		t.Fatal("did not expect match")
+	}
+}
+
+func TestPermissionRuleMatchesPatternsShellDashCInnerCommand(t *testing.T) {
+	rule := PermissionRuleSpec{
+		Patterns: []string{`^\s*aws(\s|$)`},
+		Env: PermissionEnvSpec{
+			Missing: []string{"AWS_PROFILE"},
+		},
+	}
+	if !PermissionRuleMatches(rule, "bash -c 'aws s3 ls'") {
+		t.Fatal("expected patterns match against shell -c inner command")
+	}
+	if PermissionRuleMatches(rule, "bash -c 'AWS_PROFILE=dev aws s3 ls'") {
+		t.Fatal("did not expect env-scoped patterns rule to match")
 	}
 }
 
