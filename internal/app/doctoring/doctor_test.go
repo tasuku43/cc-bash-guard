@@ -46,6 +46,26 @@ func TestRunReportsPermissionSourceMergeRule(t *testing.T) {
 	}
 }
 
+func TestRunReportsIncludedTestSourceOnFailure(t *testing.T) {
+	src := policy.Source{Layer: "user", Path: "/repo/.cc-bash-guard/tests/git.yml", Section: "test", Index: 1}
+	loaded := configrepo.Loaded{
+		Pipeline: policy.NewPipeline(policy.PipelineSpec{
+			Permission: policy.PermissionSpec{
+				Allow: []policy.PermissionRuleSpec{{
+					Command: policy.PermissionCommandSpec{Name: "git", Semantic: &policy.SemanticMatchSpec{Verb: "status"}},
+					Test:    policy.PermissionTestSpec{Allow: []string{"git status"}, Pass: []string{"git diff"}},
+				}},
+			},
+			Test: policy.PipelineTestSpec{{In: "git status", Decision: "deny", Source: src}},
+		}, policy.Source{}),
+	}
+	report := Run(loaded, "claude", t.TempDir(), t.TempDir())
+	check := findCheck(report, "tests.pass")
+	if check.Status != StatusFail || !strings.Contains(check.Message, src.Path+" test[1] expected deny, got allow") {
+		t.Fatalf("check = %+v", check)
+	}
+}
+
 func TestRunWarnsOnEnvOnlyAllow(t *testing.T) {
 	loaded := configrepo.Loaded{
 		Pipeline: policy.NewPipeline(policy.PipelineSpec{
@@ -147,6 +167,15 @@ func hasCheck(report Report, id string, status Status) bool {
 		}
 	}
 	return false
+}
+
+func findCheck(report Report, id string) Check {
+	for _, check := range report.Checks {
+		if check.ID == id {
+			return check
+		}
+	}
+	return Check{}
 }
 
 func writeClaudeSettingsFile(t *testing.T, body string) string {

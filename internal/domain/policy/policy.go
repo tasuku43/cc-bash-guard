@@ -13,6 +13,7 @@ import (
 )
 
 type PipelineSpec struct {
+	Include    []string         `yaml:"include" json:"-"`
 	Rewrite    []map[string]any `yaml:"rewrite" json:"rewrite,omitempty"`
 	Permission PermissionSpec   `yaml:"permission" json:"permission,omitempty"`
 	Test       PipelineTestSpec `yaml:"test" json:"test,omitempty"`
@@ -57,6 +58,7 @@ type PipelineExpectCase struct {
 	In        string `yaml:"in" json:"in,omitempty"`
 	Rewritten string `yaml:"rewritten" json:"rewritten,omitempty"`
 	Decision  string `yaml:"decision" json:"decision,omitempty"`
+	Source    Source `yaml:"-" json:"source,omitempty"`
 }
 
 type MatchSpec struct {
@@ -211,8 +213,10 @@ type SemanticMatchSpec struct {
 }
 
 type Source struct {
-	Layer string `json:"layer"`
-	Path  string `json:"path"`
+	Layer   string `json:"layer"`
+	Path    string `json:"path"`
+	Section string `json:"section,omitempty"`
+	Index   int    `json:"index"`
 }
 
 type Pipeline struct {
@@ -351,6 +355,11 @@ func stampSources(spec PipelineSpec, src Source) PipelineSpec {
 	for i := range spec.Permission.Allow {
 		if spec.Permission.Allow[i].Source == (Source{}) {
 			spec.Permission.Allow[i].Source = src
+		}
+	}
+	for i := range spec.Test {
+		if spec.Test[i].Source == (Source{}) {
+			spec.Test[i].Source = src
 		}
 	}
 	return spec

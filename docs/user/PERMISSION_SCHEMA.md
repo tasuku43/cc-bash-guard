@@ -3,11 +3,50 @@
 Permission policy is grouped into `deny`, `ask`, and `allow` buckets.
 
 ```yaml
+include:
+  - ./policies/git.yml
+  - ./tests/git.yml
+
 permission:
   deny: []
   ask: []
   allow: []
 ```
+
+## include
+
+Top-level `include` lets you split permission rules and E2E tests across
+multiple local YAML files.
+
+```yaml
+include:
+  - ./policies/git.yml
+  - ./policies/aws.yml
+  - ./tests/git.yml
+```
+
+Rules:
+
+- `include` is top-level only and must be a list of strings.
+- Relative paths are resolved from the file that declares the include, not from
+  the process working directory.
+- Included files may include other files. Cycles fail verification and report
+  the include chain.
+- Only local files are supported. URLs, shell expansion, environment variable
+  expansion, command substitution, and globbing are not supported.
+- Empty entries, missing files, and paths that do not resolve to regular files
+  are verification errors.
+- Symlinks use the same file reading behavior as normal config loading: if the
+  operating system resolves the path to a regular file, it is read as that file.
+
+Merge order is deterministic: `include[0]`, `include[1]`, then the current file.
+`permission.deny`, `permission.ask`, `permission.allow`, and top-level `test`
+lists are concatenated in that order. No deep merge is performed.
+
+`cc-bash-guard verify` resolves includes and writes one effective verified
+artifact. The hook uses that artifact for permission evaluation. Included files
+are part of the artifact fingerprint, so editing an included file makes the
+artifact stale and requires another `cc-bash-guard verify`.
 
 Each rule can use `command`, `env`, and `patterns`.
 Each rule may also set `message`; when that rule determines `allow`, `ask`, or

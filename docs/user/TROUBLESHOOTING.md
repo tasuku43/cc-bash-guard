@@ -11,6 +11,23 @@ cc-bash-guard verify
 The hook fails closed when the verified artifact is missing or stale unless
 `cc-bash-guard hook --auto-verify` is configured.
 
+If your config uses `include`, every included YAML file is part of the verified
+artifact. Editing an included policy or test file makes the artifact stale; run
+`cc-bash-guard verify` again.
+
+## Include Errors
+
+Common include failures:
+
+- the include entry is empty
+- the path is a URL instead of a local file path
+- the file is missing or is not a regular file
+- a nested include forms a cycle
+
+Relative include paths are resolved from the file that declares the include. For
+example, if `policies/base.yml` includes `./git.yml`, that path resolves to
+`policies/git.yml`.
+
 ## Unsupported Semantic Field
 
 Inspect the registered fields for the command:

@@ -69,6 +69,7 @@ func ConfigPaths(home string, xdgConfigHome string) []Source {
 type EffectiveInputs struct {
 	Tool          string
 	ConfigSources []Source
+	ConfigFiles   []Source
 	SettingsPaths []string
 	Fingerprint   string
 }
@@ -76,10 +77,12 @@ type EffectiveInputs struct {
 func ResolveEffectiveInputs(cwd string, home string, xdgConfigHome string, tool string) EffectiveInputs {
 	configSources := configSources(cwd, home, xdgConfigHome, tool)
 	settingsPaths := existingPaths(settingsPaths(tool, cwd, home))
-	fingerprint := effectiveFingerprint(tool, configSources, settingsPaths)
+	configFiles := configDependencySources(configSources)
+	fingerprint := effectiveFingerprint(tool, configFiles, settingsPaths)
 	return EffectiveInputs{
 		Tool:          tool,
 		ConfigSources: configSources,
+		ConfigFiles:   configFiles,
 		SettingsPaths: settingsPaths,
 		Fingerprint:   fingerprint,
 	}
@@ -170,22 +173,15 @@ func loadEffectiveWithSources(sources []Source, loader func(Source) (policy.Pipe
 }
 
 func LoadFileIfPresent(src Source) (policy.Pipeline, error) {
-	data, err := readConfigFile(src)
+	file, _, err := loadFileWithIncludes(src)
 	if err != nil {
 		return policy.Pipeline{}, err
 	}
-	if data == "" {
+	if isZeroPipeline(file) {
 		return policy.Pipeline{}, nil
 	}
-	file, err := decodeFile(src, data)
-	if err != nil {
-		return policy.Pipeline{}, err
-	}
-	issues := validateFile(file)
+	issues := validateFileWithSources(file)
 	if len(issues) > 0 {
-		for i := range issues {
-			issues[i] = fmt.Sprintf("%s config %s: %s", src.Layer, src.Path, issues[i])
-		}
 		return policy.Pipeline{}, &policy.ValidationError{Issues: issues}
 	}
 	return policy.NewPipeline(file, src), nil
@@ -237,7 +233,7 @@ func VerifyEffectiveToAllCaches(cwd string, home string, xdgConfigHome string, x
 		Version:                    2,
 		Tool:                       tool,
 		Fingerprint:                inputs.Fingerprint,
-		SourcePaths:                sourcePaths(inputs.ConfigSources),
+		SourcePaths:                sourcePaths(inputs.ConfigFiles),
 		SettingsPaths:              inputs.SettingsPaths,
 		CmdproxyVersion:            cmdproxyVersion,
 		EvaluationSemanticsVersion: EvaluationSemanticsVersion,
@@ -282,14 +278,14 @@ func VerifiedEffectiveArtifactStatus(cwd string, home string, xdgConfigHome stri
 }
 
 func loadFileForEval(src Source, cacheDir string, requireVerified bool, cmdproxyVersion string) (policy.Pipeline, error) {
-	data, err := readConfigFile(src)
+	file, files, err := loadFileWithIncludes(src)
 	if err != nil {
 		return policy.Pipeline{}, err
 	}
-	if data == "" {
+	if isZeroPipeline(file) {
 		return policy.Pipeline{}, nil
 	}
-	sourceHash := contentHash(data)
+	sourceHash := configSourcesHash(files)
 	cachePath := cachePathForHash(cacheDir, sourceHash)
 	if pipeline, ok, err := loadEvalCache(src, cachePath, sourceHash, requireVerified); err != nil {
 		return policy.Pipeline{}, err
@@ -297,33 +293,26 @@ func loadFileForEval(src Source, cacheDir string, requireVerified bool, cmdproxy
 		return pipeline, nil
 	}
 	if requireVerified {
-		return policy.Pipeline{}, fmt.Errorf("%s config %s changed since last verify; run cc-bash-guard verify", src.Layer, src.Path)
+		return policy.Pipeline{}, fmt.Errorf("%s config %s or included policy files changed since last verify; run cc-bash-guard verify. Included policy files are part of the verified artifact.", src.Layer, src.Path)
 	}
-	return compileEvalData(src, cacheDir, cmdproxyVersion, data, sourceHash)
+	return compileEvalFile(src, cacheDir, cmdproxyVersion, file, files, sourceHash)
 }
 
 func compileAndWriteEvalFile(src Source, cacheDir string, cmdproxyVersion string) (policy.Pipeline, error) {
-	data, err := readConfigFile(src)
+	file, files, err := loadFileWithIncludes(src)
 	if err != nil {
 		return policy.Pipeline{}, err
 	}
-	if data == "" {
+	if isZeroPipeline(file) {
 		return policy.Pipeline{}, nil
 	}
-	sourceHash := contentHash(data)
-	return compileEvalData(src, cacheDir, cmdproxyVersion, data, sourceHash)
+	sourceHash := configSourcesHash(files)
+	return compileEvalFile(src, cacheDir, cmdproxyVersion, file, files, sourceHash)
 }
 
-func compileEvalData(src Source, cacheDir string, cmdproxyVersion string, data string, sourceHash string) (policy.Pipeline, error) {
-	file, err := decodeFile(src, data)
-	if err != nil {
-		return policy.Pipeline{}, err
-	}
-	issues := validateFile(file)
+func compileEvalFile(src Source, cacheDir string, cmdproxyVersion string, file policy.PipelineSpec, files []Source, sourceHash string) (policy.Pipeline, error) {
+	issues := validateFileWithSources(file)
 	if len(issues) > 0 {
-		for i := range issues {
-			issues[i] = fmt.Sprintf("%s config %s: %s", src.Layer, src.Path, issues[i])
-		}
 		return policy.Pipeline{}, &policy.ValidationError{Issues: issues}
 	}
 	cachePath := cachePathForHash(cacheDir, sourceHash)
@@ -334,6 +323,7 @@ func compileEvalData(src Source, cacheDir string, cmdproxyVersion string, data s
 		CmdproxyVersion:            cmdproxyVersion,
 		EvaluationSemanticsVersion: EvaluationSemanticsVersion,
 		VerifiedAt:                 time.Now().UTC().Format(time.RFC3339),
+		SourcePaths:                sourcePaths(files),
 		Pipeline:                   file,
 	}); err != nil {
 		return policy.Pipeline{}, err
@@ -343,14 +333,14 @@ func compileEvalData(src Source, cacheDir string, cmdproxyVersion string, data s
 }
 
 func loadVerifiedFileForHook(src Source, cacheDirs []string) (policy.Pipeline, error) {
-	data, err := readConfigFile(src)
+	file, files, err := loadFileWithIncludes(src)
 	if err != nil {
 		return policy.Pipeline{}, err
 	}
-	if data == "" {
+	if isZeroPipeline(file) {
 		return policy.Pipeline{}, nil
 	}
-	sourceHash := contentHash(data)
+	sourceHash := configSourcesHash(files)
 	for _, cacheDir := range cacheDirs {
 		cachePath := cachePathForHash(cacheDir, sourceHash)
 		if pipeline, ok, err := loadEvalCache(src, cachePath, sourceHash, true); err != nil {
@@ -359,7 +349,7 @@ func loadVerifiedFileForHook(src Source, cacheDirs []string) (policy.Pipeline, e
 			return pipeline, nil
 		}
 	}
-	return policy.Pipeline{}, fmt.Errorf("%s config %s changed since last verify; verified artifact not found in %s; run cc-bash-guard verify", src.Layer, src.Path, strings.Join(cacheDirs, ", "))
+	return policy.Pipeline{}, fmt.Errorf("%s config %s or included policy files changed since last verify; verified artifact not found in %s; run cc-bash-guard verify. Included policy files are part of the verified artifact.", src.Layer, src.Path, strings.Join(cacheDirs, ", "))
 }
 
 func loadVerifiedEffectivePipeline(inputs EffectiveInputs, cacheDirs []string) (policy.Pipeline, error) {
@@ -371,7 +361,7 @@ func loadVerifiedEffectivePipeline(inputs EffectiveInputs, cacheDirs []string) (
 			return pipeline, nil
 		}
 	}
-	return policy.Pipeline{}, fmt.Errorf("effective config for %s changed since last verify; verified artifact not found in %s; run cc-bash-guard verify", inputs.Tool, strings.Join(cacheDirs, ", "))
+	return policy.Pipeline{}, fmt.Errorf("effective config for %s changed since last verify; verified artifact not found in %s; run cc-bash-guard verify. Included policy files are part of the verified artifact.", inputs.Tool, strings.Join(cacheDirs, ", "))
 }
 
 func decodeFile(src Source, data string) (File, error) {
@@ -392,6 +382,144 @@ func decodeFile(src Source, data string) (File, error) {
 		return File{}, fmt.Errorf("%s config %s is invalid: %w", src.Layer, src.Path, err)
 	}
 	return file, nil
+}
+
+type loadedConfigFile struct {
+	Source Source
+	File   File
+}
+
+func loadFileWithIncludes(src Source) (File, []Source, error) {
+	data, err := readConfigFile(src)
+	if err != nil {
+		return File{}, nil, err
+	}
+	if data == "" {
+		return File{}, nil, nil
+	}
+	rootPath, err := filepath.Abs(src.Path)
+	if err != nil {
+		return File{}, nil, fmt.Errorf("%s config %s is invalid: %w", src.Layer, src.Path, err)
+	}
+	loaded, err := resolveIncludes(Source{Layer: src.Layer, Path: rootPath}, map[string]int{}, nil)
+	if err != nil {
+		return File{}, nil, err
+	}
+	var effective File
+	files := make([]Source, 0, len(loaded))
+	for _, entry := range loaded {
+		files = append(files, entry.Source)
+		effective = mergeSpecs(effective, stampFileSources(entry.File, entry.Source))
+	}
+	effective.Include = nil
+	return effective, files, nil
+}
+
+func resolveIncludes(src Source, visiting map[string]int, stack []string) ([]loadedConfigFile, error) {
+	path := filepath.Clean(src.Path)
+	if idx, ok := visiting[path]; ok {
+		chain := append(append([]string{}, stack[idx:]...), path)
+		return nil, fmt.Errorf("include cycle detected:\n  %s", strings.Join(chain, "\n  "))
+	}
+	if err := validateIncludedPath(src); err != nil {
+		return nil, err
+	}
+	data, err := readRequiredConfigFile(src)
+	if err != nil {
+		return nil, err
+	}
+	file, err := decodeFile(src, data)
+	if err != nil {
+		return nil, err
+	}
+	visiting[path] = len(stack)
+	stack = append(stack, path)
+	var loaded []loadedConfigFile
+	for i, include := range file.Include {
+		include = strings.TrimSpace(include)
+		if include == "" {
+			return nil, fmt.Errorf("%s config %s include[%d] must be non-empty", src.Layer, src.Path, i)
+		}
+		if strings.Contains(include, "://") {
+			return nil, fmt.Errorf("%s config %s include[%d] must be a local file path, got %q", src.Layer, src.Path, i, include)
+		}
+		includePath := include
+		if !filepath.IsAbs(includePath) {
+			includePath = filepath.Join(filepath.Dir(path), includePath)
+		}
+		includePath, err = filepath.Abs(includePath)
+		if err != nil {
+			return nil, fmt.Errorf("%s config %s include[%d] is invalid: %w", src.Layer, src.Path, i, err)
+		}
+		child := Source{Layer: src.Layer, Path: filepath.Clean(includePath)}
+		childLoaded, err := resolveIncludes(child, visiting, stack)
+		if err != nil {
+			return nil, err
+		}
+		loaded = append(loaded, childLoaded...)
+	}
+	delete(visiting, path)
+	file.Include = nil
+	loaded = append(loaded, loadedConfigFile{Source: src, File: file})
+	return loaded, nil
+}
+
+func validateIncludedPath(src Source) error {
+	fi, err := os.Stat(src.Path)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("%s config include file missing: %s", src.Layer, src.Path)
+		}
+		return fmt.Errorf("%s config include file %s could not be read: %w", src.Layer, src.Path, err)
+	}
+	if !fi.Mode().IsRegular() {
+		return fmt.Errorf("%s config include path must be a regular file: %s", src.Layer, src.Path)
+	}
+	return nil
+}
+
+func readRequiredConfigFile(src Source) (string, error) {
+	data, err := os.ReadFile(src.Path)
+	if err != nil {
+		return "", fmt.Errorf("%s config read failed: %w", src.Layer, err)
+	}
+	if strings.TrimSpace(string(data)) == "" {
+		return "", fmt.Errorf("%s config %s is empty", src.Layer, src.Path)
+	}
+	return string(data), nil
+}
+
+func stampFileSources(file File, src Source) File {
+	for i := range file.Permission.Deny {
+		if file.Permission.Deny[i].Source == (Source{}) {
+			file.Permission.Deny[i].Source = Source{Layer: src.Layer, Path: src.Path, Section: "permission.deny", Index: i}
+		}
+	}
+	for i := range file.Permission.Ask {
+		if file.Permission.Ask[i].Source == (Source{}) {
+			file.Permission.Ask[i].Source = Source{Layer: src.Layer, Path: src.Path, Section: "permission.ask", Index: i}
+		}
+	}
+	for i := range file.Permission.Allow {
+		if file.Permission.Allow[i].Source == (Source{}) {
+			file.Permission.Allow[i].Source = Source{Layer: src.Layer, Path: src.Path, Section: "permission.allow", Index: i}
+		}
+	}
+	for i := range file.Test {
+		if file.Test[i].Source == (Source{}) {
+			file.Test[i].Source = Source{Layer: src.Layer, Path: src.Path, Section: "test", Index: i}
+		}
+	}
+	return file
+}
+
+func mergeSpecs(base File, next File) File {
+	base.Rewrite = append(base.Rewrite, next.Rewrite...)
+	base.Permission.Deny = append(base.Permission.Deny, next.Permission.Deny...)
+	base.Permission.Ask = append(base.Permission.Ask, next.Permission.Ask...)
+	base.Permission.Allow = append(base.Permission.Allow, next.Permission.Allow...)
+	base.Test = append(base.Test, next.Test...)
+	return base
 }
 
 func validateSemanticYAML(root yaml.Node) []string {
@@ -552,10 +680,48 @@ func yamlMapValue(node *yaml.Node, key string) *yaml.Node {
 	return nil
 }
 
-func validateFile(file File) []string {
+func validateFileWithSources(file File) []string {
 	var issues []string
-	issues = append(issues, policy.ValidatePipeline(file)...)
+	if len(file.Rewrite) > 0 {
+		issues = append(issues, "top-level rewrite is no longer supported; cc-bash-guard no longer rewrites commands. Use permission.command / env / patterns, and rely on parser-backed normalization for evaluation.")
+	}
+	if policy.IsZeroPermissionSpec(file.Permission) {
+		issues = append(issues, "must set at least one permission entry")
+	}
+	for _, rule := range file.Permission.Deny {
+		prefix := sourcedPrefix(rule.Source, fmt.Sprintf("permission.deny[%d]", rule.Source.Index))
+		issues = append(issues, policy.ValidatePermissionRule(prefix, rule, "deny")...)
+	}
+	for _, rule := range file.Permission.Ask {
+		prefix := sourcedPrefix(rule.Source, fmt.Sprintf("permission.ask[%d]", rule.Source.Index))
+		issues = append(issues, policy.ValidatePermissionRule(prefix, rule, "ask")...)
+	}
+	for _, rule := range file.Permission.Allow {
+		prefix := sourcedPrefix(rule.Source, fmt.Sprintf("permission.allow[%d]", rule.Source.Index))
+		issues = append(issues, policy.ValidatePermissionRule(prefix, rule, "allow")...)
+	}
+	for _, test := range file.Test {
+		prefix := sourcedPrefix(test.Source, fmt.Sprintf("test[%d]", test.Source.Index))
+		if strings.TrimSpace(test.In) == "" {
+			issues = append(issues, prefix+".in must be non-empty")
+		}
+		if strings.TrimSpace(test.Rewritten) != "" {
+			issues = append(issues, prefix+".rewritten is no longer supported; cc-bash-guard does not rewrite commands")
+		}
+		switch test.Decision {
+		case "allow", "ask", "deny":
+		default:
+			issues = append(issues, prefix+".decision must be one of allow, ask, deny")
+		}
+	}
 	return issues
+}
+
+func sourcedPrefix(src Source, scope string) string {
+	if src.Path == "" {
+		return scope
+	}
+	return src.Path + " " + scope
 }
 
 func loadEvalCache(src Source, cachePath string, sourceHash string, requireVerified bool) (policy.Pipeline, bool, error) {
@@ -835,6 +1001,29 @@ func sourcePaths(sources []Source) []string {
 	return paths
 }
 
+func configDependencySources(sources []Source) []Source {
+	var deps []Source
+	seen := map[string]struct{}{}
+	for _, src := range sources {
+		_, files, err := loadFileWithIncludes(src)
+		if err != nil || len(files) == 0 {
+			if _, ok := seen[src.Path]; !ok {
+				seen[src.Path] = struct{}{}
+				deps = append(deps, src)
+			}
+			continue
+		}
+		for _, file := range files {
+			if _, ok := seen[file.Path]; ok {
+				continue
+			}
+			seen[file.Path] = struct{}{}
+			deps = append(deps, file)
+		}
+	}
+	return deps
+}
+
 func existingPaths(paths []string) []string {
 	var existing []string
 	for _, path := range paths {
@@ -924,6 +1113,18 @@ func effectiveFingerprint(tool string, sources []Source, settingsPaths []string)
 	for _, path := range settingsPaths {
 		_, _ = h.Write([]byte("settings:" + path + "\n"))
 		if data, err := os.ReadFile(path); err == nil {
+			_, _ = h.Write(data)
+		}
+		_, _ = h.Write([]byte("\n"))
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func configSourcesHash(sources []Source) string {
+	h := sha256.New()
+	for _, src := range sources {
+		_, _ = h.Write([]byte(src.Layer + ":" + src.Path + "\n"))
+		if data, err := os.ReadFile(src.Path); err == nil {
 			_, _ = h.Write(data)
 		}
 		_, _ = h.Write([]byte("\n"))

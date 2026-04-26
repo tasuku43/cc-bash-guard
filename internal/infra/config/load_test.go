@@ -1000,6 +1000,333 @@ test:
 	}
 }
 
+func TestLoadFileIfPresentSupportsBasicInclude(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "cc-bash-guard.yml")
+	writeFile(t, filepath.Join(dir, "git.yml"), `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow: ["git status"]
+        pass: ["git diff"]
+`)
+	writeFile(t, root, `include:
+  - ./git.yml
+`)
+
+	pipeline, err := LoadFileIfPresent(Source{Layer: LayerUser, Path: root})
+	if err != nil {
+		t.Fatalf("LoadFileIfPresent() error = %v", err)
+	}
+	decision, err := policy.Evaluate(pipeline, "git status")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if decision.Outcome != "allow" {
+		t.Fatalf("decision = %+v", decision)
+	}
+}
+
+func TestLoadFileIfPresentMergesIncludeThenCurrentFile(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "cc-bash-guard.yml")
+	writeFile(t, filepath.Join(dir, "git.yml"), `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow: ["git status"]
+        pass: ["git diff"]
+`)
+	writeFile(t, root, `include:
+  - ./git.yml
+permission:
+  deny:
+    - name: git force push
+      command:
+        name: git
+        semantic:
+          verb: push
+          force: true
+      test:
+        deny: ["git push --force origin main"]
+        pass: ["git status"]
+`)
+
+	pipeline, err := LoadFileIfPresent(Source{Layer: LayerUser, Path: root})
+	if err != nil {
+		t.Fatalf("LoadFileIfPresent() error = %v", err)
+	}
+	if len(pipeline.Permission.Allow) != 1 || len(pipeline.Permission.Deny) != 1 {
+		t.Fatalf("permission = %#v", pipeline.Permission)
+	}
+	if got := pipeline.Permission.Allow[0].Source.Path; got != filepath.Join(dir, "git.yml") {
+		t.Fatalf("included source = %q", got)
+	}
+	assertDecision(t, pipeline, "git status", "allow")
+	assertDecision(t, pipeline, "git push --force origin main", "deny")
+}
+
+func TestLoadFileIfPresentPreservesIncludeOrder(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "cc-bash-guard.yml")
+	writeFile(t, filepath.Join(dir, "first.yml"), `permission:
+  ask:
+    - name: first
+      patterns: ["^one$"]
+      test:
+        ask: ["one"]
+        pass: ["two"]
+`)
+	writeFile(t, filepath.Join(dir, "second.yml"), `permission:
+  ask:
+    - name: second
+      patterns: ["^two$"]
+      test:
+        ask: ["two"]
+        pass: ["one"]
+`)
+	writeFile(t, root, `include:
+  - ./first.yml
+  - ./second.yml
+permission:
+  ask:
+    - name: current
+      patterns: ["^three$"]
+      test:
+        ask: ["three"]
+        pass: ["one"]
+`)
+
+	pipeline, err := LoadFileIfPresent(Source{Layer: LayerUser, Path: root})
+	if err != nil {
+		t.Fatalf("LoadFileIfPresent() error = %v", err)
+	}
+	got := []string{pipeline.Permission.Ask[0].Name, pipeline.Permission.Ask[1].Name, pipeline.Permission.Ask[2].Name}
+	want := []string{"first", "second", "current"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("order = %#v, want %#v", got, want)
+	}
+}
+
+func TestLoadFileIfPresentSupportsNestedIncludeRelativeToIncludingFile(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "cc-bash-guard.yml")
+	policyDir := filepath.Join(dir, "policies")
+	writeFile(t, filepath.Join(policyDir, "git.yml"), `permission:
+  allow:
+    - name: git status
+      command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow: ["git status"]
+        pass: ["git diff"]
+`)
+	writeFile(t, filepath.Join(policyDir, "base.yml"), `include:
+  - ./git.yml
+`)
+	writeFile(t, root, `include:
+  - ./policies/base.yml
+`)
+
+	pipeline, err := LoadFileIfPresent(Source{Layer: LayerUser, Path: root})
+	if err != nil {
+		t.Fatalf("LoadFileIfPresent() error = %v", err)
+	}
+	assertDecision(t, pipeline, "git status", "allow")
+}
+
+func TestLoadFileIfPresentRejectsIncludeCycle(t *testing.T) {
+	dir := t.TempDir()
+	a := filepath.Join(dir, "a.yml")
+	b := filepath.Join(dir, "b.yml")
+	writeFile(t, a, "include:\n  - ./b.yml\n")
+	writeFile(t, b, "include:\n  - ./a.yml\n")
+
+	_, err := LoadFileIfPresent(Source{Layer: LayerUser, Path: a})
+	if err == nil || !strings.Contains(err.Error(), "include cycle detected") || !strings.Contains(err.Error(), a) || !strings.Contains(err.Error(), b) {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoadFileIfPresentRejectsInvalidIncludeEntries(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want string
+	}{
+		{name: "missing", body: "include:\n  - ./missing.yml\n", want: "include file missing"},
+		{name: "url", body: "include:\n  - https://example.com/policy.yml\n", want: "must be a local file path"},
+		{name: "empty", body: "include:\n  - \"\"\n", want: "include[0] must be non-empty"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			root := filepath.Join(dir, "cc-bash-guard.yml")
+			writeFile(t, root, tt.body)
+			_, err := LoadFileIfPresent(Source{Layer: LayerUser, Path: root})
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("error = %v, want %q", err, tt.want)
+			}
+		})
+	}
+}
+
+func TestLoadFileIfPresentRunsIncludedTestsAndReportsSource(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "cc-bash-guard.yml")
+	testsPath := filepath.Join(dir, "tests", "git.yml")
+	writeFile(t, filepath.Join(dir, "policy.yml"), `permission:
+  allow:
+    - command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow: ["git status"]
+        pass: ["git diff"]
+`)
+	writeFile(t, testsPath, `test:
+  - in: "git status"
+    decision: deny
+`)
+	writeFile(t, root, `include:
+  - ./policy.yml
+  - ./tests/git.yml
+`)
+
+	pipeline, err := LoadFileIfPresent(Source{Layer: LayerUser, Path: root})
+	if err != nil {
+		t.Fatalf("LoadFileIfPresent() error = %v", err)
+	}
+	if len(pipeline.Test) != 1 || pipeline.Test[0].Source.Path != testsPath {
+		t.Fatalf("test source = %#v", pipeline.Test)
+	}
+	decision, err := policy.Evaluate(pipeline, pipeline.Test[0].In)
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if decision.Outcome == pipeline.Test[0].Decision {
+		t.Fatalf("test unexpectedly passed")
+	}
+}
+
+func TestLoadFileIfPresentReportsIncludedRuleSourceInValidationError(t *testing.T) {
+	dir := t.TempDir()
+	root := filepath.Join(dir, "cc-bash-guard.yml")
+	invalid := filepath.Join(dir, "policies", "git.yml")
+	writeFile(t, invalid, `permission:
+  deny:
+    - name: bad
+      command:
+        name: git
+        semantic:
+          namespace: prod
+      test:
+        deny: ["git push"]
+        pass: ["git status"]
+`)
+	writeFile(t, root, `include:
+  - ./policies/git.yml
+`)
+
+	_, err := LoadFileIfPresent(Source{Layer: LayerUser, Path: root})
+	if err == nil || !strings.Contains(err.Error(), invalid) || !strings.Contains(err.Error(), "permission.deny[0].command.semantic.namespace") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestIncludedFileChangeInvalidatesVerifiedArtifact(t *testing.T) {
+	dir := t.TempDir()
+	cacheDir := filepath.Join(t.TempDir(), "cache")
+	root := filepath.Join(dir, "cc-bash-guard.yml")
+	include := filepath.Join(dir, "git.yml")
+	writeFile(t, include, `permission:
+  allow:
+    - command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow: ["git status"]
+        pass: ["git diff"]
+`)
+	writeFile(t, root, `include:
+  - ./git.yml
+`)
+	if _, err := VerifyFile(Source{Layer: LayerUser, Path: root}, cacheDir, "vtest"); err != nil {
+		t.Fatalf("VerifyFile() error = %v", err)
+	}
+	writeFile(t, include, `permission:
+  allow:
+    - command:
+        name: git
+        semantic:
+          verb: diff
+      test:
+        allow: ["git diff"]
+        pass: ["git status"]
+`)
+	_, err := LoadVerifiedFileForHook(Source{Layer: LayerUser, Path: root}, []string{cacheDir})
+	if err == nil || !strings.Contains(err.Error(), "included policy files changed since last verify") || !strings.Contains(err.Error(), "Included policy files are part of the verified artifact") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestVerifyEffectiveArtifactContainsBundledConfigAndIncludedSources(t *testing.T) {
+	home := t.TempDir()
+	cwd := t.TempDir()
+	cacheHome := t.TempDir()
+	configPath := filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml")
+	includePath := filepath.Join(home, ".config", "cc-bash-guard", "policies", "git.yml")
+	writeFile(t, includePath, `permission:
+  allow:
+    - command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow: ["git status"]
+        pass: ["git diff"]
+`)
+	writeFile(t, configPath, `include:
+  - ./policies/git.yml
+`)
+	if _, err := VerifyEffectiveToAllCaches(cwd, home, "", cacheHome, "claude", "vtest"); err != nil {
+		t.Fatalf("VerifyEffectiveToAllCaches() error = %v", err)
+	}
+	data, err := os.ReadFile(singleCachePath(t, filepath.Join(cacheHome, "cc-bash-guard")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var cache struct {
+		SourcePaths []string            `json:"source_paths"`
+		Pipeline    policy.PipelineSpec `json:"pipeline"`
+	}
+	if err := json.Unmarshal(data, &cache); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(cache.SourcePaths, []string{includePath, configPath}) {
+		t.Fatalf("source paths = %#v", cache.SourcePaths)
+	}
+	if len(cache.Pipeline.Include) != 0 || len(cache.Pipeline.Permission.Allow) != 1 {
+		t.Fatalf("pipeline = %#v", cache.Pipeline)
+	}
+	src := cache.Pipeline.Permission.Allow[0].Source
+	if src.Path != includePath || src.Section != "permission.allow" || src.Index != 0 {
+		t.Fatalf("rule source = %+v", src)
+	}
+}
+
 func singleCachePath(t *testing.T, dir string) string {
 	t.Helper()
 	files, err := os.ReadDir(dir)
@@ -1010,6 +1337,27 @@ func singleCachePath(t *testing.T, dir string) string {
 		t.Fatalf("files = %v", files)
 	}
 	return filepath.Join(dir, files[0].Name())
+}
+
+func writeFile(t *testing.T, path string, body string) {
+	t.Helper()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertDecision(t *testing.T, pipeline policy.Pipeline, command string, want string) {
+	t.Helper()
+	decision, err := policy.Evaluate(pipeline, command)
+	if err != nil {
+		t.Fatalf("Evaluate(%q) error = %v", command, err)
+	}
+	if decision.Outcome != want {
+		t.Fatalf("Evaluate(%q) = %s, want %s", command, decision.Outcome, want)
+	}
 }
 
 func removeJSONField(t *testing.T, path string, key string) {

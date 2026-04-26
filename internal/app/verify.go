@@ -12,12 +12,18 @@ import (
 
 func RunVerify(env Env) VerifyResult {
 	tool := claude.Tool
+	inputs := configrepo.ResolveEffectiveInputs(env.Cwd, env.Home, env.XDGConfigHome, tool)
 	loaded := configrepo.LoadEffectiveForTool(env.Cwd, env.Home, env.XDGConfigHome, tool)
 	report := doctoring.Run(loaded, tool, env.Cwd, env.Home)
 	report.Tool = tool
+	report.ConfigSources = inputs.ConfigFiles
+	report.SettingsPaths = inputs.SettingsPaths
+	report.EffectiveFingerprint = inputs.Fingerprint
 	info := buildinfo.Read()
 	ok, reasons := VerifyStatus(report, info, tool)
 	artifactBuilt := false
+	permissionRules := len(loaded.Pipeline.Permission.Deny) + len(loaded.Pipeline.Permission.Ask) + len(loaded.Pipeline.Permission.Allow)
+	tests := len(loaded.Pipeline.Test)
 	if ok {
 		rules, err := configrepo.VerifyEffectiveToAllCaches(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, tool, info.Version)
 		if err != nil {
@@ -25,17 +31,21 @@ func RunVerify(env Env) VerifyResult {
 			reasons = append(reasons, err.Error())
 		} else if len(rules.Rewrite) > 0 || !policy.IsZeroPermissionSpec(rules.Permission) || len(rules.Test) > 0 {
 			artifactBuilt = true
+			permissionRules = len(rules.Permission.Deny) + len(rules.Permission.Ask) + len(rules.Permission.Allow)
+			tests = len(rules.Test)
 		}
 	}
 
 	return VerifyResult{
-		Tool:          tool,
-		BuildInfo:     info,
-		Report:        report,
-		Verified:      ok,
-		ArtifactBuilt: artifactBuilt,
-		ArtifactCache: configrepo.HookCacheDirs(env.Home, env.XDGCacheHome),
-		Failures:      reasons,
+		Tool:            tool,
+		BuildInfo:       info,
+		Report:          report,
+		Verified:        ok,
+		ArtifactBuilt:   artifactBuilt,
+		ArtifactCache:   configrepo.HookCacheDirs(env.Home, env.XDGCacheHome),
+		PermissionRules: permissionRules,
+		Tests:           tests,
+		Failures:        reasons,
 	}
 }
 

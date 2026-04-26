@@ -30,6 +30,7 @@ Merge order is deterministic:
 
 - user-wide policy is loaded first
 - project-local policy is loaded second
+- within each config file, included files are loaded before the including file
 - rewrite rules append in source order
 - permission rules append within each bucket in source order
 - top-level E2E tests append in source order
@@ -53,7 +54,33 @@ used by `cc-bash-guard hook` and `cc-bash-guard verify`.
 
 Missing files are allowed and treated as absent layers.
 
-## 3. Rule Identity
+## 3. Includes
+
+Config files may declare top-level `include`:
+
+```yaml
+include:
+  - ./policies/git.yml
+  - ./tests/git.yml
+```
+
+Include paths are local files only. Relative paths are resolved relative to the
+file that declares the include. Included files may include other files.
+
+Unsupported include shapes fail verification:
+
+- empty entries
+- URLs
+- missing files
+- paths that are not regular files
+- include cycles
+- shell expansion, environment expansion, command substitution, and globbing
+
+The effective order is recursive include order, then the current file.
+Permission bucket lists and top-level E2E tests concatenate in effective order.
+No deep merge or ID-based override is currently supported.
+
+## 4. Rule Identity
 
 The current schema does not expose rule IDs. Rules are identified by their
 position, source layer, bucket, selector, and effect in traces and validation
@@ -61,7 +88,7 @@ messages.
 
 There is no ID-based override or collision behavior in the current contract.
 
-## 4. Empty and Invalid States
+## 5. Empty and Invalid States
 
 - Missing file: allowed, treated as no configured rules
 - Empty file: invalid configuration
@@ -71,11 +98,10 @@ There is no ID-based override or collision behavior in the current contract.
 Invalid configuration causes `cc-bash-guard hook` to return a deny response rather than
 silently falling back to partial policy enforcement.
 
-## 5. Future Extensions
+## 6. Future Extensions
 
 These are still post-v1 concerns:
 
-- `include:` directives
 - rule packs
 - explicit override semantics
 - rule IDs and ID collision policy

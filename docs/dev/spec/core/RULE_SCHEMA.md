@@ -10,8 +10,17 @@ Current configs are permission-only.
 
 Top-level keys:
 
+- `include`
 - `permission`
 - `test`
+
+`include` is a top-level list of local YAML file paths. Relative include paths
+resolve from the file that declares the include, and nested includes are
+supported. Includes are resolved before the current file, so permission buckets
+and top-level `test` entries concatenate as `include[0]`, `include[1]`, then the
+current file. URLs, empty include entries, missing files, non-regular files,
+shell expansion, environment expansion, command substitution, globbing, and
+include cycles are invalid.
 
 `claude_permission_merge_mode` is no longer supported. If present,
 verification fails with:

@@ -21,13 +21,15 @@ type DoctorResult struct {
 }
 
 type VerifyResult struct {
-	Tool          string
-	BuildInfo     buildinfo.Info
-	Report        doctoring.Report
-	Verified      bool
-	ArtifactBuilt bool
-	ArtifactCache []string
-	Failures      []string
+	Tool            string
+	BuildInfo       buildinfo.Info
+	Report          doctoring.Report
+	Verified        bool
+	ArtifactBuilt   bool
+	ArtifactCache   []string
+	PermissionRules int
+	Tests           int
+	Failures        []string
 }
 
 type InitResult struct {

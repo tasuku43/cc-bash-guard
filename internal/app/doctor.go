@@ -11,7 +11,7 @@ func RunDoctor(env Env) DoctorResult {
 	loaded := configrepo.LoadEffectiveForTool(env.Cwd, env.Home, env.XDGConfigHome, claude.Tool)
 	report := doctoring.Run(loaded, claude.Tool, env.Cwd, env.Home)
 	report.Tool = claude.Tool
-	report.ConfigSources = inputs.ConfigSources
+	report.ConfigSources = inputs.ConfigFiles
 	report.SettingsPaths = inputs.SettingsPaths
 	report.EffectiveFingerprint = inputs.Fingerprint
 	report = doctoring.AddVerifiedArtifactCheck(report, configrepo.VerifiedEffectiveArtifactStatus(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, claude.Tool))

@@ -44,6 +44,14 @@ The runtime artifact must carry at least:
 in a way that can affect allow/ask/deny outcomes. A mismatch must fail closed and
 tell the user to run `cc-bash-guard verify`.
 
+When config files use top-level `include`, `verify` resolves all included files
+recursively before writing the artifact. `source_paths` contains the root config
+files and included config files that contributed to the bundled pipeline.
+Included file contents are part of the effective fingerprint, so changing any
+included file makes the artifact stale. Hook runtime evaluates the bundled
+pipeline from the artifact rather than treating included YAML files as separate
+policy inputs.
+
 ## Non-Goals
 
 - human readability

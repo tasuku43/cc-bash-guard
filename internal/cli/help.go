@@ -311,6 +311,13 @@ Common checks:
 Verified artifact missing or stale:
   Run cc-bash-guard verify after editing policy. The hook fails closed when the
   verified artifact is missing or stale unless hook --auto-verify is configured.
+  Included policy files are part of the verified artifact, so editing any
+  included file also requires cc-bash-guard verify.
+
+Include error:
+  include is top-level only and contains local file paths. Relative paths are
+  resolved from the file that declares them. URLs, empty entries, missing files,
+  non-regular files, and include cycles fail verification.
 
 Unsupported semantic field:
   Run cc-bash-guard help semantic <command> or
@@ -355,8 +362,22 @@ First-time setup:
   cc-bash-guard doctor
 
 Top-level sections are:
+  - include: local YAML files to resolve before the current file
   - permission: deny / ask / allow buckets
   - test: end-to-end expect cases
+
+Include:
+  include:
+    - ./policies/git.yml
+    - ./tests/git.yml
+
+  Relative paths are resolved from the including file. Included files may also
+  include other files. URLs, shell expansion, environment variables, command
+  substitution, and globbing are not supported. permission and test lists are
+  concatenated as include[0], include[1], then the current file.
+
+  cc-bash-guard verify bundles included files into one effective artifact. The
+  hook evaluates that artifact, and included file changes make it stale.
 
 Tests:
   - rule-local test checks whether one rule matches or passes examples

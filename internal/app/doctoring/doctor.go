@@ -156,12 +156,12 @@ func testsPass(p policy.Pipeline, tool string, cwd string, home string) error {
 			}
 			for _, ex := range expect {
 				if !permissionRuleMatchesEffect(rule, ex, effect) {
-					return &exampleError{Scope: scope, Name: scopeName(scope, i), Kind: "expect", Example: ex}
+					return &exampleError{Scope: scope, Name: scopeName(scope, i), Kind: "expect", Example: ex, Source: rule.Source}
 				}
 			}
 			for _, ex := range rule.Test.Pass {
 				if permissionRuleMatchesEffect(rule, ex, effect) {
-					return &exampleError{Scope: scope, Name: scopeName(scope, i), Kind: "pass", Example: ex}
+					return &exampleError{Scope: scope, Name: scopeName(scope, i), Kind: "pass", Example: ex, Source: rule.Source}
 				}
 			}
 		}
@@ -177,14 +177,14 @@ func testsPass(p policy.Pipeline, tool string, cwd string, home string) error {
 		return err
 	}
 
-	for i, ex := range p.Test {
+	for _, ex := range p.Test {
 		decision, err := policy.Evaluate(p, ex.In)
 		if err != nil {
 			return err
 		}
 		decision = claude.ApplyPermissionBridge(tool, decision, cwd, home)
 		if decision.Outcome != ex.Decision {
-			return &exampleError{Scope: "test", Name: scopeName("e2e", i), Kind: "decision", Example: ex.In}
+			return &exampleError{Scope: "test", Name: scopeName("test", ex.Source.Index), Kind: "decision", Example: ex.In, Source: ex.Source, Expected: ex.Decision, Got: decision.Outcome}
 		}
 	}
 	return nil
@@ -208,14 +208,24 @@ func permissionRuleMatchesEffect(rule policy.PermissionRuleSpec, command string,
 }
 
 type exampleError struct {
-	Scope   string
-	Name    string
-	Kind    string
-	Example string
+	Scope    string
+	Name     string
+	Kind     string
+	Example  string
+	Source   policy.Source
+	Expected string
+	Got      string
 }
 
 func (e *exampleError) Error() string {
-	return e.Scope + " " + e.Name + " has failing " + e.Kind + " example: " + e.Example
+	prefix := ""
+	if e.Source.Path != "" {
+		prefix = e.Source.Path + " "
+	}
+	if e.Expected != "" || e.Got != "" {
+		return prefix + e.Name + " expected " + e.Expected + ", got " + e.Got + ": " + e.Example
+	}
+	return prefix + e.Scope + " " + e.Name + " has failing " + e.Kind + " example: " + e.Example
 }
 
 func scopeName(prefix string, idx int) string {

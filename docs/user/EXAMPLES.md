@@ -3,6 +3,54 @@
 These examples use the current permission shape: `command`, `env`, and
 `patterns`.
 
+## Split Policy And Tests
+
+Root config:
+
+```yaml
+include:
+  - ./policies/git.yml
+  - ./policies/aws.yml
+  - ./tests/git.yml
+  - ./tests/aws.yml
+
+permission:
+  ask:
+    - name: project fallback
+      patterns:
+        - "^helm\\s+upgrade\\b"
+```
+
+`./policies/git.yml`:
+
+```yaml
+permission:
+  allow:
+    - name: git read-only
+      command:
+        name: git
+        semantic:
+          verb_in:
+            - status
+            - diff
+            - log
+            - show
+```
+
+`./tests/git.yml`:
+
+```yaml
+test:
+  - in: "git status"
+    decision: allow
+  - in: "git push --force origin main"
+    decision: ask
+```
+
+Relative include paths are resolved from the file that declares them. Included
+permission and test lists are concatenated before entries in the current file.
+Run `cc-bash-guard verify` after editing any included file.
+
 ## Git Read-Only Allow
 
 ```yaml

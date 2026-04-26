@@ -19,6 +19,11 @@ func writeVerifyText(w io.Writer, result app.VerifyResult) {
 	for _, check := range result.Report.Checks {
 		writeDoctorCheck(w, check)
 	}
+	if len(result.Report.ConfigSources) > 0 {
+		fmt.Fprintf(w, "config.files: %d\n", len(result.Report.ConfigSources))
+	}
+	fmt.Fprintf(w, "permission.rules: %d\n", result.PermissionRules)
+	fmt.Fprintf(w, "tests: %d\n", result.Tests)
 	if result.Verified {
 		fmt.Fprintln(w, "verified: true")
 		if result.ArtifactBuilt {
