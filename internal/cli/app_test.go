@@ -214,7 +214,7 @@ test:
 	}
 }
 
-func TestRunHookClaudeAskOmitsPermissionDecision(t *testing.T) {
+func TestRunHookClaudeAskReturnsAsk(t *testing.T) {
 	home := t.TempDir()
 	writeUserConfig(t, home, `permission:
   ask:
@@ -250,7 +250,7 @@ test:
 		t.Fatalf("json error: %v", err)
 	}
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
-	if _, ok := hookOut["permissionDecision"]; ok {
+	if hookOut["permissionDecision"] != "ask" {
 		t.Fatalf("payload = %+v", payload)
 	}
 }
@@ -559,7 +559,7 @@ test:
 }`,
 			command:             "git status",
 			wantDecision:        "ask",
-			wantPermissionField: false,
+			wantPermissionField: true,
 			wantExplicit:        true,
 			wantReason:          "rule_match",
 			wantTrace: []struct {
@@ -660,7 +660,7 @@ test:
 }`,
 			command:             "git status",
 			wantDecision:        "ask",
-			wantPermissionField: false,
+			wantPermissionField: true,
 			wantExplicit:        true,
 			wantReason:          "claude_settings",
 		},
@@ -691,7 +691,7 @@ test:
 }`,
 			command:             "git status",
 			wantDecision:        "ask",
-			wantPermissionField: false,
+			wantPermissionField: true,
 			wantExplicit:        true,
 			wantReason:          "claude_settings",
 			wantTrace: []struct {
@@ -749,7 +749,7 @@ test:
 			claudeSettings:      `{ "permissions": {} }`,
 			command:             "git status",
 			wantDecision:        "ask",
-			wantPermissionField: false,
+			wantPermissionField: true,
 			wantExplicit:        false,
 			wantReason:          "default_fallback",
 			wantTrace: []struct {
@@ -784,7 +784,7 @@ test:
 			claudeSettings:      `{ "permissions": {} }`,
 			command:             "git status",
 			wantDecision:        "ask",
-			wantPermissionField: false,
+			wantPermissionField: true,
 			wantExplicit:        true,
 			wantReason:          "rule_match",
 		},
@@ -963,11 +963,39 @@ test:
 		t.Fatalf("json error: %v", err)
 	}
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
-	if _, ok := hookOut["permissionDecision"]; ok {
-		t.Fatalf("ask should not set permissionDecision directly; payload=%+v", payload)
+	if hookOut["permissionDecision"] != "ask" {
+		t.Fatalf("permissionDecision = %v, want ask; payload=%+v", hookOut["permissionDecision"], payload)
 	}
 	if got := hookOut["permissionDecisionReason"]; got != "git diff requires confirmation" {
 		t.Fatalf("permissionDecisionReason = %q, want rule message; payload=%+v", got, payload)
+	}
+}
+
+func TestRunHookClaudeInvalidInputReturnsDenyJSONWithSuccessExit(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"hook"}, Streams{
+		Stdin:  strings.NewReader(`{"tool_name":"Write","tool_input":{"file_path":"/tmp/x"}}`),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{Cwd: t.TempDir(), Home: t.TempDir()})
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("json error: %v stdout=%s", err, stdout.String())
+	}
+	hookOut := payload["hookSpecificOutput"].(map[string]any)
+	if hookOut["hookEventName"] != "PreToolUse" {
+		t.Fatalf("payload = %+v", payload)
+	}
+	if hookOut["permissionDecision"] != "deny" {
+		t.Fatalf("payload = %+v", payload)
+	}
+	reason, _ := hookOut["permissionDecisionReason"].(string)
+	if !strings.Contains(reason, "invalid_input") || !strings.Contains(reason, "unsupported tool_name") {
+		t.Fatalf("reason = %q", reason)
 	}
 }
 
@@ -1593,7 +1621,7 @@ test:
 		t.Fatalf("json error: %v", err)
 	}
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
-	if _, ok := hookOut["permissionDecision"]; ok {
+	if hookOut["permissionDecision"] != "ask" {
 		t.Fatalf("payload = %+v", payload)
 	}
 	ccPayload := payload["cc-bash-guard"].(map[string]any)
@@ -1626,10 +1654,10 @@ test:
   "permissions": {
     "allow": ["Bash(git status *)"]
   }
-}`,
+		}`,
 		Command: "git status && rm -rf /tmp/x",
 	})
-	if _, ok := payload.HookSpecificOutput["permissionDecision"]; ok {
+	if payload.HookSpecificOutput["permissionDecision"] != "ask" {
 		t.Fatalf("payload = %+v", payload)
 	}
 	if payload.Cmdproxy["outcome"] != "ask" {

@@ -1,7 +1,7 @@
 ---
 title: "cc-bash-guard hook"
-status: proposed
-date: 2026-04-26
+status: implemented
+date: 2026-04-27
 ---
 
 # cc-bash-guard hook
@@ -21,7 +21,8 @@ Runtime flow:
 6. when `--rtk` is enabled and the merged decision is not `deny`, invoke
    external `rtk rewrite` once and apply the returned command as
    `updatedInput.command`
-7. emit `allow`, `ask`, `deny`, or error output
+7. emit Claude Code `PreToolUse` hook JSON for `allow`, `ask`, `deny`, or
+   fail-closed error output
 
 `abstain` means a source had no matching rule. The final fallback is `ask` only
 when all sources abstain.
@@ -33,3 +34,44 @@ Parser-backed normalization is evaluation-only.
 integration path for installations that use RTK rewriting: cc-bash-guard
 evaluates permissions first, then delegates rewriting to external RTK in the
 same hook invocation.
+
+## Claude Code Output Protocol
+
+The hook always uses Claude Code's structured JSON protocol for permission
+decisions. The JSON object is written to stdout and the process exits `0` when
+the JSON was produced successfully.
+
+The decision is nested under `hookSpecificOutput`:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "ask",
+    "permissionDecisionReason": "cc-bash-guard permission evaluated"
+  }
+}
+```
+
+- `hookEventName` is always `PreToolUse`.
+- `permissionDecision` is `allow`, `ask`, or `deny`.
+- `permissionDecisionReason` is the matched rule `message` when configured;
+  otherwise it is a cc-bash-guard fallback reason.
+- `cc-bash-guard` is an additional diagnostic object containing the final
+  outcome, explicit/default status, internal reason, and trace.
+
+For `allow`, Claude Code skips the permission prompt. For `ask`, Claude Code
+prompts the user. For `deny`, Claude Code blocks the Bash tool call and feeds
+the reason back to Claude.
+
+`deny` intentionally exits `0` when emitted as structured JSON. Claude Code only
+parses stdout JSON on successful hook process exit. If the hook exited non-zero,
+Claude Code would ignore the JSON payload and handle the result as an
+exit-code-based hook error instead. That would lose the structured
+`permissionDecision` and `permissionDecisionReason`.
+
+Invalid input, invalid config, missing verified artifacts, stale verified
+artifacts, and incompatible verified artifacts fail closed by returning
+`permissionDecision: "deny"` with a reason that names the error. These cases
+also exit `0` after producing valid hook JSON so Claude Code can process the
+deny decision.

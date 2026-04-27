@@ -11,6 +11,12 @@ cc-bash-guard verify
 The hook fails closed when the verified artifact is missing or stale unless
 `cc-bash-guard hook --auto-verify` is configured.
 
+Fail-closed means the hook prints Claude Code `PreToolUse` JSON with
+`hookSpecificOutput.permissionDecision: "deny"` and a
+`permissionDecisionReason` explaining the artifact problem. The process still
+exits `0` after producing that JSON so Claude Code will parse the structured
+deny decision.
+
 If your config uses `include`, every included YAML file is part of the verified
 artifact. Editing an included policy or test file makes the artifact stale; run
 `cc-bash-guard verify` again.

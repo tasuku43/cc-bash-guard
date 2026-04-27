@@ -1,108 +1,128 @@
 ---
 title: "Output Contract"
-status: proposed
-date: 2026-04-22
+status: implemented
+date: 2026-04-27
 ---
 
 # Output Contract
 
 ## 1. Scope
 
-This document defines the target output contract for the main hook entrypoint of
+This document defines the output contract for the main hook entrypoint of
 `cc-bash-guard`.
 
-The command name is `hook`, and the contract below is for the current
-rewrite-plus-permission model.
+The command name is `hook`, and the contract below is for Claude Code
+`PreToolUse` Bash hook integration.
 
 ## 2. Runtime Outcomes
 
-The target runtime outcomes are:
+The runtime outcomes are:
 
 - `allow`: invocation may proceed automatically
 - `ask`: invocation should prompt the user
 - `deny`: invocation is blocked
-- `error`: invalid input, invalid config, or internal failure
+- `error`: invalid input, invalid config, stale or missing verified artifact,
+  incompatible verified artifact, or internal failure
 
-## 3. Default Output Mode
+## 3. Hook JSON Output
 
-The default human-readable mode should remain concise.
+`cc-bash-guard hook` writes a Claude Code hook JSON object to stdout.
 
-- `allow`: optional concise trace or no output
-- `ask`: optional concise trace or no output
-- `deny`: explanation to `stderr`
-- `error`: explanation to `stderr`
-
-## 4. Structured Output Mode
-
-The structured output mode should expose the final pipeline result explicitly.
-
-Target JSON shape:
-
-### Allow payload
+### Allow
 
 ```json
 {
-  "decision": "allow",
-  "command": "AWS_PROFILE=prod aws sts get-caller-identity",
-  "original_command": "aws --profile prod sts get-caller-identity",
-  "message": "",
-  "trace": []
-}
-```
-
-### Ask payload
-
-```json
-{
-  "decision": "ask",
-  "command": "AWS_PROFILE=prod aws s3 ls",
-  "original_command": "aws --profile prod s3 ls",
-  "message": "s3 operations require confirmation",
-  "trace": []
-}
-```
-
-### Deny payload
-
-```json
-{
-  "decision": "deny",
-  "command": "AWS_PROFILE=prod aws s3 rm s3://example --delete",
-  "original_command": "aws --profile prod s3 rm s3://example --delete",
-  "message": "delete is blocked",
-  "trace": []
-}
-```
-
-### Error payload
-
-```json
-{
-  "decision": "error",
-  "error": {
-    "code": "invalid_input",
-    "message": "action must be exec"
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "allow",
+    "permissionDecisionReason": "cc-bash-guard permission evaluated"
+  },
+  "cc-bash-guard": {
+    "outcome": "allow",
+    "explicit": true,
+    "reason": "rule_match",
+    "trace": []
   }
 }
 ```
 
-## 5. Exit Codes
+### Ask
 
-The current mapping is:
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "ask",
+    "permissionDecisionReason": "s3 operations require confirmation"
+  },
+  "cc-bash-guard": {
+    "outcome": "ask",
+    "explicit": true,
+    "reason": "rule_match",
+    "trace": []
+  }
+}
+```
+
+### Deny
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "delete is blocked"
+  },
+  "cc-bash-guard": {
+    "outcome": "deny",
+    "explicit": true,
+    "reason": "rule_match",
+    "trace": []
+  }
+}
+```
+
+### Fail-Closed Error
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "deny",
+    "permissionDecisionReason": "cc-bash-guard claude invalid_input: action must be exec"
+  }
+}
+```
+
+`permissionDecisionReason` uses a matched rule `message` when configured. For
+`deny`, Claude Code feeds the reason back to Claude. For `allow` and `ask`, the
+reason is user-facing.
+
+`updatedInput.command` is emitted only for the explicit `--rtk` integration when
+external RTK returns a different command. cc-bash-guard policy evaluation does
+not rewrite commands.
+
+## 4. Exit Codes
+
+Claude Code command hooks parse stdout JSON only when the hook process exits
+`0`. For that reason, the hook process exits `0` for every successfully produced
+JSON payload:
 
 - `allow`: exit `0`
 - `ask`: exit `0`
-- `deny`: exit `2`
-- `error`: exit `1`
+- `deny`: exit `0`
+- fail-closed error JSON: exit `0`
 
-The important distinction is:
+This includes invalid input and missing, stale, or incompatible verified
+artifacts. Those cases communicate failure by returning
+`permissionDecision: "deny"` and a precise `permissionDecisionReason`, not by a
+non-zero process exit.
 
-- success path for `allow`
-- success path for `ask`
-- distinct non-success path for `deny`
-- distinct non-success path for `error`
+Process exit `1` is reserved for CLI usage errors before hook JSON is produced,
+such as unknown `hook` flags. The hook does not use exit `2` for policy denies
+because Claude Code would ignore stdout JSON on exit `2`.
 
-## 6. Integration Note
+## 5. Integration Note
 
 The central design goal is that `cc-bash-guard` itself becomes the primary
 permission authority for shell commands without changing the command string

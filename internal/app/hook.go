@@ -66,6 +66,8 @@ func hookPayload(decision policy.Decision, originalCommand string) map[string]an
 		}
 		if decision.Outcome == "allow" {
 			hookOutput["permissionDecision"] = "allow"
+		} else {
+			hookOutput["permissionDecision"] = "ask"
 		}
 		payload := map[string]any{
 			"hookSpecificOutput": hookOutput,

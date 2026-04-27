@@ -169,6 +169,18 @@ Note:
   when verified artifacts are missing or stale. --auto-verify is convenient, but
   it lets hook-time config changes become active without a separate review step.
 
+Hook protocol:
+  The hook prints Claude Code PreToolUse JSON to stdout and exits 0 when that
+  JSON was produced. Decisions are encoded in hookSpecificOutput:
+    permissionDecision: allow, ask, or deny
+    permissionDecisionReason: rule message or a cc-bash-guard fallback
+
+  Deny is also returned as JSON with exit 0. Claude Code only parses structured
+  hook JSON from successful hook processes; non-zero exits are reserved for
+  hook command failures and make Claude Code ignore stdout JSON. Invalid input
+  and missing or stale verified artifacts therefore fail closed by returning
+  permissionDecision: deny.
+
 RTK integration:
   If you use RTK rewriting, use cc-bash-guard hook --rtk as the single Bash hook.
   cc-bash-guard evaluates permissions first, then invokes external rtk rewrite

@@ -70,6 +70,31 @@ missing or stale. Run `cc-bash-guard verify` after editing policy. The
 `--auto-verify` flag regenerates artifacts during hook execution and should be
 used only when that review tradeoff is acceptable.
 
+Hook decisions are returned as Claude Code `PreToolUse` JSON on stdout:
+
+```json
+{
+  "hookSpecificOutput": {
+    "hookEventName": "PreToolUse",
+    "permissionDecision": "allow",
+    "permissionDecisionReason": "cc-bash-guard permission evaluated"
+  }
+}
+```
+
+`permissionDecision` is `allow`, `ask`, or `deny`. `allow` skips Claude Code's
+permission prompt, `ask` asks the user to confirm, and `deny` blocks the Bash
+tool call. `permissionDecisionReason` uses the matched rule `message` when one
+is configured; for `deny` Claude Code shows that reason to Claude, while
+`allow` and `ask` reasons are user-facing.
+
+`cc-bash-guard hook` exits `0` after printing valid hook JSON, including JSON
+that contains `permissionDecision: "deny"`. Claude Code only processes hook
+JSON from stdout on process success; using a non-zero exit would make Claude
+Code ignore the structured `permissionDecision` payload and treat the result as
+an exit-code-based hook error instead. Invalid input and missing or stale
+verified artifacts therefore fail closed by returning deny JSON with exit `0`.
+
 If you also use RTK command rewriting, do not register RTK as a second Bash
 hook. Use one hook instead:
 

@@ -64,6 +64,10 @@ func TestHookHelpDocumentsNoPolicyRewriteAndRTKIntegration(t *testing.T) {
 	for _, want := range []string{
 		"returns Claude Code hook JSON for allow, ask, deny",
 		"cc-bash-guard hook [--rtk] [--auto-verify]",
+		"Hook protocol:",
+		"permissionDecision: allow, ask, or deny",
+		"Deny is also returned as JSON with exit 0",
+		"missing or stale verified artifacts therefore fail closed",
 		"--rtk",
 		"delegate rewriting to external RTK",
 		"RTK integration:",
