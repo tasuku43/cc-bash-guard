@@ -149,7 +149,9 @@ permission sources abstain.
 
 ## Command Evaluation
 
-`cc-bash-guard` evaluates commands but does not rewrite them.
+By default, `cc-bash-guard` evaluates commands but does not rewrite them. The
+`hook --rtk` compatibility option can run `rtk rewrite` after permission
+evaluation.
 
 Parser-backed normalization is evaluation-only:
 

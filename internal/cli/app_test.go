@@ -27,6 +27,7 @@ type hookEnvSpec struct {
 	ClaudeSettings      string
 	ClaudeLocalSettings string
 	Command             string
+	UseRTK              bool
 	DisableAutoVerify   bool
 }
 
@@ -98,6 +99,9 @@ func runClaudeHookMapTest(t *testing.T, spec hookEnvSpec) map[string]any {
 	}
 
 	args := []string{"hook"}
+	if spec.UseRTK {
+		args = append(args, "--rtk")
+	}
 	if !spec.DisableAutoVerify {
 		args = append(args, "--auto-verify")
 	}
@@ -261,6 +265,86 @@ test:
 	})
 	if _, ok := payload["systemMessage"]; ok {
 		t.Fatalf("expected no rewrite systemMessage, payload=%+v", payload)
+	}
+}
+
+func TestRunHookClaudeRTKEvaluatesPermissionsBeforeRTKRewrite(t *testing.T) {
+	toolDir := t.TempDir()
+	rtkPath := filepath.Join(toolDir, "rtk")
+	script := "#!/bin/sh\nif [ \"$1\" = \"rewrite\" ]; then\n  printf 'rtk %s\\n' \"$2\"\n  exit 0\nfi\nexit 1\n"
+	if err := os.WriteFile(rtkPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fmt.Sprintf("%s:%s", toolDir, os.Getenv("PATH")))
+
+	payload := runClaudeHookMapTest(t, hookEnvSpec{
+		UserConfig: `permission:
+  allow:
+    - command:
+        name: git
+        semantic:
+          verb: diff
+      test:
+        allow:
+          - "git diff goal.md"
+        pass:
+          - "git status"
+test:
+  - in: "git diff goal.md"
+    decision: allow
+`,
+		ClaudeSettings: `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-guard hook --rtk"}]}]}}`,
+		Command:        "git diff goal.md",
+		UseRTK:         true,
+	})
+
+	hookOut := payload["hookSpecificOutput"].(map[string]any)
+	if hookOut["permissionDecision"] != "allow" {
+		t.Fatalf("payload = %+v", payload)
+	}
+	updatedInput := hookOut["updatedInput"].(map[string]any)
+	if updatedInput["command"] != "rtk git diff goal.md" {
+		t.Fatalf("payload = %+v", payload)
+	}
+	message, ok := payload["systemMessage"].(string)
+	if !ok || !strings.Contains(message, "rtk") {
+		t.Fatalf("expected rtk rewrite systemMessage, payload=%+v", payload)
+	}
+}
+
+func TestRunHookClaudeRTKDoesNotRunAfterDeny(t *testing.T) {
+	toolDir := t.TempDir()
+	markerPath := filepath.Join(toolDir, "called")
+	rtkPath := filepath.Join(toolDir, "rtk")
+	script := fmt.Sprintf("#!/bin/sh\nprintf called > %q\nprintf 'rtk %%s\\n' \"$2\"\n", markerPath)
+	if err := os.WriteFile(rtkPath, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", fmt.Sprintf("%s:%s", toolDir, os.Getenv("PATH")))
+
+	payload := runClaudeHookMapTest(t, hookEnvSpec{
+		UserConfig: `permission:
+  deny:
+    - command:
+        name: rm
+      test:
+        deny:
+          - "rm -rf /tmp/x"
+test:
+  - in: "rm -rf /tmp/x"
+    decision: deny
+`,
+		ClaudeSettings: `{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"cc-bash-guard hook --rtk"}]}]}}`,
+		Command:        "rm -rf /tmp/x",
+		UseRTK:         true,
+	})
+
+	hookOut := payload["hookSpecificOutput"].(map[string]any)
+	if hookOut["permissionDecision"] != "deny" {
+		t.Fatalf("payload = %+v", payload)
+	}
+	if _, err := os.Stat(markerPath); !os.IsNotExist(err) {
+		t.Fatalf("rtk should not run after deny, stat err=%v", err)
 	}
 }
 

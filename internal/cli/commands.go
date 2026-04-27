@@ -16,9 +16,12 @@ func runHook(args []string, streams Streams, env Env) int {
 		writeCommandHelp(streams.Stdout, "hook")
 		return exitAllow
 	}
+	useRTK := false
 	autoVerify := false
 	for _, arg := range args {
 		switch arg {
+		case "--rtk":
+			useRTK = true
 		case "--auto-verify":
 			autoVerify = true
 		default:
@@ -40,7 +43,7 @@ func runHook(args []string, streams Streams, env Env) int {
 		}.Payload)
 	}
 
-	result := app.RunHook(raw, autoVerify, env)
+	result := app.RunHook(raw, app.HookOptions{AutoVerify: autoVerify, UseRTK: useRTK}, env)
 	return writeJSON(streams.Stdout, result.Payload)
 }
 

@@ -7,19 +7,23 @@ import (
 	"github.com/tasuku43/cc-bash-guard/internal/adapter/claude"
 	"github.com/tasuku43/cc-bash-guard/internal/adapter/hookinput"
 	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
+	"github.com/tasuku43/cc-bash-guard/internal/infra"
 	"github.com/tasuku43/cc-bash-guard/internal/infra/buildinfo"
 	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
 )
 
-func RunHook(raw []byte, autoVerify bool, env Env) HookResult {
+func RunHook(raw []byte, opts HookOptions, env Env) HookResult {
 	req, err := hookinput.Normalize(raw)
 	if err != nil {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_input", err.Error())}
 	}
 
-	_, decision, err := EvaluateForCommand(req.Command, env, autoVerify)
+	_, decision, err := EvaluateForCommand(req.Command, env, opts.AutoVerify)
 	if err != nil {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_config", err.Error())}
+	}
+	if opts.UseRTK && decision.Outcome != "deny" {
+		decision = applyRTKRewrite(decision)
 	}
 
 	return HookResult{Payload: hookPayload(decision, req.Command)}
@@ -109,6 +113,21 @@ func hookErrorPayload(tool string, code string, message string) map[string]any {
 			"permissionDecisionReason": "cc-bash-guard " + tool + " " + code + ": " + message,
 		},
 	}
+}
+
+func applyRTKRewrite(decision policy.Decision) policy.Decision {
+	rewritten, ok := infra.RewriteRTK(decision.Command)
+	if !ok || rewritten == decision.Command {
+		return decision
+	}
+	decision.Trace = append(decision.Trace, policy.TraceStep{
+		Action: "rewrite",
+		Name:   "rtk",
+		From:   decision.Command,
+		To:     rewritten,
+	})
+	decision.Command = rewritten
+	return decision
 }
 
 func buildRewriteSystemMessage(decision policy.Decision) (string, bool) {

@@ -16,6 +16,11 @@ type HookResult struct {
 	Payload map[string]any
 }
 
+type HookOptions struct {
+	AutoVerify bool
+	UseRTK     bool
+}
+
 type DoctorResult struct {
 	Report doctoring.Report
 }
