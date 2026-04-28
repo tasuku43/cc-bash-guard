@@ -473,6 +473,7 @@ cc-bash-guard verify
 cc-bash-guard explain "git status"
 cc-bash-guard doctor
 cc-bash-guard version
+cc-bash-guard help setup
 cc-bash-guard help permission
 cc-bash-guard help semantic
 cc-bash-guard help semantic git

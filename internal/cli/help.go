@@ -16,11 +16,11 @@ cc-bash-guard is a security-first Bash permission guard for Claude Code hooks.
 It evaluates Bash commands against policy and returns allow, ask, or deny.
 
 Start here:
-  cc-bash-guard init
-  edit ~/.config/cc-bash-guard/cc-bash-guard.yml
-  cc-bash-guard verify
-  cc-bash-guard doctor
-  add the printed PreToolUse Bash snippet to Claude Code settings
+  cc-bash-guard help setup
+
+Policy authoring loop:
+  write test examples -> add narrow rules -> cc-bash-guard verify
+  -> cc-bash-guard explain "<command>" when unclear -> repeat
 
 Usage:
   cc-bash-guard <command> [flags]
@@ -86,6 +86,73 @@ func writeHelp(stdout, stderr io.Writer, args []string) int {
 
 func writeCommandHelp(w io.Writer, command string) {
 	switch command {
+	case "setup":
+		fmt.Fprint(w, `cc-bash-guard help setup
+
+Set up cc-bash-guard and author policy with a test-first loop.
+
+First-time setup:
+  cc-bash-guard init
+  edit ~/.config/cc-bash-guard/cc-bash-guard.yml
+  cc-bash-guard verify
+  cc-bash-guard doctor
+  add the printed PreToolUse Bash snippet to Claude Code settings
+
+After init, replace the starter policy with examples from your workflow. Keep at
+least one top-level test and one rule-local test for every rule you add.
+
+Recommended policy loop:
+  1. Write examples first.
+     Include commands that should pass and near misses that must not pass.
+
+  2. Add the smallest rules that make the examples pass.
+     Prefer command.semantic for supported tools. See help permission for rule
+     shape details.
+
+  3. Run verify.
+     cc-bash-guard verify
+
+  4. Inspect unclear decisions.
+     cc-bash-guard explain "git push origin main"
+
+  5. Repeat.
+     Add tests before broadening rules. Keep ambiguous commands as ask.
+
+Test-first example:
+  test:
+    deny:
+      - "git push --force origin main"
+    ask:
+      - "git push origin main"
+
+  permission:
+    deny:
+      - name: git force push
+        command:
+          name: git
+          semantic:
+            verb: push
+            force: true
+        test:
+          deny:
+            - "git push --force origin main"
+          abstain:
+            - "git push origin main"
+
+Principles:
+  - write near-miss tests for commands that look similar but should not pass
+  - keep allow rules narrow and test-backed
+  - use ask for review-required or ambiguous commands
+  - rerun verify after every policy or include change
+
+Use rule-local test to check whether one rule matches.
+Use top-level test to check the final merged allow / ask / deny decision.
+
+Next:
+  cc-bash-guard help examples
+  cc-bash-guard help semantic
+  cc-bash-guard help permission
+`)
 	case "init":
 		fmt.Fprint(w, `cc-bash-guard init
 
@@ -410,12 +477,17 @@ Safe patterns fallback:
       - name: terraform read-only fallback
         patterns:
           - "^terraform\\s+(plan|show)(\\s|$)[^;&|$()]*$"
+        test:
+          allow:
+            - "terraform plan -out=tfplan"
+          abstain:
+            - "terraform apply -auto-approve"
 
   test:
-    - in: "terraform plan -out=tfplan"
-      decision: allow
-    - in: "terraform apply -auto-approve"
-      decision: ask
+    allow:
+      - "terraform plan -out=tfplan"
+    ask:
+      - "terraform apply -auto-approve"
 
 Docs:
   docs/user/EXAMPLES.md

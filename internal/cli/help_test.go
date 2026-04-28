@@ -32,11 +32,10 @@ func TestRootHelpOrientsNewUsers(t *testing.T) {
 		"permission guard",
 		"evaluates Bash commands against policy",
 		"Start here:",
-		"cc-bash-guard init",
-		"cc-bash-guard verify",
-		"cc-bash-guard doctor",
+		"cc-bash-guard help setup",
+		"Policy authoring loop:",
+		"write test examples -> add narrow rules -> cc-bash-guard verify",
 		"cc-bash-guard explain",
-		"PreToolUse Bash snippet",
 		"permission.deny",
 		"top-level include",
 		"deny > ask > allow",
@@ -54,6 +53,53 @@ func TestRootHelpOrientsNewUsers(t *testing.T) {
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("root help missing %q:\n%s", want, stdout)
+		}
+	}
+	learnMore := stdout[strings.Index(stdout, "Learn more:"):]
+	if strings.Contains(learnMore, "cc-bash-guard help setup") {
+		t.Fatalf("root help Learn more should not repeat setup entrypoint:\n%s", stdout)
+	}
+}
+
+func TestHelpSetupExplainsTestFirstPolicyLoop(t *testing.T) {
+	code, stdout, stderr := runCLIHelpTest("help", "setup")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, stderr)
+	}
+	for _, want := range []string{
+		"test-first loop",
+		"First-time setup:",
+		"After init, replace the starter policy",
+		"one top-level test and one rule-local test",
+		"Recommended policy loop:",
+		"Write examples first.",
+		"near misses that must not pass",
+		"Add the smallest rules",
+		"See help permission for rule",
+		"shape details.",
+		"cc-bash-guard verify",
+		"cc-bash-guard explain \"git push origin main\"",
+		"Test-first example:",
+		"test:",
+		"ask:",
+		"deny:",
+		"git push --force origin main",
+		"Use rule-local test to check whether one rule matches.",
+		"Use top-level test to check the final merged allow / ask / deny decision.",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("help setup missing %q:\n%s", want, stdout)
+		}
+	}
+	for _, old := range []string{
+		"decision: ask",
+		"decision: deny",
+		"decision: allow",
+		"- in:",
+		"git read-only",
+	} {
+		if strings.Contains(stdout, old) {
+			t.Fatalf("help setup contains old test syntax %q:\n%s", old, stdout)
 		}
 	}
 }
@@ -209,7 +255,7 @@ func TestHelpExamplesShowsSafePatternFallback(t *testing.T) {
 		"terraform read-only fallback",
 		"^terraform\\\\s+(plan|show)(\\\\s|$)[^;&|$()]*$",
 		"terraform apply -auto-approve",
-		"decision: ask",
+		"ask:",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("help examples missing %q:\n%s", want, stdout)
