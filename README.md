@@ -52,16 +52,27 @@ top-level `rewrite`, `verify` fails with migration guidance.
 
 ## Installation
 
-Install from Go when you have a working Go toolchain:
+### Homebrew (stable releases)
 
 ```sh
-go install github.com/tasuku43/cc-bash-guard/cmd/cc-bash-guard@latest
+brew tap tasuku43/cc-bash-guard
+brew install cc-bash-guard
 ```
 
-The module requires Go 1.25 or newer. Make sure your Go install directory is on
-`PATH`; by default that is usually `$(go env GOPATH)/bin`.
+The formula in [`tasuku43/homebrew-cc-bash-guard`](https://github.com/tasuku43/homebrew-cc-bash-guard)
+pins SHA-256 checksums against the GitHub Releases archives.
 
-GitHub Releases are configured to publish prebuilt `tar.gz` archives for:
+### mise
+
+`mise` can install `cc-bash-guard` from GitHub Releases.
+
+```sh
+mise use -g github:tasuku43/cc-bash-guard@latest
+```
+
+### GitHub Releases (manual)
+
+GitHub Releases publish prebuilt `tar.gz` archives for:
 
 | OS | Architecture | Archive suffix |
 | --- | --- | --- |
@@ -73,7 +84,7 @@ GitHub Releases are configured to publish prebuilt `tar.gz` archives for:
 Download the archive for your platform and the release checksum file:
 
 ```sh
-TAG=v0.1.1      # replace with the release tag you want
+TAG=<tag>       # replace with the release tag you want
 OS=macos        # macos or linux
 ARCH=arm64      # arm64 or x64
 ARCHIVE="cc-bash-guard_${TAG}_${OS}_${ARCH}.tar.gz"
@@ -100,8 +111,16 @@ tar -xzf "$ARCHIVE" cc-bash-guard
 install -m 0755 cc-bash-guard "$HOME/.local/bin/cc-bash-guard"
 ```
 
-This repository does not document Homebrew as an installation method because
-the README only lists distribution paths that are directly supported here.
+### Build from source (Go)
+
+When you have a working Go toolchain:
+
+```sh
+go install github.com/tasuku43/cc-bash-guard/cmd/cc-bash-guard@latest
+```
+
+The module requires Go 1.25 or newer. Make sure your Go install directory is on
+`PATH`; by default that is usually `$(go env GOPATH)/bin`.
 
 ## Verify Installation
 
@@ -120,7 +139,22 @@ snippet. `verify` generates the verified artifact used by the hook. Run
 
 ## Upgrade
 
-Upgrade a Go-installed binary with:
+Homebrew:
+
+```sh
+brew update
+brew upgrade cc-bash-guard
+cc-bash-guard verify
+```
+
+mise:
+
+```sh
+mise use -g github:tasuku43/cc-bash-guard@latest
+cc-bash-guard verify
+```
+
+Go-installed binary:
 
 ```sh
 go install github.com/tasuku43/cc-bash-guard/cmd/cc-bash-guard@latest
