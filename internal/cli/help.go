@@ -28,6 +28,7 @@ Usage:
 Commands:
   init     create the user config and print the Claude Code hook snippet
   explain  diagnose why a command would be allowed, asked, or denied
+  suggest  suggest a pasteable starter permission rule for a command
   doctor   inspect config quality and installation state
   verify   verify config tests, trust-critical setup, and build metadata
   version  print build and source metadata for the running binary
@@ -48,6 +49,7 @@ Policy model:
 Learn more:
   cc-bash-guard help init
   cc-bash-guard help explain
+  cc-bash-guard help suggest
   cc-bash-guard help config
   cc-bash-guard help permission
   cc-bash-guard help semantic
@@ -59,6 +61,7 @@ Examples:
   cc-bash-guard init
   cc-bash-guard verify
   cc-bash-guard explain "git status"
+  cc-bash-guard suggest "git status"
   cc-bash-guard semantic-schema --format json
   cc-bash-guard hook
 
@@ -289,6 +292,27 @@ Notes:
   - text output is for humans
   - JSON output is stable enough for tooling and tests
   - stale or missing verified artifacts fail with a hint to run verify
+`)
+	case "suggest":
+		fmt.Fprint(w, `cc-bash-guard suggest
+
+Suggest a pasteable starter permission rule for a command.
+This command does not execute the command, write files, or mutate config.
+
+Usage:
+  cc-bash-guard suggest [--decision allow|ask|deny] [--format yaml|json] "<command>"
+
+Examples:
+  cc-bash-guard suggest "git status"
+  cc-bash-guard suggest --decision deny "git push --force origin main"
+  cc-bash-guard suggest --format json "argocd app delete my-app"
+
+Notes:
+  - default format is yaml
+  - default decision is conservative and falls back to ask when uncertain
+  - semantic rules are preferred when a semantic parser is available
+  - unsupported commands use a narrow anchored pattern fallback
+  - generated rules include rule-local tests
 `)
 	case "version":
 		fmt.Fprint(w, `cc-bash-guard version

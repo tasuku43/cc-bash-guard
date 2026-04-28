@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/tasuku43/cc-bash-guard/internal/app"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
 )
 
 type colorScheme struct {
@@ -246,6 +248,137 @@ func writeVersionText(w io.Writer, result app.VersionResult) {
 	if result.Info.VCSModified != "" {
 		fmt.Fprintf(w, "vcs.modified: %s\n", result.Info.VCSModified)
 	}
+}
+
+func writeSuggestedYAML(w io.Writer, spec app.SuggestedPolicySpec) {
+	writeLine(w, "permission:")
+	switch {
+	case len(spec.Permission.Deny) > 0:
+		writeSuggestedRules(w, "deny", spec.Permission.Deny)
+	case len(spec.Permission.Ask) > 0:
+		writeSuggestedRules(w, "ask", spec.Permission.Ask)
+	case len(spec.Permission.Allow) > 0:
+		writeSuggestedRules(w, "allow", spec.Permission.Allow)
+	}
+}
+
+func writeSuggestedRules(w io.Writer, bucket string, rules []policy.PermissionRuleSpec) {
+	writeLine(w, "  "+bucket+":")
+	for _, rule := range rules {
+		writeLine(w, "    - name: "+yamlScalar(rule.Name))
+		if !policy.IsZeroPermissionCommandSpec(rule.Command) {
+			writeLine(w, "      command:")
+			writeLine(w, "        name: "+yamlScalar(rule.Command.Name))
+			if rule.Command.Semantic != nil {
+				writeLine(w, "        semantic:")
+				for _, field := range suggestedSemanticFields(*rule.Command.Semantic) {
+					writeLine(w, "          "+field.key+": "+field.value)
+				}
+			}
+		}
+		if len(rule.Patterns) > 0 {
+			writeLine(w, "      patterns:")
+			for _, pattern := range rule.Patterns {
+				writeLine(w, "        - "+yamlScalar(pattern))
+			}
+		}
+		if rule.Message != "" {
+			writeLine(w, "      message: "+yamlScalar(rule.Message))
+		}
+		writeSuggestedRuleTests(w, rule.Test)
+	}
+}
+
+type suggestedField struct {
+	key   string
+	value string
+}
+
+func suggestedSemanticFields(semantic policy.SemanticMatchSpec) []suggestedField {
+	var fields []suggestedField
+	addSuggestedString := func(key, value string) {
+		if strings.TrimSpace(value) != "" {
+			fields = append(fields, suggestedField{key: key, value: yamlScalar(value)})
+		}
+	}
+	addSuggestedBool := func(key string, value *bool) {
+		if value != nil {
+			fields = append(fields, suggestedField{key: key, value: fmt.Sprintf("%t", *value)})
+		}
+	}
+	addSuggestedString("verb", semantic.Verb)
+	addSuggestedString("service", semantic.Service)
+	addSuggestedString("operation", semantic.Operation)
+	addSuggestedString("resource_type", semantic.ResourceType)
+	addSuggestedString("resource_name", semantic.ResourceName)
+	addSuggestedString("namespace", semantic.Namespace)
+	addSuggestedString("area", semantic.Area)
+	addSuggestedString("environment", semantic.Environment)
+	addSuggestedString("kube_context", semantic.KubeContext)
+	addSuggestedString("app_name", semantic.AppName)
+	addSuggestedString("project", semantic.Project)
+	addSuggestedBool("force", semantic.Force)
+	addSuggestedBool("force_with_lease", semantic.ForceWithLease)
+	addSuggestedBool("force_if_includes", semantic.ForceIfIncludes)
+	addSuggestedBool("hard", semantic.Hard)
+	addSuggestedBool("recursive", semantic.Recursive)
+	addSuggestedBool("include_ignored", semantic.IncludeIgnored)
+	addSuggestedBool("admin", semantic.Admin)
+	addSuggestedBool("interactive", semantic.Interactive)
+	sort.SliceStable(fields, func(i, j int) bool {
+		return suggestedFieldOrder(fields[i].key) < suggestedFieldOrder(fields[j].key)
+	})
+	return fields
+}
+
+func suggestedFieldOrder(key string) int {
+	order := map[string]int{
+		"verb": 0, "service": 1, "operation": 2, "area": 3, "resource_type": 4, "resource_name": 5,
+		"namespace": 6, "environment": 7, "kube_context": 8, "app_name": 9, "project": 10,
+		"force": 20, "force_with_lease": 21, "force_if_includes": 22, "hard": 23, "recursive": 24,
+		"include_ignored": 25, "admin": 26, "interactive": 27,
+	}
+	if v, ok := order[key]; ok {
+		return v
+	}
+	return 100
+}
+
+func writeSuggestedRuleTests(w io.Writer, test policy.PermissionTestSpec) {
+	writeLine(w, "      test:")
+	writeSuggestedTestBucket(w, "allow", test.Allow)
+	writeSuggestedTestBucket(w, "ask", test.Ask)
+	writeSuggestedTestBucket(w, "deny", test.Deny)
+	writeSuggestedTestBucket(w, "abstain", test.Abstain)
+}
+
+func writeSuggestedTestBucket(w io.Writer, bucket string, commands []string) {
+	if len(commands) == 0 {
+		return
+	}
+	writeLine(w, "        "+bucket+":")
+	for _, command := range commands {
+		writeLine(w, "          - "+yamlScalar(command))
+	}
+}
+
+func yamlScalar(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if isPlainYAMLScalar(s) {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+}
+
+func isPlainYAMLScalar(s string) bool {
+	for _, r := range s {
+		if !(r == '-' || r == '_' || r == '.' || r == '/' || r == ':' || r == '@' || r == '=' || r == '+' || r == ',' || r == ' ' || r >= '0' && r <= '9' || r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z') {
+			return false
+		}
+	}
+	return strings.TrimSpace(s) == s && !strings.Contains(s, ": ")
 }
 
 func writeLine(w io.Writer, line string) {

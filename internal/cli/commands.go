@@ -95,6 +95,66 @@ func runExplain(args []string, streams Streams, env Env) int {
 	return exitAllow
 }
 
+func runSuggest(args []string, streams Streams) int {
+	if wantsHelp(args) {
+		writeCommandHelp(streams.Stdout, "suggest")
+		return exitAllow
+	}
+	format := "yaml"
+	var opts app.SuggestOptions
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--format":
+			if i+1 >= len(args) {
+				writeCommandHelp(streams.Stderr, "suggest")
+				return exitError
+			}
+			format = args[i+1]
+			i++
+		case strings.HasPrefix(arg, "--format="):
+			format = strings.TrimPrefix(arg, "--format=")
+		case arg == "--decision":
+			if i+1 >= len(args) {
+				writeCommandHelp(streams.Stderr, "suggest")
+				return exitError
+			}
+			opts.Decision = args[i+1]
+			i++
+		case strings.HasPrefix(arg, "--decision="):
+			opts.Decision = strings.TrimPrefix(arg, "--decision=")
+		default:
+			rest = append(rest, arg)
+		}
+	}
+	if format != "yaml" && format != "json" {
+		writeErr(streams.Stderr, "unknown format: "+format)
+		writeCommandHelp(streams.Stderr, "suggest")
+		return exitError
+	}
+	if len(rest) == 0 {
+		writeCommandHelp(streams.Stderr, "suggest")
+		return exitError
+	}
+	command := strings.Join(rest, " ")
+	result, err := app.RunSuggest(command, opts)
+	if err != nil {
+		writeErr(streams.Stderr, err.Error())
+		writeCommandHelp(streams.Stderr, "suggest")
+		return exitError
+	}
+	if format == "json" {
+		if err := writeIndentedJSON(streams.Stdout, result); err != nil {
+			writeErr(streams.Stderr, err.Error())
+			return exitError
+		}
+		return exitAllow
+	}
+	writeSuggestedYAML(streams.Stdout, result.Policy)
+	return exitAllow
+}
+
 func runDoctor(args []string, streams Streams, env Env) int {
 	if wantsHelp(args) {
 		writeCommandHelp(streams.Stdout, "doctor")

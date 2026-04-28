@@ -12,8 +12,10 @@ import (
 
 	"github.com/tasuku43/cc-bash-guard/internal/app"
 	"github.com/tasuku43/cc-bash-guard/internal/app/doctoring"
+	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
 	"github.com/tasuku43/cc-bash-guard/internal/infra/buildinfo"
 	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
+	"gopkg.in/yaml.v3"
 )
 
 type hookPayload struct {
@@ -1418,6 +1420,173 @@ test:
 	policy := payload["policy"].(map[string]any)
 	if policy["matched_rule"] == nil {
 		t.Fatalf("payload=%+v", payload)
+	}
+}
+
+func runSuggestCLI(t *testing.T, command string, args ...string) (int, string, string) {
+	t.Helper()
+	allArgs := append([]string{"suggest"}, args...)
+	allArgs = append(allArgs, command)
+	var stdout, stderr bytes.Buffer
+	code := Run(allArgs, Streams{
+		Stdin:  strings.NewReader(""),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{})
+	return code, stdout.String(), stderr.String()
+}
+
+func parseSuggestedPolicy(t *testing.T, stdout string) app.SuggestedPolicySpec {
+	t.Helper()
+	var spec app.SuggestedPolicySpec
+	if err := yaml.Unmarshal([]byte(stdout), &spec); err != nil {
+		t.Fatalf("yaml error: %v stdout=%s", err, stdout)
+	}
+	var issues []string
+	for i, rule := range spec.Permission.Allow {
+		issues = append(issues, policy.ValidatePermissionRule(fmt.Sprintf("permission.allow[%d]", i), rule, "allow")...)
+	}
+	for i, rule := range spec.Permission.Ask {
+		issues = append(issues, policy.ValidatePermissionRule(fmt.Sprintf("permission.ask[%d]", i), rule, "ask")...)
+	}
+	for i, rule := range spec.Permission.Deny {
+		issues = append(issues, policy.ValidatePermissionRule(fmt.Sprintf("permission.deny[%d]", i), rule, "deny")...)
+	}
+	if len(issues) > 0 {
+		t.Fatalf("suggested policy validation issues: %v\n%s", issues, stdout)
+	}
+	return spec
+}
+
+func TestRunSuggestGitStatusAllow(t *testing.T) {
+	code, stdout, stderr := runSuggestCLI(t, "git status")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	spec := parseSuggestedPolicy(t, stdout)
+	if len(spec.Permission.Allow) != 1 {
+		t.Fatalf("allow rules=%d stdout=%s", len(spec.Permission.Allow), stdout)
+	}
+	rule := spec.Permission.Allow[0]
+	if rule.Command.Name != "git" || rule.Command.Semantic == nil || rule.Command.Semantic.Verb != "status" {
+		t.Fatalf("rule=%+v stdout=%s", rule, stdout)
+	}
+	if len(rule.Test.Allow) != 1 || len(rule.Test.Abstain) != 1 {
+		t.Fatalf("rule tests=%+v stdout=%s", rule.Test, stdout)
+	}
+}
+
+func TestRunSuggestGitForcePushDeny(t *testing.T) {
+	code, stdout, stderr := runSuggestCLI(t, "git push --force origin main")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	spec := parseSuggestedPolicy(t, stdout)
+	if len(spec.Permission.Deny) != 1 {
+		t.Fatalf("deny rules=%d stdout=%s", len(spec.Permission.Deny), stdout)
+	}
+	rule := spec.Permission.Deny[0]
+	if rule.Command.Name != "git" || rule.Command.Semantic == nil || rule.Command.Semantic.Verb != "push" || rule.Command.Semantic.Force == nil || !*rule.Command.Semantic.Force {
+		t.Fatalf("rule=%+v stdout=%s", rule, stdout)
+	}
+	if len(rule.Test.Deny) != 1 || len(rule.Test.Abstain) != 1 {
+		t.Fatalf("rule tests=%+v stdout=%s", rule.Test, stdout)
+	}
+}
+
+func TestRunSuggestAWSIdentity(t *testing.T) {
+	code, stdout, stderr := runSuggestCLI(t, "aws sts get-caller-identity")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	spec := parseSuggestedPolicy(t, stdout)
+	if len(spec.Permission.Allow) != 1 {
+		t.Fatalf("allow rules=%d stdout=%s", len(spec.Permission.Allow), stdout)
+	}
+	semantic := spec.Permission.Allow[0].Command.Semantic
+	if semantic == nil || semantic.Service != "sts" || semantic.Operation != "get-caller-identity" {
+		t.Fatalf("semantic=%+v stdout=%s", semantic, stdout)
+	}
+}
+
+func TestRunSuggestArgoCDAppDelete(t *testing.T) {
+	code, stdout, stderr := runSuggestCLI(t, "argocd app delete my-app")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	spec := parseSuggestedPolicy(t, stdout)
+	if len(spec.Permission.Deny) != 1 {
+		t.Fatalf("deny rules=%d stdout=%s", len(spec.Permission.Deny), stdout)
+	}
+	semantic := spec.Permission.Deny[0].Command.Semantic
+	if semantic == nil || semantic.Verb != "app delete" || semantic.AppName != "my-app" {
+		t.Fatalf("semantic=%+v stdout=%s", semantic, stdout)
+	}
+}
+
+func TestRunSuggestUnsupportedCommandPatternFallback(t *testing.T) {
+	code, stdout, stderr := runSuggestCLI(t, "my-tool preview --target prod")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	spec := parseSuggestedPolicy(t, stdout)
+	if len(spec.Permission.Ask) != 1 {
+		t.Fatalf("ask rules=%d stdout=%s", len(spec.Permission.Ask), stdout)
+	}
+	patterns := spec.Permission.Ask[0].Patterns
+	if len(patterns) != 1 || !strings.HasPrefix(patterns[0], "^") || !strings.HasSuffix(patterns[0], "$") {
+		t.Fatalf("patterns=%+v stdout=%s", patterns, stdout)
+	}
+}
+
+func TestRunSuggestDecisionOverrides(t *testing.T) {
+	for _, tt := range []struct {
+		decision string
+		want     string
+	}{
+		{decision: "allow", want: "allow:"},
+		{decision: "ask", want: "ask:"},
+		{decision: "deny", want: "deny:"},
+	} {
+		code, stdout, stderr := runSuggestCLI(t, "git status", "--decision", tt.decision)
+		if code != 0 {
+			t.Fatalf("decision=%s code=%d stderr=%s stdout=%s", tt.decision, code, stderr, stdout)
+		}
+		if !strings.Contains(stdout, tt.want) {
+			t.Fatalf("decision=%s missing %q stdout=%s", tt.decision, tt.want, stdout)
+		}
+		parseSuggestedPolicy(t, stdout)
+	}
+}
+
+func TestRunSuggestInvalidDecisionFails(t *testing.T) {
+	code, stdout, stderr := runSuggestCLI(t, "git status", "--decision", "maybe")
+	if code == 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	if !strings.Contains(stderr, "decision must be one of allow, ask, deny") {
+		t.Fatalf("stderr=%s", stderr)
+	}
+}
+
+func TestRunSuggestJSON(t *testing.T) {
+	code, stdout, stderr := runSuggestCLI(t, "argocd app delete my-app", "--format", "json")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
+	}
+	var payload app.SuggestResult
+	if err := json.Unmarshal([]byte(stdout), &payload); err != nil {
+		t.Fatalf("json error: %v stdout=%s", err, stdout)
+	}
+	if payload.Command != "argocd app delete my-app" || payload.Decision != "deny" {
+		t.Fatalf("payload=%+v", payload)
+	}
+	if len(payload.Policy.Permission.Deny) != 1 {
+		t.Fatalf("payload=%+v", payload)
+	}
+	semantic := payload.Policy.Permission.Deny[0].Command.Semantic
+	if semantic == nil || semantic.Verb != "app delete" || semantic.AppName != "my-app" {
+		t.Fatalf("semantic=%+v payload=%+v", semantic, payload)
 	}
 }
 

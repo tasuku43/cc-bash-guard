@@ -8,7 +8,7 @@ permissions, and returns `allow`, `ask`, or `deny`. In default mode it never
 rewrites commands: parser-backed normalization is used only for evaluation, and
 the command passed through the hook remains the original command. Semantic
 matching for tools such as `git`, `aws`, `kubectl`, `gh`, `helmfile`, and
-`argocd`, plus `verify` and `explain`, lets humans and coding agents iterate on
+`argocd`, plus `verify`, `explain`, and `suggest`, lets humans and coding agents iterate on
 policy safely.
 
 `cc-bash-guard` policy evaluation never rewrites commands. The default hook does not emit `updatedInput`.
@@ -162,18 +162,20 @@ examples pass.
 ```sh
 cc-bash-guard init --profile git-safe
 $EDITOR ~/.config/cc-bash-guard/cc-bash-guard.yml
+cc-bash-guard suggest "git push --force origin main"
 cc-bash-guard verify
 cc-bash-guard explain "git push --force origin main"
 ```
 
 Expected loop:
 
-1. Add or edit YAML policy.
-2. Add test examples for allowed commands and near misses.
-3. Run `cc-bash-guard verify`.
-4. Use `cc-bash-guard explain` to inspect parse shape, semantic fields,
+1. Use `cc-bash-guard suggest "<command>"` for a starter rule when useful.
+2. Add or edit YAML policy.
+3. Add test examples for allowed commands and near misses.
+4. Run `cc-bash-guard verify`.
+5. Use `cc-bash-guard explain` to inspect parse shape, semantic fields,
    matched rule, Claude settings contribution, and final decision.
-5. Iterate until the policy is correct.
+6. Iterate until the policy is correct.
 
 See [`docs/user/AGENTIC_POLICY_AUTHORING.md`](docs/user/AGENTIC_POLICY_AUTHORING.md)
 for a short worked example.
@@ -430,6 +432,19 @@ file, Claude settings contribution, and final merged decision. It uses the same
 verified artifact as the hook. See [`docs/user/EXPLAIN.md`](docs/user/EXPLAIN.md)
 for how to read the output.
 
+Use `suggest` to generate a pasteable starter rule without executing the command
+or mutating config:
+
+```sh
+cc-bash-guard suggest "git status"
+cc-bash-guard suggest --decision deny "git push --force origin main"
+cc-bash-guard suggest --format json "argocd app delete my-app"
+```
+
+`suggest` prefers semantic rules, includes rule-local tests, and falls back to a
+narrow anchored pattern with `ask` when classification or semantic parsing is
+uncertain.
+
 ## RTK Integration
 
 `cc-bash-guard` policy evaluation does not rewrite commands. If you use RTK rewriting, use `cc-bash-guard hook --rtk` as the single Bash hook:
@@ -475,6 +490,7 @@ cc-bash-guard init --profile git-safe
 cc-bash-guard init --list-profiles
 cc-bash-guard verify
 cc-bash-guard explain "git status"
+cc-bash-guard suggest "git status"
 cc-bash-guard doctor
 cc-bash-guard version
 cc-bash-guard help setup
@@ -482,6 +498,7 @@ cc-bash-guard help permission
 cc-bash-guard help semantic
 cc-bash-guard help semantic git
 cc-bash-guard help explain
+cc-bash-guard help suggest
 cc-bash-guard help examples
 cc-bash-guard help troubleshoot
 ```

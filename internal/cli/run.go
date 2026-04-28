@@ -31,6 +31,8 @@ func Run(args []string, streams Streams, env Env) int {
 		return runHook(args[1:], streams, env)
 	case "explain":
 		return runExplain(args[1:], streams, env)
+	case "suggest":
+		return runSuggest(args[1:], streams)
 	case "doctor":
 		return runDoctor(args[1:], streams, env)
 	case "verify":

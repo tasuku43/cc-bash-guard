@@ -1,8 +1,9 @@
 # Agentic Policy Authoring
 
-`cc-bash-guard verify` and `cc-bash-guard explain` let humans and coding agents
-author policy test-first. The loop is simple: edit YAML, add examples, run
-`verify`, inspect `explain`, then refine the policy.
+`cc-bash-guard suggest`, `cc-bash-guard verify`, and `cc-bash-guard explain`
+let humans and coding agents author policy test-first. The loop is simple:
+generate a starter rule when useful, edit YAML, add examples, run `verify`,
+inspect `explain`, then refine the policy.
 
 ## Prompt Claude Code
 
@@ -56,6 +57,46 @@ cc-bash-guard verify
 ```
 
 When it passes, the verified artifact is written for hook execution.
+
+## Generate A Starter Rule
+
+Use `suggest` to turn a command into a pasteable policy fragment without
+executing the command, writing files, or mutating config:
+
+```sh
+cc-bash-guard suggest "git push --force origin main"
+```
+
+Example output:
+
+```yaml
+permission:
+  deny:
+    - name: git push force
+      command:
+        name: git
+        semantic:
+          verb: push
+          force: true
+      message: git push force is blocked
+      test:
+        deny:
+          - git push --force origin main
+        abstain:
+          - git push origin main
+```
+
+Override the decision when you already know the intended bucket:
+
+```sh
+cc-bash-guard suggest --decision allow "git status"
+cc-bash-guard suggest --decision deny "argocd app delete my-app"
+cc-bash-guard suggest --format json "aws sts get-caller-identity"
+```
+
+`suggest` prefers `command.name` plus `command.semantic`. When no semantic
+parser is available, it falls back to a narrow anchored `patterns` rule and
+uses `ask` unless you explicitly choose another decision.
 
 ## Inspect A Near Miss
 
