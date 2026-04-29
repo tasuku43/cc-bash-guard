@@ -11,8 +11,8 @@ Run:
 cc-bash-guard verify
 ```
 
-The hook fails closed when the verified artifact is missing or stale unless
-`cc-bash-guard hook --auto-verify` is configured.
+The hook fails closed when the verified artifact is missing or stale. Run
+`cc-bash-guard verify`, then retry the Claude Code command.
 
 Fail-closed means the hook prints Claude Code `PreToolUse` JSON with
 `hookSpecificOutput.permissionDecision: "deny"` and a

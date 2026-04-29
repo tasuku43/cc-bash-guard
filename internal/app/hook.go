@@ -8,8 +8,6 @@ import (
 	"github.com/tasuku43/cc-bash-guard/internal/adapter/hookinput"
 	"github.com/tasuku43/cc-bash-guard/internal/domain/policy"
 	"github.com/tasuku43/cc-bash-guard/internal/infra"
-	"github.com/tasuku43/cc-bash-guard/internal/infra/buildinfo"
-	configrepo "github.com/tasuku43/cc-bash-guard/internal/infra/config"
 )
 
 func RunHook(raw []byte, opts HookOptions, env Env) HookResult {
@@ -18,7 +16,7 @@ func RunHook(raw []byte, opts HookOptions, env Env) HookResult {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_input", err.Error())}
 	}
 
-	_, decision, err := EvaluateForCommand(req.Command, env, opts.AutoVerify)
+	_, decision, err := EvaluateForCommand(req.Command, env)
 	if err != nil {
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_config", err.Error())}
 	}
@@ -29,8 +27,8 @@ func RunHook(raw []byte, opts HookOptions, env Env) HookResult {
 	return HookResult{Payload: hookPayload(decision, req)}
 }
 
-func evaluateDecision(req hookinput.ExecRequest, env Env, autoVerify bool) (policy.Decision, error) {
-	_, decision, err := EvaluateForCommand(req.Command, env, autoVerify)
+func evaluateDecision(req hookinput.ExecRequest, env Env) (policy.Decision, error) {
+	_, decision, err := EvaluateForCommand(req.Command, env)
 	return decision, err
 }
 
@@ -44,18 +42,6 @@ func shouldAttemptImplicitVerify(errs []error) bool {
 		}
 	}
 	return false
-}
-
-func ensureVerifiedArtifacts(env Env, tool string) error {
-	loaded := configrepo.LoadEffectiveForTool(env.Cwd, env.Home, env.XDGConfigHome, tool)
-	if len(loaded.Errors) == 0 {
-		if failures := verifyPolicyFailures(loaded); len(failures) > 0 {
-			return fmt.Errorf("%s: %s", failures[0].Title, failures[0].Message)
-		}
-	}
-	info := buildinfo.Read()
-	_, err := configrepo.VerifyEffectiveToAllCaches(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, tool, info.Version)
-	return err
 }
 
 func hookPayload(decision policy.Decision, req hookinput.ExecRequest) map[string]any {

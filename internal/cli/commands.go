@@ -17,13 +17,13 @@ func runHook(args []string, streams Streams, env Env) int {
 		return exitAllow
 	}
 	useRTK := false
-	autoVerify := false
 	for _, arg := range args {
 		switch arg {
 		case "--rtk":
 			useRTK = true
 		case "--auto-verify":
-			autoVerify = true
+			writeErr(streams.Stderr, "--auto-verify is no longer supported; run cc-bash-guard verify explicitly after policy or settings changes")
+			return exitError
 		default:
 			writeCommandHelp(streams.Stderr, "hook")
 			return exitError
@@ -43,7 +43,7 @@ func runHook(args []string, streams Streams, env Env) int {
 		}.Payload)
 	}
 
-	result := app.RunHook(raw, app.HookOptions{AutoVerify: autoVerify, UseRTK: useRTK}, env)
+	result := app.RunHook(raw, app.HookOptions{UseRTK: useRTK}, env)
 	return writeJSON(streams.Stdout, result.Payload)
 }
 

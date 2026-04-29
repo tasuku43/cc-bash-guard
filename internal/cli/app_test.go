@@ -31,7 +31,7 @@ type hookEnvSpec struct {
 	ClaudeLocalSettings string
 	Command             string
 	UseRTK              bool
-	DisableAutoVerify   bool
+	SkipVerify          bool
 }
 
 func runClaudeHookTest(t *testing.T, spec hookEnvSpec) hookPayload {
@@ -101,12 +101,15 @@ func runClaudeHookMapTest(t *testing.T, spec hookEnvSpec) map[string]any {
 		writeProjectClaudeLocalSettings(t, cwd, spec.ClaudeLocalSettings)
 	}
 
+	if !spec.SkipVerify {
+		if _, err := configrepo.VerifyEffectiveToAllCaches(cwd, home, "", "", "claude", "test"); err != nil {
+			t.Fatalf("verify effective: %v", err)
+		}
+	}
+
 	args := []string{"hook"}
 	if spec.UseRTK {
 		args = append(args, "--rtk")
-	}
-	if !spec.DisableAutoVerify {
-		args = append(args, "--auto-verify")
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -144,12 +147,15 @@ func runClaudeHookMapRawTest(t *testing.T, spec hookEnvSpec, stdin string) map[s
 		writeProjectClaudeLocalSettings(t, cwd, spec.ClaudeLocalSettings)
 	}
 
+	if !spec.SkipVerify {
+		if _, err := configrepo.VerifyEffectiveToAllCaches(cwd, home, "", "", "claude", "test"); err != nil {
+			t.Fatalf("verify effective: %v", err)
+		}
+	}
+
 	args := []string{"hook"}
 	if spec.UseRTK {
 		args = append(args, "--rtk")
-	}
-	if !spec.DisableAutoVerify {
-		args = append(args, "--auto-verify")
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -162,6 +168,27 @@ func runClaudeHookMapRawTest(t *testing.T, spec hookEnvSpec, stdin string) map[s
 		t.Fatalf("code = %d stderr=%s", code, stderr.String())
 	}
 
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("json error: %v stdout=%s", err, stdout.String())
+	}
+	return payload
+}
+
+func runVerifiedClaudeHookMap(t *testing.T, home string, cwd string, command string) map[string]any {
+	t.Helper()
+	if _, err := configrepo.VerifyEffectiveToAllCaches(cwd, home, "", "", "claude", "test"); err != nil {
+		t.Fatalf("verify effective: %v", err)
+	}
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"hook"}, Streams{
+		Stdin:  strings.NewReader(fmt.Sprintf(`{"tool_name":"Bash","tool_input":{"command":%q}}`, command)),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{Cwd: cwd, Home: home})
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
 	var payload map[string]any
 	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
 		t.Fatalf("json error: %v stdout=%s", err, stdout.String())
@@ -196,20 +223,7 @@ test:
     decision: allow
 `)
 
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"aws --profile dev sts get-caller-identity"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v", err)
-	}
+	payload := runVerifiedClaudeHookMap(t, home, t.TempDir(), "aws --profile dev sts get-caller-identity")
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
 	if hookOut["permissionDecision"] != "allow" {
 		t.Fatalf("payload = %+v", payload)
@@ -281,20 +295,7 @@ test:
     decision: ask
 `)
 
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"aws s3 ls"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v", err)
-	}
+	payload := runVerifiedClaudeHookMap(t, home, t.TempDir(), "aws s3 ls")
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
 	if hookOut["permissionDecision"] != "ask" {
 		t.Fatalf("payload = %+v", payload)
@@ -543,6 +544,8 @@ func TestRunHookClaudeRTKDoesNotRunAfterDeny(t *testing.T) {
       test:
         deny:
           - "rm -rf /tmp/x"
+        abstain:
+          - "pwd"
 test:
   - in: "rm -rf /tmp/x"
     decision: deny
@@ -584,7 +587,10 @@ test:
     decision: allow
 `)
 
-	_, decision, err := app.EvaluateForCommand(command, app.Env{Cwd: cwd, Home: home}, true)
+	if _, err := configrepo.VerifyEffectiveToAllCaches(cwd, home, "", "", "claude", "test"); err != nil {
+		t.Fatalf("verify effective: %v", err)
+	}
+	_, decision, err := app.EvaluateForCommand(command, app.Env{Cwd: cwd, Home: home})
 	if err != nil {
 		t.Fatalf("EvaluateForCommand error: %v", err)
 	}
@@ -672,20 +678,7 @@ test:
     decision: allow
 `)
 
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git diff goal.md"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v", err)
-	}
+	payload := runVerifiedClaudeHookMap(t, home, t.TempDir(), "git diff goal.md")
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
 	if hookOut["permissionDecision"] != "allow" {
 		t.Fatalf("payload = %+v", payload)
@@ -1115,20 +1108,7 @@ test:
     decision: allow
 `)
 
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git status"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v", err)
-	}
+	payload := runVerifiedClaudeHookMap(t, home, t.TempDir(), "git status")
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
 	if hookOut["permissionDecision"] != "allow" {
 		t.Fatalf("payload = %+v", payload)
@@ -1158,20 +1138,7 @@ test:
     decision: ask
 `)
 
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git diff"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v", err)
-	}
+	payload := runVerifiedClaudeHookMap(t, home, t.TempDir(), "git diff")
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
 	if hookOut["permissionDecision"] != "ask" {
 		t.Fatalf("permissionDecision = %v, want ask; payload=%+v", hookOut["permissionDecision"], payload)
@@ -1227,20 +1194,7 @@ test:
     decision: deny
 `)
 
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"rm -rf /tmp/x"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v", err)
-	}
+	payload := runVerifiedClaudeHookMap(t, home, t.TempDir(), "rm -rf /tmp/x")
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
 	if hookOut["permissionDecision"] != "deny" {
 		t.Fatalf("payload = %+v", payload)
@@ -2258,80 +2212,20 @@ test:
 	}
 }
 
-func TestRunHookClaudeAutoVerifyVerifiesWhenArtifactMissing(t *testing.T) {
+func TestRunHookClaudeAutoVerifyIsUnsupported(t *testing.T) {
 	home := t.TempDir()
-	writeUserConfig(t, home, `permission:
-  allow:
-    - command:
-
-        name: git
-
-        semantic:
-
-          verb: status
-      test:
-        allow:
-          - "bash -c 'git status'"
-        abstain:
-          - "git diff"
-test:
-  - in: "bash -c 'git status'"
-    decision: allow
-`)
-
 	var stdout, stderr bytes.Buffer
 	code := Run([]string{"hook", "--auto-verify"}, Streams{
 		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"bash -c 'git status'"}}`),
 		Stdout: &stdout,
 		Stderr: &stderr,
 	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	if code == 0 {
+		t.Fatalf("expected error stdout=%s", stdout.String())
 	}
-	entries, err := os.ReadDir(configrepo.HookCacheDir(home, ""))
-	if err != nil || len(entries) == 0 {
-		t.Fatalf("expected auto-verify artifact, err=%v entries=%v", err, entries)
-	}
-}
-
-func TestRunHookClaudeAutoVerifyDoesNotBuildArtifactForBroadAllowPattern(t *testing.T) {
-	home := t.TempDir()
-	writeUserConfig(t, home, `permission:
-  allow:
-    - name: broad aws fallback
-      patterns:
-        - "^aws\\s+.*"
-      test:
-        allow:
-          - "aws sts get-caller-identity"
-        abstain:
-          - "git status"
-`)
-
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"aws sts get-caller-identity"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v stdout=%s", err, stdout.String())
-	}
-	hookOut := payload["hookSpecificOutput"].(map[string]any)
-	if hookOut["permissionDecision"] != "deny" {
-		t.Fatalf("payload = %+v", payload)
-	}
-	reason, _ := hookOut["permissionDecisionReason"].(string)
-	if !strings.Contains(reason, "Broad allow pattern") || !strings.Contains(reason, "allow.patterns rule is broad") {
-		t.Fatalf("reason = %q", reason)
-	}
-	if entries, err := os.ReadDir(configrepo.HookCacheDir(home, "")); err == nil && len(entries) > 0 {
-		t.Fatalf("expected no auto-verify artifact, entries=%v", entries)
+	if !strings.Contains(stderr.String(), "--auto-verify is no longer supported") ||
+		!strings.Contains(stderr.String(), "run cc-bash-guard verify explicitly") {
+		t.Fatalf("stderr=%s", stderr.String())
 	}
 }
 
@@ -2356,20 +2250,7 @@ test:
     decision: ask
 `)
 
-	var stdout, stderr bytes.Buffer
-	code := Run([]string{"hook", "--auto-verify"}, Streams{
-		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git status && rm -rf /tmp/x"}}`),
-		Stdout: &stdout,
-		Stderr: &stderr,
-	}, Env{Cwd: t.TempDir(), Home: home})
-	if code != 0 {
-		t.Fatalf("code = %d stderr=%s", code, stderr.String())
-	}
-
-	var payload map[string]any
-	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
-		t.Fatalf("json error: %v", err)
-	}
+	payload := runVerifiedClaudeHookMap(t, home, t.TempDir(), "git status && rm -rf /tmp/x")
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
 	if hookOut["permissionDecision"] != "ask" {
 		t.Fatalf("payload = %+v", payload)

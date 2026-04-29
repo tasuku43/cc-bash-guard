@@ -86,7 +86,7 @@ type ExplainWhyNotItem struct {
 }
 
 func RunExplain(command string, env Env) (ExplainResult, error) {
-	result, _, err := EvaluateForCommand(command, env, false)
+	result, _, err := EvaluateForCommand(command, env)
 	return result, err
 }
 
@@ -95,8 +95,8 @@ func RunExplainWhyNot(command string, requested string, env Env) (ExplainWhyNotR
 	return ExplainWhyNot(result, requested), err
 }
 
-func EvaluateForCommand(command string, env Env, autoVerify bool) (ExplainResult, policy.Decision, error) {
-	loaded, err := loadVerifiedPipelineForEvaluation(env, autoVerify)
+func EvaluateForCommand(command string, env Env) (ExplainResult, policy.Decision, error) {
+	loaded, err := loadVerifiedPipelineForEvaluation(env)
 	plan := commandpkg.Parse(command)
 	result := ExplainResult{
 		Command: command,
@@ -127,20 +127,13 @@ func EvaluateForCommand(command string, env Env, autoVerify bool) (ExplainResult
 	return result, finalDecision, nil
 }
 
-func loadVerifiedPipelineForEvaluation(env Env, autoVerify bool) (configrepo.Loaded, error) {
+func loadVerifiedPipelineForEvaluation(env Env) (configrepo.Loaded, error) {
 	loaded := configrepo.LoadEffectiveForHookTool(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, claude.Tool)
 	if len(loaded.Errors) == 0 {
 		return loaded, nil
 	}
 	if shouldAttemptImplicitVerify(loaded.Errors) {
-		if !autoVerify {
-			return loaded, errors.New("verified artifact missing or stale; run cc-bash-guard verify")
-		}
-		if err := ensureVerifiedArtifacts(env, claude.Tool); err == nil {
-			loaded = configrepo.LoadEffectiveForHookTool(env.Cwd, env.Home, env.XDGConfigHome, env.XDGCacheHome, claude.Tool)
-		} else {
-			return loaded, err
-		}
+		return loaded, errors.New("verified artifact missing or stale; run cc-bash-guard verify")
 	}
 	if len(loaded.Errors) > 0 {
 		return loaded, errors.New(strings.Join(policy.ErrorStrings(loaded.Errors), "; "))

@@ -111,7 +111,7 @@ func TestHookHelpDocumentsNoPolicyRewriteAndRTKIntegration(t *testing.T) {
 	}
 	for _, want := range []string{
 		"returns Claude Code hook JSON for allow, ask, deny",
-		"cc-bash-guard hook [--rtk] [--auto-verify]",
+		"cc-bash-guard hook [--rtk]",
 		"Hook protocol:",
 		"permissionDecision: allow, ask, or deny",
 		"Deny is also returned as JSON with exit 0",
@@ -133,6 +133,7 @@ func TestHookHelpDocumentsNoPolicyRewriteAndRTKIntegration(t *testing.T) {
 	for _, bad := range []string{
 		"compatibility path",
 		"hidden",
+		"--auto-verify",
 	} {
 		if strings.Contains(stdout, bad) {
 			t.Fatalf("help hook contains %q:\n%s", bad, stdout)

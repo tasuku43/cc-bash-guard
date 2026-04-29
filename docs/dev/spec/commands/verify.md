@@ -96,5 +96,4 @@ promote a smaller set of trust-critical conditions into failures.
 - If a verified artifact exists and matches the current config hash, the hook uses it
 - If the artifact is missing or stale, the hook returns a deny response with `invalid_config`
 - The deny reason should tell the user to run `cc-bash-guard verify`
-- `cc-bash-guard hook --auto-verify` opts in to the older implicit verify behavior:
-  the hook tries verify once and retries loading the artifact
+- The hook does not regenerate artifacts during hook execution

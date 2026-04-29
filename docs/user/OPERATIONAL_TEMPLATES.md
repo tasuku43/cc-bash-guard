@@ -10,9 +10,9 @@ Claude settings permission matches, the final fallback is `ask`. Prefer
 semantic rules for supported commands and keep raw `patterns` narrow, anchored,
 and covered by tests.
 
-Run `cc-bash-guard verify` after editing policy or included files. Avoid
-`hook --auto-verify` for reviewed team workflows unless hook-time policy
-activation without a separate review step is an intentional tradeoff.
+Run `cc-bash-guard verify` after editing policy, included files, tests, or
+Claude settings. The hook reads verified artifacts only and fails closed when
+they are missing or stale.
 
 ## Quick Choice
 

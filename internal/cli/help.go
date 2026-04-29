@@ -241,17 +241,16 @@ Reads stdin JSON, parses the command, evaluates permission policy, and
 returns Claude Code hook JSON for allow, ask, deny, or error outcomes.
 
 Usage:
-  cc-bash-guard hook [--rtk] [--auto-verify]
+  cc-bash-guard hook [--rtk]
 
 Options:
-  --rtk          optional bridge to external RTK after permission evaluation
-  --auto-verify  regenerate verified hook artifacts when they are missing or stale
+  --rtk  optional bridge to external RTK after permission evaluation
 
 Note:
   You usually do not run this manually. Edit rules and use cc-bash-guard verify
-  while authoring policy instead. Without --auto-verify, the hook fails closed
-  when verified artifacts are missing or stale. --auto-verify is convenient, but
-  it lets hook-time config changes become active without a separate review step.
+  while authoring policy instead. The hook fails closed when verified artifacts
+  are missing or stale. Run cc-bash-guard verify explicitly after policy or
+  settings changes.
 
 Hook protocol:
   The hook prints Claude Code PreToolUse JSON to stdout and exits 0 when that
@@ -535,9 +534,9 @@ Common checks:
 
 Verified artifact missing or stale:
   Run cc-bash-guard verify after editing policy. The hook fails closed when the
-  verified artifact is missing or stale unless hook --auto-verify is configured.
-  Included policy files are part of the verified artifact, so editing any
-  included file also requires cc-bash-guard verify.
+  verified artifact is missing or stale. Included policy files are part of the
+  verified artifact, so editing any included file also requires
+  cc-bash-guard verify.
 
 Include error:
   include is top-level only and contains local file paths. Relative paths are

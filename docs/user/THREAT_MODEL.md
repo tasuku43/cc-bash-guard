@@ -147,10 +147,11 @@ rather than directly trusting human-edited YAML. Included file contents are part
 of the artifact fingerprint. Editing any included policy or test file makes the
 artifact stale and requires another `cc-bash-guard verify`.
 
-Without `--auto-verify`, a missing or stale artifact fails closed as `deny`.
-`--auto-verify` regenerates artifacts during hook execution and should be used
-only when hook-time config changes becoming active without a separate review
-step is acceptable.
+A missing or stale artifact fails closed as `deny`. Hook-time auto-verification
+is not supported because regenerating artifacts during hook execution weakens
+the review boundary between policy changes and enforcement. Run
+`cc-bash-guard verify` explicitly after policy, include, test, or Claude
+settings changes.
 
 ## Pattern-Rule Risks
 
@@ -195,8 +196,6 @@ separate rewrite path outside cc-bash-guard's permission-first flow.
 - Use `ask` for ambiguous operations and unsupported command families.
 - Keep allow regexes narrow, anchored, and covered by top-level tests.
 - Run `cc-bash-guard verify` after every policy or included file change.
-- Avoid `--auto-verify` unless hook-time policy activation is an intentional
-  tradeoff.
 - Keep Claude Code configured with one Bash hook entry for cc-bash-guard.
 - Use `cc-bash-guard hook --rtk` only when RTK rewriting is required.
 - Review changes to hook setup, policy files, included files, and Claude
