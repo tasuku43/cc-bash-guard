@@ -40,11 +40,92 @@ The current registry supports:
 - `kubectl`
 - `gh`
 - `gws`
+- `helm`
 - `helmfile`
 - `argocd`
+- `terraform`
+- `docker`
 
 Treat the CLI output as the source of truth for the installed binary. Commands
 without a semantic schema should use `patterns`.
+
+## docker
+
+Use Docker semantic fields to distinguish read-only inspection from mutating or
+destructive operations, and to match high-risk flags without broad raw regexes.
+The Docker parser is syntactic only: it does not inspect Dockerfiles, Compose
+files, images, containers, or daemon state.
+
+Common fields:
+
+- `verb`, `verb_in`: top-level Docker command such as `ps`, `run`, `exec`,
+  `system`, or `compose`.
+- `subverb`, `subverb_in`: command group action such as `prune` in
+  `docker system prune` or `down` in `docker compose down`.
+- `compose_command`, `compose_command_in`: command after `docker compose`.
+- `image`, `container`, `service`: straightforward positional targets.
+- `context`, `host`, `file`, `project_name`, `profile`: selected global and
+  Compose flags.
+- `privileged`, `network_host`, `pid_host`, `ipc_host`, `uts_host`,
+  `host_mount`, `root_mount`, `docker_socket_mount`: high-risk runtime signals.
+- `prune`, `all`, `all_resources`, `volumes_flag`, `remove_orphans`: destructive
+  cleanup signals.
+
+Recipes:
+
+```yaml
+permission:
+  allow:
+    - name: docker read-only
+      command:
+        name: docker
+        semantic:
+          verb_in: [ps, images, inspect, logs, version, info]
+
+  ask:
+    - name: docker run
+      command:
+        name: docker
+        semantic:
+          verb: run
+
+  deny:
+    - name: docker privileged run
+      command:
+        name: docker
+        semantic:
+          verb: run
+          privileged: true
+
+    - name: docker socket mount
+      command:
+        name: docker
+        semantic:
+          docker_socket_mount: true
+
+    - name: docker root host mount
+      command:
+        name: docker
+        semantic:
+          root_mount: true
+
+    - name: docker destructive prune
+      command:
+        name: docker
+        semantic:
+          verb: system
+          subverb: prune
+          all_resources: true
+          volumes_flag: true
+
+    - name: compose down volumes
+      command:
+        name: docker
+        semantic:
+          verb: compose
+          compose_command: down
+          volumes_flag: true
+```
 
 ## Field Types
 
@@ -317,6 +398,49 @@ permission:
           - "gws auth login"
 ```
 
+## helm
+
+Use Helm semantic fields for verb, subverb, release, chart, namespace,
+kube-context, kubeconfig, values files, set keys, repo/registry/plugin
+arguments, and parser-recognized flags.
+
+Boolean fields include:
+
+- `namespace_missing` and `kube_context_missing`: true when the corresponding
+  value was not selected.
+- `dry_run`: true for `--dry-run` or `--dry-run=<value>`.
+- `force`: true for `--force`.
+- `atomic`: true for `--atomic`.
+- `wait`: true for `--wait`.
+- `wait_for_jobs`: true for `--wait-for-jobs`.
+- `install`: true for `helm upgrade --install` or `helm upgrade -i`.
+- `reuse_values`, `reset_values`, and `reset_then_reuse_values`: true for the
+  corresponding upgrade value flags.
+- `cleanup_on_fail`, `create_namespace`, `dependency_update`, `devel`, and
+  `keep_history`: true for the corresponding Helm options.
+
+```yaml
+permission:
+  allow:
+    - name: helm read-only
+      command:
+        name: helm
+        semantic:
+          verb_in: [list, status, history, get, show, search, template, lint]
+  ask:
+    - name: helm upgrade or install
+      command:
+        name: helm
+        semantic:
+          verb_in: [install, upgrade]
+  deny:
+    - name: helm uninstall
+      command:
+        name: helm
+        semantic:
+          verb: uninstall
+```
+
 ## helmfile
 
 Use helmfile semantic fields for verb, environment, file, namespace,
@@ -377,6 +501,66 @@ permission:
         name: argocd
         semantic:
           verb_in: [app delete, app rollback]
+```
+
+## terraform
+
+Use Terraform semantic fields for subcommands, global `-chdir`, workspace/state
+subcommands, high-risk flags, plan output files, apply plan files, variable
+files, and parser-recognized flags. Parsing is syntactic only; Terraform is not
+executed and HCL, plan, backend, and state files are not inspected.
+
+Boolean fields include:
+
+- `target`: true when `-target` is present.
+- `replace`: true when `-replace` is present.
+- `destroy`: true for `terraform destroy` and `terraform plan -destroy`.
+- `auto_approve`: true when `-auto-approve` is present.
+- `input`, `lock`, `refresh`, and `backend`: set only when an explicit
+  `true`/`false` value is parsed.
+- `refresh_only`, `upgrade`, `reconfigure`, `migrate_state`, `recursive`,
+  `check`, `json`, `force`, and `vars`: true when the corresponding known flag
+  is present.
+
+```yaml
+permission:
+  allow:
+    - name: terraform read-only
+      command:
+        name: terraform
+        semantic:
+          subcommand_in: [validate, plan, show, output, providers, graph]
+  ask:
+    - name: terraform apply
+      command:
+        name: terraform
+        semantic:
+          subcommand: apply
+    - name: terraform plan destroy
+      command:
+        name: terraform
+        semantic:
+          subcommand: plan
+          destroy: true
+    - name: terraform risky state
+      command:
+        name: terraform
+        semantic:
+          subcommand: state
+          state_subcommand_in: [rm, push]
+    - name: terraform workspace delete
+      command:
+        name: terraform
+        semantic:
+          subcommand: workspace
+          workspace_subcommand: delete
+  deny:
+    - name: terraform destroy auto approve
+      command:
+        name: terraform
+        semantic:
+          subcommand: destroy
+          auto_approve: true
 ```
 
 ## Unsupported Commands

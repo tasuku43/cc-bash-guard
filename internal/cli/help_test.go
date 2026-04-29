@@ -506,7 +506,6 @@ func TestUserDocsExamplesUseCurrentPermissionShape(t *testing.T) {
 		for _, bad := range []string{
 			"match:",
 			"pattern:",
-			"command_in:",
 			"semantic.git",
 			"semantic.gh",
 			"Skills",

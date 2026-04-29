@@ -33,8 +33,11 @@ type Command struct {
 	Kubectl          *KubectlSemantic
 	Gh               *GhSemantic
 	Gws              *GwsSemantic
+	Helm             *HelmSemantic
 	Helmfile         *HelmfileSemantic
 	ArgoCD           *ArgoCDSemantic
+	Docker           *DockerSemantic
+	Terraform        *TerraformSemantic
 }
 
 type Option struct {
@@ -160,6 +163,40 @@ type GwsSemantic struct {
 	Flags        []string
 }
 
+type HelmSemantic struct {
+	Verb                 string
+	Subverb              string
+	Release              string
+	Chart                string
+	Namespace            string
+	KubeContext          string
+	Kubeconfig           string
+	DryRun               bool
+	Force                bool
+	Atomic               bool
+	Wait                 bool
+	WaitForJobs          bool
+	Install              bool
+	ReuseValues          bool
+	ResetValues          bool
+	ResetThenReuseValues bool
+	CleanupOnFail        bool
+	CreateNamespace      bool
+	DependencyUpdate     bool
+	Devel                bool
+	KeepHistory          bool
+	Cascade              string
+	ValuesFiles          []string
+	SetKeys              []string
+	SetStringKeys        []string
+	SetFileKeys          []string
+	RepoName             string
+	RepoURL              string
+	Registry             string
+	PluginName           string
+	Flags                []string
+}
+
 type HelmfileSemantic struct {
 	Verb                     string
 	Environment              string
@@ -190,6 +227,97 @@ type ArgoCDSemantic struct {
 	Project  string
 	Revision string
 	Flags    []string
+}
+
+type DockerSemantic struct {
+	Verb              string
+	Subverb           string
+	ComposeCommand    string
+	Image             string
+	Container         string
+	Service           string
+	Context           string
+	Host              string
+	File              string
+	Files             []string
+	ProjectName       string
+	Profile           string
+	Profiles          []string
+	DryRun            bool
+	Detach            bool
+	Interactive       bool
+	Tty               bool
+	RM                bool
+	Force             bool
+	Privileged        bool
+	User              string
+	Workdir           string
+	Entrypoint        string
+	Network           string
+	NetworkHost       bool
+	PID               string
+	PIDHost           bool
+	IPC               string
+	IPCHost           bool
+	UTS               string
+	UTSHost           bool
+	CapAdd            []string
+	CapDrop           []string
+	SecurityOpt       []string
+	Device            bool
+	Devices           []string
+	Mounts            []string
+	Volumes           []string
+	HostMount         bool
+	RootMount         bool
+	DockerSocketMount bool
+	EnvFiles          []string
+	EnvKeys           []string
+	Ports             []string
+	PublishAll        bool
+	Pull              string
+	NoCache           bool
+	BuildArgKeys      []string
+	Target            string
+	Platform          string
+	All               bool
+	VolumesFlag       bool
+	Prune             bool
+	AllResources      bool
+	RemoveOrphans     bool
+	Flags             []string
+}
+
+type TerraformSemantic struct {
+	Subcommand          string
+	GlobalChdir         string
+	WorkspaceSubcommand string
+	StateSubcommand     string
+	ProvidersSubcommand string
+	MetadataSubcommand  string
+	Target              bool
+	Targets             []string
+	Replace             bool
+	Replaces            []string
+	Destroy             bool
+	AutoApprove         bool
+	Input               *bool
+	Lock                *bool
+	Refresh             *bool
+	RefreshOnly         bool
+	Out                 string
+	PlanFile            string
+	VarFiles            []string
+	Vars                bool
+	Backend             *bool
+	Upgrade             bool
+	Reconfigure         bool
+	MigrateState        bool
+	Recursive           bool
+	Check               bool
+	JSON                bool
+	Force               bool
+	Flags               []string
 }
 
 func (c Command) HasOption(name string) bool {

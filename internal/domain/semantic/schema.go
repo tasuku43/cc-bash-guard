@@ -31,6 +31,7 @@ var schemas = []Schema{
 	argoCDSchema,
 	gwsSchema,
 	helmfileSchema,
+	terraformSchema,
 }
 
 func AllSchemas() []Schema {

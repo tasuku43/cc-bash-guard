@@ -35,7 +35,7 @@ func NewInvocation(raw string) Invocation {
 }
 
 func DefaultParserRegistry() *CommandParserRegistry {
-	return NewCommandParserRegistry(GitParser{}, AwsParser{}, KubectlParser{}, GhParser{}, GwsParser{}, HelmfileParser{}, ArgoCDParser{})
+	return NewCommandParserRegistry(GitParser{}, AwsParser{}, KubectlParser{}, GhParser{}, GwsParser{}, HelmfileParser{}, ArgoCDParser{}, TerraformParser{})
 }
 
 func NewCommandParserRegistry(parsers ...CommandParser) *CommandParserRegistry {

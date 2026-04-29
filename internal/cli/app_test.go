@@ -2996,16 +2996,16 @@ func TestRunVerifySemanticDiagnostics(t *testing.T) {
 			name: "schema unavailable",
 			body: `permission:
   ask:
-    - name: helm semantic
+    - name: ansible semantic
       command:
-        name: helm
+        name: ansible
         semantic:
           namespace: prod
       test:
-        ask: ["helm list"]
+        ask: ["ansible --version"]
         abstain: ["git status"]
 `,
-			want: []string{"Semantic schema unavailable", "command: helm", "field: command.semantic", "Use patterns for commands without semantic support"},
+			want: []string{"Semantic schema unavailable", "command: ansible", "field: command.semantic", "Use patterns for commands without semantic support"},
 		},
 	}
 	for _, tt := range tests {
@@ -3309,7 +3309,7 @@ test:
 		!strings.Contains(failure.Message, "allow.patterns rule is broad") ||
 		!strings.Contains(failure.Reason, "terraform command namespace") ||
 		!strings.Contains(failure.Reason, "shell metacharacters") ||
-		!strings.Contains(failure.Hint, "narrower regex") ||
+		!strings.Contains(failure.Hint, "command.semantic") ||
 		failure.SaferAlternative == "" {
 		t.Fatalf("failure=%+v", failure)
 	}

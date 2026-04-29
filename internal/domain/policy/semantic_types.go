@@ -150,6 +150,32 @@ type SemanticMatchSpec struct {
 	Job                              string   `yaml:"job" json:"job,omitempty"`
 	Debug                            *bool    `yaml:"debug" json:"debug,omitempty"`
 	ExitStatus                       *bool    `yaml:"exit_status" json:"exit_status,omitempty"`
+	Subcommand                       string   `yaml:"subcommand" json:"subcommand,omitempty"`
+	SubcommandIn                     []string `yaml:"subcommand_in" json:"subcommand_in,omitempty"`
+	GlobalChdir                      string   `yaml:"global_chdir" json:"global_chdir,omitempty"`
+	WorkspaceSubcommand              string   `yaml:"workspace_subcommand" json:"workspace_subcommand,omitempty"`
+	WorkspaceSubcommandIn            []string `yaml:"workspace_subcommand_in" json:"workspace_subcommand_in,omitempty"`
+	StateSubcommand                  string   `yaml:"state_subcommand" json:"state_subcommand,omitempty"`
+	StateSubcommandIn                []string `yaml:"state_subcommand_in" json:"state_subcommand_in,omitempty"`
+	Target                           *bool    `yaml:"target" json:"target,omitempty"`
+	TargetsContains                  []string `yaml:"targets_contains" json:"targets_contains,omitempty"`
+	Replace                          *bool    `yaml:"replace" json:"replace,omitempty"`
+	ReplacesContains                 []string `yaml:"replaces_contains" json:"replaces_contains,omitempty"`
+	Destroy                          *bool    `yaml:"destroy" json:"destroy,omitempty"`
+	AutoApprove                      *bool    `yaml:"auto_approve" json:"auto_approve,omitempty"`
+	Lock                             *bool    `yaml:"lock" json:"lock,omitempty"`
+	Refresh                          *bool    `yaml:"refresh" json:"refresh,omitempty"`
+	RefreshOnly                      *bool    `yaml:"refresh_only" json:"refresh_only,omitempty"`
+	Out                              string   `yaml:"out" json:"out,omitempty"`
+	PlanFile                         string   `yaml:"plan_file" json:"plan_file,omitempty"`
+	VarFilesContains                 []string `yaml:"var_files_contains" json:"var_files_contains,omitempty"`
+	Vars                             *bool    `yaml:"vars" json:"vars,omitempty"`
+	Backend                          *bool    `yaml:"backend" json:"backend,omitempty"`
+	Upgrade                          *bool    `yaml:"upgrade" json:"upgrade,omitempty"`
+	Reconfigure                      *bool    `yaml:"reconfigure" json:"reconfigure,omitempty"`
+	MigrateState                     *bool    `yaml:"migrate_state" json:"migrate_state,omitempty"`
+	Check                            *bool    `yaml:"check" json:"check,omitempty"`
+	JSON                             *bool    `yaml:"json" json:"json,omitempty"`
 }
 
 type GitSemanticSpec struct {
@@ -361,6 +387,40 @@ type ArgoCDSemanticSpec struct {
 	FlagsPrefixes []string
 }
 
+type TerraformSemanticSpec struct {
+	Subcommand            string
+	SubcommandIn          []string
+	GlobalChdir           string
+	WorkspaceSubcommand   string
+	WorkspaceSubcommandIn []string
+	StateSubcommand       string
+	StateSubcommandIn     []string
+	Target                *bool
+	TargetsContains       []string
+	Replace               *bool
+	ReplacesContains      []string
+	Destroy               *bool
+	AutoApprove           *bool
+	Input                 *bool
+	Lock                  *bool
+	Refresh               *bool
+	RefreshOnly           *bool
+	Out                   string
+	PlanFile              string
+	VarFilesContains      []string
+	Vars                  *bool
+	Backend               *bool
+	Upgrade               *bool
+	Reconfigure           *bool
+	MigrateState          *bool
+	Recursive             *bool
+	Check                 *bool
+	JSON                  *bool
+	Force                 *bool
+	FlagsContains         []string
+	FlagsPrefixes         []string
+}
+
 func (s SemanticMatchSpec) Git() GitSemanticSpec {
 	return GitSemanticSpec{
 		Verb: s.Verb, VerbIn: s.VerbIn, Remote: s.Remote, RemoteIn: s.RemoteIn,
@@ -450,5 +510,20 @@ func (s SemanticMatchSpec) ArgoCD() ArgoCDSemanticSpec {
 		Verb: s.Verb, VerbIn: s.VerbIn, AppName: s.AppName, AppNameIn: s.AppNameIn,
 		Project: s.Project, ProjectIn: s.ProjectIn, Revision: s.Revision,
 		FlagsContains: s.FlagsContains, FlagsPrefixes: s.FlagsPrefixes,
+	}
+}
+
+func (s SemanticMatchSpec) Terraform() TerraformSemanticSpec {
+	return TerraformSemanticSpec{
+		Subcommand: s.Subcommand, SubcommandIn: s.SubcommandIn, GlobalChdir: s.GlobalChdir,
+		WorkspaceSubcommand: s.WorkspaceSubcommand, WorkspaceSubcommandIn: s.WorkspaceSubcommandIn,
+		StateSubcommand: s.StateSubcommand, StateSubcommandIn: s.StateSubcommandIn,
+		Target: s.Target, TargetsContains: s.TargetsContains, Replace: s.Replace,
+		ReplacesContains: s.ReplacesContains, Destroy: s.Destroy, AutoApprove: s.AutoApprove,
+		Input: s.Input, Lock: s.Lock, Refresh: s.Refresh, RefreshOnly: s.RefreshOnly,
+		Out: s.Out, PlanFile: s.PlanFile, VarFilesContains: s.VarFilesContains, Vars: s.Vars,
+		Backend: s.Backend, Upgrade: s.Upgrade, Reconfigure: s.Reconfigure,
+		MigrateState: s.MigrateState, Recursive: s.Recursive, Check: s.Check, JSON: s.JSON,
+		Force: s.Force, FlagsContains: s.FlagsContains, FlagsPrefixes: s.FlagsPrefixes,
 	}
 }

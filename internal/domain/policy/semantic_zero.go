@@ -339,3 +339,19 @@ func hasArgoCDSemanticFields(semantic SemanticMatchSpec) bool {
 		len(semantic.ProjectIn) > 0 ||
 		semantic.Revision != ""
 }
+
+func IsZeroTerraformSemanticSpec(semantic TerraformSemanticSpec) bool {
+	return semantic.Subcommand == "" && len(semantic.SubcommandIn) == 0 &&
+		semantic.GlobalChdir == "" &&
+		semantic.WorkspaceSubcommand == "" && len(semantic.WorkspaceSubcommandIn) == 0 &&
+		semantic.StateSubcommand == "" && len(semantic.StateSubcommandIn) == 0 &&
+		semantic.Target == nil && len(semantic.TargetsContains) == 0 &&
+		semantic.Replace == nil && len(semantic.ReplacesContains) == 0 &&
+		semantic.Destroy == nil && semantic.AutoApprove == nil && semantic.Input == nil &&
+		semantic.Lock == nil && semantic.Refresh == nil && semantic.RefreshOnly == nil &&
+		semantic.Out == "" && semantic.PlanFile == "" && len(semantic.VarFilesContains) == 0 &&
+		semantic.Vars == nil && semantic.Backend == nil && semantic.Upgrade == nil &&
+		semantic.Reconfigure == nil && semantic.MigrateState == nil && semantic.Recursive == nil &&
+		semantic.Check == nil && semantic.JSON == nil && semantic.Force == nil &&
+		len(semantic.FlagsContains) == 0 && len(semantic.FlagsPrefixes) == 0
+}

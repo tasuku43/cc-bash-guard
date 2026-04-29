@@ -1,0 +1,48 @@
+permission:
+  allow:
+    - name: terraform read-only
+      command:
+        name: terraform
+        semantic:
+          subcommand_in:
+            - validate
+            - plan
+            - show
+            - output
+            - providers
+            - graph
+            - fmt
+      test:
+        allow:
+          - "terraform validate"
+          - "terraform plan -out=tfplan"
+          - "terraform show tfplan"
+          - "terraform output -json"
+        abstain:
+          - "terraform apply -auto-approve"
+
+  ask:
+    - name: terraform apply
+      command:
+        name: terraform
+        semantic:
+          subcommand: apply
+      test:
+        ask:
+          - "terraform apply"
+          - "terraform apply tfplan"
+        abstain:
+          - "terraform plan"
+
+  deny:
+    - name: terraform destroy auto approve
+      command:
+        name: terraform
+        semantic:
+          subcommand: destroy
+          auto_approve: true
+      test:
+        deny:
+          - "terraform destroy -auto-approve"
+        abstain:
+          - "terraform plan -destroy"

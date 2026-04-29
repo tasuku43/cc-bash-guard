@@ -1,0 +1,88 @@
+permission:
+  allow:
+    - name: terraform basic read-only
+      command:
+        name: terraform
+        semantic:
+          subcommand_in:
+            - validate
+            - show
+            - output
+      test:
+        allow:
+          - "terraform validate"
+          - "terraform show tfplan"
+        abstain:
+          - "terraform plan -destroy"
+
+  ask:
+    - name: terraform plan
+      command:
+        name: terraform
+        semantic:
+          subcommand: plan
+      test:
+        ask:
+          - "terraform plan"
+          - "terraform -chdir=infra plan"
+        abstain:
+          - "terraform apply"
+    - name: terraform plan destroy
+      command:
+        name: terraform
+        semantic:
+          subcommand: plan
+          destroy: true
+      test:
+        ask:
+          - "terraform plan -destroy"
+        abstain:
+          - "terraform plan"
+    - name: terraform apply
+      command:
+        name: terraform
+        semantic:
+          subcommand: apply
+      test:
+        ask:
+          - "terraform apply tfplan"
+        abstain:
+          - "terraform plan"
+    - name: terraform state mutation
+      command:
+        name: terraform
+        semantic:
+          subcommand: state
+          state_subcommand_in:
+            - rm
+            - push
+      test:
+        ask:
+          - "terraform state rm aws_instance.bad"
+          - "terraform state push state.tfstate"
+        abstain:
+          - "terraform state list"
+    - name: terraform workspace delete
+      command:
+        name: terraform
+        semantic:
+          subcommand: workspace
+          workspace_subcommand: delete
+      test:
+        ask:
+          - "terraform workspace delete old"
+        abstain:
+          - "terraform workspace list"
+
+  deny:
+    - name: terraform destroy auto approve
+      command:
+        name: terraform
+        semantic:
+          subcommand: destroy
+          auto_approve: true
+      test:
+        deny:
+          - "terraform destroy -auto-approve"
+        abstain:
+          - "terraform destroy"
