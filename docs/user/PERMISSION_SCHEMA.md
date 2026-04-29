@@ -195,6 +195,17 @@ can match shell metacharacters. Fix these rules with `command.name_in`,
 `command.semantic` for supported commands, or a narrower anchored regex that
 excludes shell metacharacters.
 
+When you use a semantic allow rule for a supported command, do not add another
+broader allow rule for the same command in the same effective policy. For
+example, a semantic `git status` allow must not be paired with `command.name:
+git`, `command.name_in` containing `git`, a broad raw pattern such as
+`^git\\s+.*$`, or an env-only allow rule that can allow any command when the
+environment matches. `cc-bash-guard verify` fails these structural conflicts by
+default because the broader allow makes the semantic allow misleading. Move
+whole command namespace handling to `permission.ask`, keep `permission.allow`
+semantic and narrow, and add explicit `permission.deny` rules for dangerous
+operations where appropriate.
+
 Example fallback for a command that needs raw-string subcommand checks:
 
 ```yaml

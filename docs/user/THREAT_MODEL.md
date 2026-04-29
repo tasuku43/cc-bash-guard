@@ -102,6 +102,13 @@ Use semantic rules for supported tools when possible. Use raw regex `patterns`
 only when semantic support is unavailable or too coarse, and cover both allowed
 examples and near misses with top-level `test` entries.
 
+Do not combine a semantic `permission.allow` rule with a broader allow rule for
+the same supported command. A broad `command.name`, `command.name_in`, broad raw
+pattern such as `^aws\\s+.*$`, or env-only allow can make the semantic rule look
+narrow while allowing a much larger namespace. `cc-bash-guard verify` rejects
+these conflicts by default. Use `permission.ask` for broad command namespaces
+and reserve `permission.allow` for explicit semantic intent.
+
 ## Fail-Closed Behavior
 
 The hook fails closed for trust-critical errors by returning Claude Code

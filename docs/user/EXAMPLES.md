@@ -353,3 +353,8 @@ Avoid broad allow rules such as `.*`, `^terraform\\s+`, or `^npm\\s+`. They can
 allow destructive subcommands or commands that invoke scripts and plugins that
 cc-bash-guard does not deeply inspect. `cc-bash-guard verify` fails broad
 `permission.allow[*].patterns` by default.
+
+Also avoid pairing semantic allow rules with broader allow rules for the same
+supported command. For example, do not combine a semantic `aws sts
+get-caller-identity` allow with `command.name: aws` or `^aws\\s+.*$`. Use
+`permission.ask` for broad review paths and keep `permission.allow` narrow.

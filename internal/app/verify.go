@@ -128,7 +128,74 @@ func verifyPolicyFailures(loaded configrepo.Loaded) []VerifyDiagnostic {
 	for _, rule := range loaded.Pipeline.Permission.Allow {
 		failures = append(failures, broadAllowPatternFailures(rule)...)
 	}
+	failures = append(failures, semanticAllowSubsumptionFailures(loaded.Pipeline.Permission.Allow)...)
 	return failures
+}
+
+func semanticAllowSubsumptionFailures(rules []policy.PermissionRuleSpec) []VerifyDiagnostic {
+	var failures []VerifyDiagnostic
+	for narrowIndex, narrow := range rules {
+		cmd := strings.TrimSpace(narrow.Command.Name)
+		if cmd == "" || narrow.Command.Semantic == nil {
+			continue
+		}
+		if _, ok := semanticpkg.Lookup(cmd); !ok {
+			continue
+		}
+		for broadIndex, broad := range rules {
+			if narrowIndex == broadIndex {
+				continue
+			}
+			reason, ok := broadAllowSubsumesSemanticCommand(broad, cmd)
+			if !ok {
+				continue
+			}
+			failures = append(failures, semanticAllowSubsumptionFailure(narrow, broad, cmd, reason))
+		}
+	}
+	return failures
+}
+
+func broadAllowSubsumesSemanticCommand(rule policy.PermissionRuleSpec, cmd string) (string, bool) {
+	if rule.Command.Semantic != nil {
+		return "", false
+	}
+	if strings.TrimSpace(rule.Command.Name) == cmd {
+		return "command.name allows the whole " + cmd + " command namespace without semantic constraints", true
+	}
+	for _, name := range rule.Command.NameIn {
+		if strings.TrimSpace(name) == cmd {
+			return "command.name_in includes " + cmd + " without semantic constraints", true
+		}
+	}
+	if policy.IsZeroPermissionCommandSpec(rule.Command) && len(rule.Patterns) == 0 && !policy.IsZeroPermissionEnvSpec(rule.Env) {
+		return "env-only allow can allow any command when the environment matches", true
+	}
+	for _, pattern := range rule.Patterns {
+		if patternCommand, ok := broadCommandPrefixPattern(strings.TrimSpace(pattern)); ok && patternCommand == cmd {
+			return "patterns allow the " + cmd + " command namespace without semantic constraints", true
+		}
+	}
+	return "", false
+}
+
+func semanticAllowSubsumptionFailure(narrow policy.PermissionRuleSpec, broad policy.PermissionRuleSpec, cmd string, reason string) VerifyDiagnostic {
+	broadName := strings.TrimSpace(broad.Name)
+	if broadName == "" {
+		broadName = "unnamed allow rule"
+	}
+	return VerifyDiagnostic{
+		Kind:             "semantic_allow_subsumed_by_broad_allow",
+		Title:            "Semantic allow subsumed by broad allow",
+		Source:           sourceFromPolicy(narrow.Source, narrow.Name),
+		First:            sourceFromPolicy(narrow.Source, narrow.Name),
+		Second:           sourceFromPolicy(broad.Source, broad.Name),
+		Command:          cmd,
+		Message:          "semantic allow for command " + cmd + " is subsumed by broader allow rule `" + broadName + "`; use command.semantic on the broader rule, move broad behavior to permission.ask, or remove the broad allow.",
+		Reason:           reason,
+		Hint:             "Prefer semantic allow rules for supported commands, move broad command namespace handling to permission.ask, add explicit deny rules for dangerous operations where appropriate, and avoid broad raw allow patterns for commands with semantic parser support.",
+		SaferAlternative: "Use command.semantic for " + cmd + ", move the broad rule to permission.ask, or remove the broad allow.",
+	}
 }
 
 func verifyWarnings(loaded configrepo.Loaded) []VerifyDiagnostic {
@@ -212,7 +279,8 @@ func broadAllowPatternFailure(rule policy.PermissionRuleSpec, pattern string) (V
 }
 
 func broadCommandPrefixPattern(pattern string) (string, bool) {
-	for _, cmd := range []string{"aws", "kubectl", "git", "gh", "terraform", "npm", "make"} {
+	pattern = trimLeadingRegexWhitespace(pattern)
+	for _, cmd := range broadPatternCommands() {
 		prefix := "^" + cmd
 		if !strings.HasPrefix(pattern, prefix) {
 			continue
@@ -240,6 +308,23 @@ func broadCommandPrefixPattern(pattern string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func broadPatternCommands() []string {
+	return []string{"git", "aws", "kubectl", "gh", "gws", "helm", "helmfile", "argocd", "terraform", "docker", "npm", "make"}
+}
+
+func trimLeadingRegexWhitespace(pattern string) string {
+	if strings.HasPrefix(pattern, `^\s*`) {
+		return "^" + strings.TrimPrefix(pattern, `^\s*`)
+	}
+	if strings.HasPrefix(pattern, `^[[:space:]]*`) {
+		return "^" + strings.TrimPrefix(pattern, `^[[:space:]]*`)
+	}
+	if strings.HasPrefix(pattern, `^ *`) {
+		return "^" + strings.TrimPrefix(pattern, `^ *`)
+	}
+	return pattern
 }
 
 func startsLiteralCommandContinuation(s string) bool {
@@ -289,7 +374,8 @@ func saferPatternAlternative(pattern string) string {
 }
 
 func anchoredCommandName(pattern string) (string, bool) {
-	for _, cmd := range []string{"aws", "kubectl", "git", "gh", "terraform", "npm", "make"} {
+	pattern = trimLeadingRegexWhitespace(pattern)
+	for _, cmd := range broadPatternCommands() {
 		if strings.HasPrefix(pattern, "^"+cmd) {
 			return cmd, true
 		}

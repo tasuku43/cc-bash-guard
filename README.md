@@ -390,9 +390,15 @@ permission:
 ```
 
 Avoid broad allow regexes such as `.*`, `^aws\\s+`, `^terraform\\s+`, or
-`^npm\\s+`. Current `verify` fails broad `permission.allow[*].patterns` when a
+`^npm\\s+`. `verify` fails broad `permission.allow[*].patterns` when a
 regex is unanchored, allows a whole command namespace, or uses wildcards that
 can cross shell metacharacters.
+
+If a supported command has a semantic allow rule, `verify` also fails broader
+allow rules for the same command, such as `command.name: git`, `command.name_in`
+containing `git`, `^git\\s+.*$`, or an env-only allow. Move broad command
+namespace handling to `permission.ask` and keep `permission.allow` semantic and
+narrow.
 
 ### Environment Requirements
 
