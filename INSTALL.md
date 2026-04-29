@@ -42,8 +42,7 @@ Recommended user verification:
 ## Homebrew
 
 ```sh
-brew tap tasuku43/cc-bash-guard
-brew install cc-bash-guard
+brew install tasuku43/cc-bash-guard/cc-bash-guard
 cc-bash-guard init --profile git-safe
 cc-bash-guard verify
 ```
