@@ -34,6 +34,8 @@ permission:
         ask:
           - "docker compose up -d"
           - "docker compose exec web sh"
+        abstain:
+          - "docker compose ps"
 
   deny:
     - name: docker compose remove volumes
@@ -46,3 +48,5 @@ permission:
       test:
         deny:
           - "docker compose down --volumes --remove-orphans"
+        abstain:
+          - "docker compose down --remove-orphans"

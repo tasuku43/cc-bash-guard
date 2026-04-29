@@ -24,6 +24,8 @@ permission:
         ask:
           - "docker compose up -d"
           - "docker compose run --rm web bash"
+        abstain:
+          - "docker compose ps"
 
   deny:
     - name: docker privileged containers
@@ -46,6 +48,8 @@ permission:
       test:
         deny:
           - "docker run --network host alpine"
+        abstain:
+          - "docker run --network bridge alpine"
 
     - name: docker socket mount
       command:
@@ -66,6 +70,8 @@ permission:
       test:
         deny:
           - "docker run -v /:/host alpine"
+        abstain:
+          - "docker run -v ./data:/data alpine"
 
     - name: docker destructive prune
       command:
@@ -78,6 +84,8 @@ permission:
       test:
         deny:
           - "docker system prune -a --volumes"
+        abstain:
+          - "docker system df"
 
     - name: docker compose down volumes
       command:
@@ -89,3 +97,5 @@ permission:
       test:
         deny:
           - "docker compose down --volumes"
+        abstain:
+          - "docker compose down"

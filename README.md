@@ -326,16 +326,18 @@ installed binary. See
 [`docs/user/SEMANTIC_COVERAGE.md`](docs/user/SEMANTIC_COVERAGE.md) for the
 user-facing coverage matrix, fields, examples, and limitations.
 
-Complete runnable examples:
+Complete runnable examples are listed in [`examples/README.md`](examples/README.md).
+Use the broader operational templates when you want a starting posture:
 
 - [`examples/personal-cautious.yml`](examples/personal-cautious.yml)
 - [`examples/infra-cautious.yml`](examples/infra-cautious.yml)
 - [`examples/team-baseline.yml`](examples/team-baseline.yml)
+
+Use the focused examples when you want one parser or workflow in isolation:
+
 - [`examples/git-status-semantic.yml`](examples/git-status-semantic.yml)
 - [`examples/git-safe-readonly.yml`](examples/git-safe-readonly.yml)
 - [`examples/aws-identity.yml`](examples/aws-identity.yml)
-- [`examples/docker-readonly.yml`](examples/docker-readonly.yml)
-- [`examples/docker-strict.yml`](examples/docker-strict.yml)
 - [`examples/kubectl-readonly.yml`](examples/kubectl-readonly.yml)
 - [`examples/gws-readonly.yml`](examples/gws-readonly.yml)
 - [`examples/argocd-app-delete-deny.yml`](examples/argocd-app-delete-deny.yml)
@@ -343,6 +345,9 @@ Complete runnable examples:
 - [`examples/helmfile-diff-apply.yml`](examples/helmfile-diff-apply.yml)
 - [`examples/terraform-readonly.yml`](examples/terraform-readonly.yml)
 - [`examples/terraform-strict.yml`](examples/terraform-strict.yml)
+- [`examples/docker-readonly.yml`](examples/docker-readonly.yml)
+- [`examples/docker-strict.yml`](examples/docker-strict.yml)
+- [`examples/docker-compose-safe.yml`](examples/docker-compose-safe.yml)
 
 ### Raw patterns
 
