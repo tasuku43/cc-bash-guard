@@ -297,6 +297,70 @@ func TestEvaluateShellDashCNonDashCPassThrough(t *testing.T) {
 	}
 }
 
+func TestEvaluateRtkProxyAllowsInnerCommand(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Allow: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{Name: "git", Semantic: &SemanticMatchSpec{Verb: "status"}},
+			}},
+		},
+	}, Source{})
+
+	for _, command := range []string{"rtk proxy git status", "rtk proxy -- git status"} {
+		t.Run(command, func(t *testing.T) {
+			got, err := Evaluate(p, command)
+			if err != nil {
+				t.Fatalf("Evaluate() error = %v", err)
+			}
+			if got.Outcome != "allow" {
+				t.Fatalf("Outcome = %q, want allow; decision=%+v", got.Outcome, got)
+			}
+			if got.Command != command {
+				t.Fatalf("Command = %q, want original command", got.Command)
+			}
+		})
+	}
+}
+
+func TestEvaluateRtkProxyWithoutCommandDoesNotSatisfyInnerSemanticAllow(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Allow: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{Name: "git", Semantic: &SemanticMatchSpec{Verb: "status"}},
+			}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "rtk proxy")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome == "allow" {
+		t.Fatalf("Outcome = allow, want not allow; decision=%+v", got)
+	}
+}
+
+func TestEvaluateRtkProxyCompoundInnerCommandFailsClosedWithDenyWins(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Deny: []PermissionRuleSpec{{
+				Patterns: []string{`^rm\s+`},
+			}},
+			Allow: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{Name: "git", Semantic: &SemanticMatchSpec{Verb: "status"}},
+			}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "rtk proxy -- bash -c 'git status && rm -rf /tmp/x'")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "deny" {
+		t.Fatalf("Outcome = %q, want deny; decision=%+v", got.Outcome, got)
+	}
+}
+
 func TestEvaluateShellDashCCompoundDenyWins(t *testing.T) {
 	p := NewPipeline(PipelineSpec{
 		Permission: PermissionSpec{

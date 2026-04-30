@@ -113,6 +113,51 @@ func TestParseCommandPlanShellDashCNonDashCPassThrough(t *testing.T) {
 	}
 }
 
+func TestParseCommandPlanRtkProxyEvaluation(t *testing.T) {
+	tests := []string{
+		"rtk proxy git status",
+		"rtk proxy -- git status",
+	}
+	for _, raw := range tests {
+		t.Run(raw, func(t *testing.T) {
+			plan := Parse(raw)
+			if len(plan.Commands) != 1 {
+				t.Fatalf("len(Commands) = %d, want 1; diagnostics=%+v plan=%+v", len(plan.Commands), plan.Diagnostics, plan)
+			}
+			cmd := plan.Commands[0]
+			if cmd.Program != "git" || cmd.ProgramToken != "git" || cmd.Raw != "git status" {
+				t.Fatalf("command = %+v, want inner git status", cmd)
+			}
+			if cmd.Git == nil || cmd.Git.Verb != "status" {
+				t.Fatalf("Git semantic = %+v, want status", cmd.Git)
+			}
+			if len(plan.Normalized) == 0 || plan.Normalized[len(plan.Normalized)-1].Reason != "rtk_proxy" {
+				t.Fatalf("Normalized = %+v, want rtk_proxy normalization", plan.Normalized)
+			}
+		})
+	}
+}
+
+func TestParseCommandPlanRtkProxyWithoutCommandPassesThrough(t *testing.T) {
+	tests := []string{
+		"rtk proxy",
+		"rtk proxy --",
+		"rtk other -- git status",
+	}
+	for _, raw := range tests {
+		t.Run(raw, func(t *testing.T) {
+			plan := Parse(raw)
+			if len(plan.Commands) != 1 {
+				t.Fatalf("len(Commands) = %d, want 1; plan=%+v", len(plan.Commands), plan)
+			}
+			cmd := plan.Commands[0]
+			if cmd.Program != "rtk" || cmd.Parser != "generic" || cmd.SemanticParser != "" {
+				t.Fatalf("command = %+v, want generic rtk passthrough", cmd)
+			}
+		})
+	}
+}
+
 func TestGitParserBuildsSemanticFields(t *testing.T) {
 	tests := []struct {
 		name string

@@ -701,6 +701,20 @@ func (w *planWalker) visitCall(call *syntax.CallExpr) {
 			})
 			return
 		}
+		if inner, ok := rtkProxyInnerCommand(cmd); ok {
+			innerPlan := ParseWithRegistry(inner, w.registry)
+			w.shape = mergeShellShape(w.shape, innerPlan.Shape)
+			w.commands = append(w.commands, innerPlan.Commands...)
+			w.diagnostics = append(w.diagnostics, innerPlan.Diagnostics...)
+			w.normalized = append(w.normalized, innerPlan.Normalized...)
+			w.normalized = append(w.normalized, NormalizedCommand{
+				OriginalToken: cmd.ProgramToken,
+				CommandName:   cmd.Program,
+				Raw:           cmd.Raw,
+				Reason:        "rtk_proxy",
+			})
+			return
+		}
 		w.commands = append(w.commands, cmd)
 	}
 }
@@ -722,6 +736,20 @@ func isShellCommandName(name string) bool {
 	default:
 		return false
 	}
+}
+
+func rtkProxyInnerCommand(cmd Command) (string, bool) {
+	if cmd.Program != "rtk" || len(cmd.RawWords) < 2 || cmd.RawWords[0] != "proxy" {
+		return "", false
+	}
+	innerWords := cmd.RawWords[1:]
+	if innerWords[0] == "--" {
+		innerWords = innerWords[1:]
+	}
+	if len(innerWords) == 0 {
+		return "", false
+	}
+	return invocation.Join(innerWords), true
 }
 
 func mergeShellShape(a ShellShape, b ShellShape) ShellShape {

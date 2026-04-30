@@ -209,6 +209,8 @@ What it helps with:
 - evaluates command strings using parser-backed command plans, semantic rules,
   raw `patterns`, environment checks, Claude settings permissions, and verified
   policy artifacts
+- unwraps clearly bounded wrapper forms for evaluation, including shell `-c`
+  and `rtk proxy <command...>` with an optional `--` separator
 - merges permission sources as `deny > ask > allow > abstain`, with final
   fallback to `ask` when all sources abstain
 - fails closed when the verified artifact is missing, stale, or incompatible

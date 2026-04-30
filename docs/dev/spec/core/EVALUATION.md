@@ -24,6 +24,8 @@ Evaluation-only normalization includes:
 - shell `-c` wrapper inspection, including `bash`, `sh`, `zsh`, `dash`, `ksh`,
   `/bin/bash`, `env bash`, `command bash`, `exec sh`, `sudo bash`, `nohup`,
   `timeout`, and `busybox sh`
+- `rtk proxy <command...>` wrapper inspection; an optional `--` immediately
+  after `proxy` is treated as a separator
 - basename command matching for absolute command paths
 - command-specific semantic parsing, including AWS `--profile`,
   `--profile=value`, and `AWS_PROFILE`

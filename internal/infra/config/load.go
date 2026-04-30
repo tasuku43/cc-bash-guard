@@ -22,7 +22,7 @@ import (
 const LayerUser = "user"
 const LayerProject = "project"
 
-const EvaluationSemanticsVersion = 3
+const EvaluationSemanticsVersion = 4
 
 type File = policy.PipelineSpec
 
