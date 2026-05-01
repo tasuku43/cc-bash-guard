@@ -361,24 +361,33 @@ Use the focused examples when you want one parser or workflow in isolation:
 
 ### Tolerated redirects
 
-Redirects normally keep allow rules fail-closed. Use
-`command.tolerated_redirects.only` in `permission.allow` when a specific command
-should remain allowed with harmless redirects.
+Redirects normally keep allow rules fail-closed. Use global
+`permission.tolerated_redirects.only` when already allowed commands should
+remain allowed with harmless redirects. This does not allow new commands by
+itself; it only relaxes redirect fail-closed behavior for otherwise matching
+allow rules.
 
 ```yaml
 permission:
+  tolerated_redirects:
+    only:
+      - stdout_to_devnull
+      - stderr_to_devnull
+
   allow:
-    - name: ls with devnull redirects
+    - name: read-only basics
       command:
-        name: ls
-        tolerated_redirects:
-          only:
-            - stdout_to_devnull
-            - stderr_to_devnull
+        name_in:
+          - ls
+          - pwd
 ```
 
 This allows `ls`, `ls > /dev/null`, and `ls 2> /dev/null`. Other redirects,
-including file writes and stream merges such as `2>&1`, still ask.
+including file writes, append redirects, stream merges such as `2>&1`,
+heredocs, dynamic redirect targets, and unknown redirects, still ask. Supported
+values are `stdout_to_devnull`, `stderr_to_devnull`, and `stdin_from_devnull`.
+Use `command.tolerated_redirects.only` in a specific `permission.allow` rule
+when only that command rule should tolerate harmless redirects.
 
 ### Raw patterns
 

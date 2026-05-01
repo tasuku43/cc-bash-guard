@@ -381,9 +381,18 @@ When to use each matcher:
   Use command.shape_flags_any/all/none for parser-derived shell shape flags,
   such as redirect_stream_merge, redirect_to_devnull, redirect_file_write,
   redirect_append_file, redirect_stdin_from_file, and redirect_heredoc.
-  Use command.tolerated_redirects.only in allow rules when a command should
+  Use permission.tolerated_redirects.only when already allowed commands should
   remain allowed with specific harmless redirects, such as stdout_to_devnull
-  or stderr_to_devnull.
+  or stderr_to_devnull. Use command.tolerated_redirects.only in an allow rule
+  when only that command rule should tolerate those redirects.
+  Tolerated redirects do not allow new commands by themselves; they only relax
+  fail-closed redirect handling for otherwise matching allow rules.
+  Supported tolerated redirect values:
+    stdout_to_devnull
+    stderr_to_devnull
+    stdin_from_devnull
+  File writes, append redirects, stream merges such as 2>&1, heredocs,
+  dynamic redirect targets, and unknown redirects still ask.
   Semantic fields live directly under command.semantic; no extra tool-name
   nesting is required because command.name is the discriminator.
   Use patterns for raw regex fallbacks that cannot be expressed with name_in.
@@ -393,6 +402,11 @@ When to use each matcher:
 
 Example:
   permission:
+    tolerated_redirects:
+      only:
+        - stdout_to_devnull
+        - stderr_to_devnull
+
     allow:
       - name: git read-only
         command:
@@ -422,15 +436,6 @@ Example:
             - head
             - tail
             - wc
-
-      - name: ls with devnull redirects
-        command:
-          name: ls
-          tolerated_redirects:
-            only:
-              - stdout_to_devnull
-              - stderr_to_devnull
-
     deny:
       - name: block stream merge redirects
         command:

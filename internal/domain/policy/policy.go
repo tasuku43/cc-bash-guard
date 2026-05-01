@@ -23,9 +23,10 @@ type PipelineSpec struct {
 }
 
 type PermissionSpec struct {
-	Deny  []PermissionRuleSpec `yaml:"deny" json:"deny,omitempty"`
-	Ask   []PermissionRuleSpec `yaml:"ask" json:"ask,omitempty"`
-	Allow []PermissionRuleSpec `yaml:"allow" json:"allow,omitempty"`
+	ToleratedRedirects ToleratedRedirectsSpec `yaml:"tolerated_redirects" json:"tolerated_redirects,omitempty"`
+	Deny               []PermissionRuleSpec   `yaml:"deny" json:"deny,omitempty"`
+	Ask                []PermissionRuleSpec   `yaml:"ask" json:"ask,omitempty"`
+	Allow              []PermissionRuleSpec   `yaml:"allow" json:"allow,omitempty"`
 }
 
 type PermissionRuleSpec struct {
@@ -229,10 +230,11 @@ const (
 )
 
 type preparedPipeline struct {
-	Ready bool
-	Deny  []preparedPermissionRule
-	Ask   []preparedPermissionRule
-	Allow []preparedPermissionRule
+	Ready              bool
+	ToleratedRedirects ToleratedRedirectsSpec
+	Deny               []preparedPermissionRule
+	Ask                []preparedPermissionRule
+	Allow              []preparedPermissionRule
 }
 
 type preparedPermissionRule struct {
@@ -285,7 +287,10 @@ func stampSources(spec PipelineSpec, src Source) PipelineSpec {
 }
 
 func preparePipeline(spec PipelineSpec) preparedPipeline {
-	prepared := preparedPipeline{Ready: true}
+	prepared := preparedPipeline{
+		Ready:              true,
+		ToleratedRedirects: spec.Permission.ToleratedRedirects,
+	}
 	prepared.Deny = preparePermissionRules(spec.Permission.Deny)
 	prepared.Ask = preparePermissionRules(spec.Permission.Ask)
 	prepared.Allow = preparePermissionRules(spec.Permission.Allow)
@@ -388,7 +393,7 @@ func Evaluate(p Pipeline, command string) (Decision, error) {
 		return Decision{Outcome: "ask", Explicit: true, Reason: "rule_match", Command: command, OriginalCommand: command, Message: rule.Message, Trace: trace}, nil
 	}
 	if !safety.Safe {
-		if rule, cmd, ok := firstPreparedStructuredAllowWithToleratedRedirects(prepared.Allow, plan); ok {
+		if rule, cmd, ok := firstPreparedStructuredAllowWithToleratedRedirects(prepared.Allow, prepared.ToleratedRedirects, plan); ok {
 			trace = append(trace, permissionTraceStepForCommand("allow", permissionRuleTypeStructured, rule, cmd))
 			return Decision{Outcome: "allow", Explicit: true, Reason: "rule_match", Command: command, OriginalCommand: command, Message: rule.Message, Trace: trace}, nil
 		}
@@ -576,19 +581,19 @@ func firstPreparedStructuredAllowPermissionMatch(rules []preparedPermissionRule,
 	return PermissionRuleSpec{}, commandpkg.Command{}, false
 }
 
-func firstPreparedStructuredAllowWithToleratedRedirects(rules []preparedPermissionRule, plan commandpkg.CommandPlan) (PermissionRuleSpec, commandpkg.Command, bool) {
+func firstPreparedStructuredAllowWithToleratedRedirects(rules []preparedPermissionRule, global ToleratedRedirectsSpec, plan commandpkg.CommandPlan) (PermissionRuleSpec, commandpkg.Command, bool) {
 	if !planHasOnlyTolerableRedirectUnsafeShape(plan) || len(plan.Commands) != 1 {
 		return PermissionRuleSpec{}, commandpkg.Command{}, false
 	}
 	cmd := plan.Commands[0]
 	for _, rule := range rules {
-		if len(rule.Spec.Command.ToleratedRedirects.Only) == 0 {
-			continue
-		}
 		if !rule.Selector.matchesCommandValue(cmd) {
 			continue
 		}
-		if toleratedRedirectsMatch(rule.Spec.Command.ToleratedRedirects, cmd.ShapeFlags) {
+		if len(rule.Spec.Command.ToleratedRedirects.Only) > 0 && toleratedRedirectsMatch(rule.Spec.Command.ToleratedRedirects, cmd.ShapeFlags) {
+			return rule.Spec, cmd, true
+		}
+		if len(global.Only) > 0 && toleratedRedirectsMatch(global, cmd.ShapeFlags) {
 			return rule.Spec, cmd, true
 		}
 	}
@@ -1529,6 +1534,7 @@ func ValidatePipeline(spec PipelineSpec) []string {
 	if IsZeroPermissionSpec(spec.Permission) {
 		issues = append(issues, "must set at least one permission entry")
 	}
+	issues = append(issues, ValidateToleratedRedirectsSpec("permission.tolerated_redirects", spec.Permission.ToleratedRedirects)...)
 	for i, rule := range spec.Permission.Deny {
 		issues = append(issues, ValidatePermissionRule(fmt.Sprintf("permission.deny[%d]", i), rule, "deny")...)
 	}
@@ -1598,12 +1604,7 @@ func ValidatePermissionCommandSpec(prefix string, command PermissionCommandSpec,
 		if effect != "allow" {
 			issues = append(issues, prefix+".tolerated_redirects is only supported in permission.allow rules")
 		}
-		issues = append(issues, validateNonEmptyStrings(prefix+".tolerated_redirects.only", command.ToleratedRedirects.Only)...)
-		for i, value := range command.ToleratedRedirects.Only {
-			if !isSupportedToleratedRedirect(strings.TrimSpace(value)) {
-				issues = append(issues, fmt.Sprintf("%s.tolerated_redirects.only[%d] is not supported: %s", prefix, i, value))
-			}
-		}
+		issues = append(issues, ValidateToleratedRedirectsSpec(prefix+".tolerated_redirects", command.ToleratedRedirects)...)
 	}
 	if strings.TrimSpace(command.Name) == "" && len(command.NameIn) == 0 {
 		issues = append(issues, prefix+".name or "+prefix+".name_in must be set")
@@ -1629,6 +1630,17 @@ func ValidatePermissionCommandSpec(prefix string, command PermissionCommandSpec,
 			}
 		}
 		issues = append(issues, validateSemanticMatchSpec(name, prefix+".semantic", *command.Semantic)...)
+	}
+	return issues
+}
+
+func ValidateToleratedRedirectsSpec(prefix string, spec ToleratedRedirectsSpec) []string {
+	var issues []string
+	issues = append(issues, validateNonEmptyStrings(prefix+".only", spec.Only)...)
+	for i, value := range spec.Only {
+		if !isSupportedToleratedRedirect(strings.TrimSpace(value)) {
+			issues = append(issues, fmt.Sprintf("%s.only[%d] is not supported: %s", prefix, i, value))
+		}
 	}
 	return issues
 }

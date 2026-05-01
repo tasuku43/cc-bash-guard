@@ -232,9 +232,75 @@ func TestEvaluateAllowToleratedRedirects(t *testing.T) {
 	}
 }
 
+func TestEvaluateGlobalToleratedRedirects(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			ToleratedRedirects: ToleratedRedirectsSpec{
+				Only: []string{"stdout_to_devnull", "stderr_to_devnull"},
+			},
+			Allow: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{Name: "ls"},
+			}},
+		},
+	}, Source{})
+
+	tests := []struct {
+		command string
+		want    string
+	}{
+		{command: "ls", want: "allow"},
+		{command: "ls > /dev/null", want: "allow"},
+		{command: "ls 2> /dev/null", want: "allow"},
+		{command: "ls &> /dev/null", want: "allow"},
+		{command: "ls 3> /dev/null", want: "ask"},
+		{command: "ls > /tmp/out", want: "ask"},
+		{command: "ls 2>&1", want: "ask"},
+		{command: "cat > /dev/null", want: "ask"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			got, err := Evaluate(p, tt.command)
+			if err != nil {
+				t.Fatalf("Evaluate() error = %v", err)
+			}
+			if got.Outcome != tt.want {
+				t.Fatalf("Outcome = %q, want %q; decision=%+v", got.Outcome, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestEvaluateGlobalToleratedRedirectsDoNotOverrideAsk(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			ToleratedRedirects: ToleratedRedirectsSpec{
+				Only: []string{"stdout_to_devnull"},
+			},
+			Ask: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{Name: "ls"},
+			}},
+			Allow: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{Name: "ls"},
+			}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "ls > /dev/null")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "ask" {
+		t.Fatalf("Outcome = %q, want ask; decision=%+v", got.Outcome, got)
+	}
+}
+
 func TestValidateToleratedRedirectsAllowOnly(t *testing.T) {
 	spec := PipelineSpec{
 		Permission: PermissionSpec{
+			ToleratedRedirects: ToleratedRedirectsSpec{
+				Only: []string{"file_write"},
+			},
 			Deny: []PermissionRuleSpec{{
 				Command: PermissionCommandSpec{
 					Name: "ls",
@@ -256,6 +322,7 @@ func TestValidateToleratedRedirectsAllowOnly(t *testing.T) {
 
 	issues := ValidatePipeline(spec)
 	for _, want := range []string{
+		"permission.tolerated_redirects.only[0] is not supported: file_write",
 		"permission.deny[0].command.tolerated_redirects is only supported in permission.allow rules",
 		"permission.allow[0].command.tolerated_redirects.only[0] is not supported: file_write",
 	} {

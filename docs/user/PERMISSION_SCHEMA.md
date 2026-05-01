@@ -111,27 +111,33 @@ permission:
 With this policy, `ls 2>&1` is denied. Redirects still ask unless an allow rule
 explicitly tolerates them.
 
-`tolerated_redirects.only` can be placed under `command` in
-`permission.allow` rules when an otherwise allowed command should remain
-allowed with specific harmless redirects. It is not a redirect matcher for
-`deny` or `ask`; it only relaxes redirect fail-closed behavior for the matching
-allow rule.
+`tolerated_redirects.only` can be placed under `permission` when otherwise
+allowed commands should remain allowed with specific harmless redirects.
+It can also be placed under `command` in `permission.allow` rules when only the
+matching allow rule should tolerate those redirects. It is not a redirect
+matcher for `deny` or `ask`; it only relaxes redirect fail-closed behavior for
+otherwise matching allow rules. It does not allow new commands by itself.
 
 ```yaml
 permission:
+  tolerated_redirects:
+    only:
+      - stdout_to_devnull
+      - stderr_to_devnull
+
   allow:
-    - name: ls with devnull redirects
+    - name: read-only basics
       command:
-        name: ls
-        tolerated_redirects:
-          only:
-            - stdout_to_devnull
-            - stderr_to_devnull
+        name_in:
+          - ls
+          - pwd
 ```
 
 With this policy, `ls`, `ls > /dev/null`, and `ls 2> /dev/null` are allowed.
-`ls > /tmp/out`, dynamic redirect targets, stream merges such as `2>&1`, and
-other redirects still ask unless another rule handles them.
+Supported values are `stdout_to_devnull`, `stderr_to_devnull`, and
+`stdin_from_devnull`. `ls > /tmp/out`, append redirects, dynamic redirect
+targets, stream merges such as `2>&1`, heredocs, and unknown redirects still
+ask unless another rule handles them.
 
 ```yaml
 permission:

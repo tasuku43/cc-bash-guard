@@ -84,23 +84,30 @@ flags include `redirect_stream_merge`, `redirect_to_devnull`,
 `redirect_file_write`, `redirect_append_file`, `redirect_stdin_from_file`, and
 `redirect_heredoc`.
 
-`command.tolerated_redirects.only` is valid only in `permission.allow` rules.
-It is not a match predicate for `deny` or `ask`; it permits an otherwise
-matching allow rule to remain effective when the command has only the listed
-redirect categories. Supported categories are `stdout_to_devnull`,
-`stderr_to_devnull`, and `stdin_from_devnull`. Any unsupported, dynamic, or
-untolerated redirect keeps the fail-closed `ask` behavior.
+`permission.tolerated_redirects.only` permits otherwise matching allow rules to
+remain effective when the command has only the listed redirect categories.
+`command.tolerated_redirects.only` is also valid in `permission.allow` rules
+when only that rule should tolerate redirects. Tolerated redirects are not match
+predicates for `deny` or `ask`, and they do not allow new commands by
+themselves. Supported categories are
+`stdout_to_devnull`, `stderr_to_devnull`, and `stdin_from_devnull`. Any
+unsupported, dynamic, or untolerated redirect keeps the fail-closed `ask`
+behavior, including file writes, append redirects, stream merges, heredocs, and
+unknown redirects.
 
 ```yaml
 permission:
+  tolerated_redirects:
+    only:
+      - stdout_to_devnull
+      - stderr_to_devnull
+
   allow:
-    - name: ls with devnull redirects
+    - name: read-only basics
       command:
-        name: ls
-        tolerated_redirects:
-          only:
-            - stdout_to_devnull
-            - stderr_to_devnull
+        name_in:
+          - ls
+          - pwd
 ```
 
 Top-level `test` asserts final permission decision only:
