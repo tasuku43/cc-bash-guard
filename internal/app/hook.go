@@ -25,6 +25,15 @@ func RunHook(raw []byte, opts HookOptions, env Env) HookResult {
 	_, decision, err := EvaluateForCommand(req.Command, env)
 	if err != nil {
 		if isRecoverableArtifactDrift(err) {
+			if verified := RunVerify(env); verified.Verified {
+				_, decision, err = EvaluateForCommand(req.Command, env)
+				if err == nil {
+					if opts.UseRTK && decision.Outcome != "deny" {
+						decision = applyRTKRewrite(decision)
+					}
+					return HookResult{Payload: hookPayload(decision, req)}
+				}
+			}
 			return HookResult{Payload: hookPayload(artifactDriftDecision(req.Command, err), req)}
 		}
 		return HookResult{Payload: hookErrorPayload(claude.Tool, "invalid_config", err.Error())}

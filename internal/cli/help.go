@@ -248,9 +248,9 @@ Options:
 
 Note:
   You usually do not run this manually. Edit rules and use cc-bash-guard verify
-  while authoring policy instead. The hook asks with a warning when verified
-  artifacts are missing or stale. Run cc-bash-guard verify explicitly after
-  policy or settings changes.
+  while authoring policy instead. When verified artifacts are missing or stale,
+  the hook verifies the current effective config before evaluating it. If that
+  verification fails, the hook asks with a warning.
   Safe single-command cc-bash-guard invocations, including cc-bash-guard verify,
   bypass hook policy to avoid setup deadlocks. Compound commands, redirects, and
   pipelines do not bypass policy.
@@ -265,9 +265,11 @@ Hook protocol:
   hook JSON from successful hook processes; non-zero exits are reserved for
   hook command failures and make Claude Code ignore stdout JSON. Invalid input
   invalid input therefore fails closed by returning permissionDecision: deny.
-  Missing or stale verified artifacts return permissionDecision: ask with a
-  warning systemMessage and additionalContext, so Claude Code can continue
-  through confirmation without trusting stale policy.
+  Missing or stale verified artifacts are regenerated before evaluation when
+  verification passes. If verification fails, the hook returns
+  permissionDecision: ask with a warning systemMessage and additionalContext,
+  so Claude Code can continue through confirmation without trusting stale
+  policy.
 
 RTK integration:
   --rtk is optional. Use it only when you want RTK command rewriting.
@@ -549,10 +551,9 @@ Docs:
 Common checks:
 
 Verified artifact missing or stale:
-  Run cc-bash-guard verify after editing policy. The hook asks with a warning
-  when the verified artifact is missing or stale. Included policy files are part
-  of the verified artifact, so editing any included file also requires
-  cc-bash-guard verify.
+  The hook verifies the current effective config before evaluating it. If
+  verification fails, run cc-bash-guard verify to inspect the diagnostics.
+  Included policy files are part of the verified artifact fingerprint.
 
 Include error:
   include is top-level only and contains local file paths. Relative paths are

@@ -145,15 +145,14 @@ That is a conservative fallback, not an allow.
 writes a verified artifact for hook execution.
 
 At hook time, `cc-bash-guard hook` relies on the verified effective artifact
-rather than directly trusting human-edited YAML. Included file contents are part
-of the artifact fingerprint. Editing any included policy or test file makes the
-artifact stale and requires another `cc-bash-guard verify`.
+rather than directly trusting human-edited YAML. If the artifact is missing or
+stale, the hook verifies the current effective config and regenerates the
+artifact only when the same checks as `cc-bash-guard verify` pass. Included
+file contents are part of the artifact fingerprint.
 
-A missing or stale artifact fails closed as `deny`. Hook-time auto-verification
-is not supported because regenerating artifacts during hook execution weakens
-the review boundary between policy changes and enforcement. Run
-`cc-bash-guard verify` explicitly after policy, include, test, or Claude
-settings changes.
+If hook-time verification fails, the hook returns `ask` with a warning instead
+of evaluating stale policy. Run `cc-bash-guard verify` explicitly when you need
+the full diagnostics after policy, include, test, or Claude settings changes.
 
 ## Pattern-Rule Risks
 

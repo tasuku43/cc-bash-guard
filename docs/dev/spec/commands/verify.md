@@ -94,6 +94,8 @@ promote a smaller set of trust-critical conditions into failures.
 `cc-bash-guard hook` reads only verified artifacts at runtime.
 
 - If a verified artifact exists and matches the current config hash, the hook uses it
-- If the artifact is missing or stale, the hook returns a deny response with `invalid_config`
-- The deny reason should tell the user to run `cc-bash-guard verify`
-- The hook does not regenerate artifacts during hook execution
+- If the artifact is missing or stale, the hook runs verification for the
+  current effective config and writes a new artifact only when verification
+  passes
+- If that verification fails, the hook returns `ask` with a warning and tells
+  the user to run `cc-bash-guard verify` for diagnostics

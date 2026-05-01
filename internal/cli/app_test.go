@@ -293,7 +293,7 @@ func TestRunHookClaudeAllowsSelfCommandWhenArtifactMissing(t *testing.T) {
 	}
 }
 
-func TestRunHookClaudeDoesNotBypassCompoundSelfCommandAndAsksOnMissingArtifact(t *testing.T) {
+func TestRunHookClaudeDoesNotBypassCompoundSelfCommand(t *testing.T) {
 	payload := runClaudeHookMapTest(t, hookEnvSpec{
 		Command:    "cc-bash-guard verify && git status",
 		SkipVerify: true,
@@ -304,14 +304,18 @@ func TestRunHookClaudeDoesNotBypassCompoundSelfCommandAndAsksOnMissingArtifact(t
 		t.Fatalf("permissionDecision = %v, payload=%+v", hookOut["permissionDecision"], payload)
 	}
 	reason, _ := hookOut["permissionDecisionReason"].(string)
-	if !strings.Contains(reason, "verified artifact missing or stale") {
+	if reason != "cc-bash-guard permission evaluated" {
 		t.Fatalf("reason = %q", reason)
 	}
-	if message, _ := payload["systemMessage"].(string); !strings.Contains(message, "continuing with Claude Code confirmation") {
-		t.Fatalf("systemMessage = %q", message)
+	if _, ok := payload["systemMessage"]; ok {
+		t.Fatalf("unexpected systemMessage: %+v", payload)
 	}
-	if context, _ := hookOut["additionalContext"].(string); !strings.Contains(context, "run cc-bash-guard verify") {
-		t.Fatalf("additionalContext = %q", context)
+	if _, ok := hookOut["additionalContext"]; ok {
+		t.Fatalf("unexpected additionalContext: %+v", payload)
+	}
+	diagnostic := payload["cc-bash-guard"].(map[string]any)
+	if traceHasEffect(diagnostic["trace"], "self-command", "allow") {
+		t.Fatalf("compound command unexpectedly bypassed policy: %+v", diagnostic["trace"])
 	}
 }
 
@@ -1242,7 +1246,7 @@ test:
 	}
 }
 
-func TestRunHookClaudeAsksWithWarningWhenArtifactMissingByDefault(t *testing.T) {
+func TestRunHookClaudeImplicitlyVerifiesWhenArtifactMissing(t *testing.T) {
 	home := t.TempDir()
 	writeUserConfig(t, home, `permission:
   allow:
@@ -1277,23 +1281,18 @@ test:
 		t.Fatalf("json error: %v stdout=%s", err, stdout.String())
 	}
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
-	if hookOut["permissionDecision"] != "ask" {
+	if hookOut["permissionDecision"] != "allow" {
 		t.Fatalf("payload = %+v", payload)
 	}
-	reason, _ := hookOut["permissionDecisionReason"].(string)
-	if !strings.Contains(reason, "verified artifact missing or stale") || !strings.Contains(reason, "run cc-bash-guard verify") {
-		t.Fatalf("reason = %q", reason)
+	if _, ok := payload["systemMessage"]; ok {
+		t.Fatalf("unexpected systemMessage: %+v", payload)
 	}
-	message, _ := payload["systemMessage"].(string)
-	if !strings.Contains(message, "verified artifact is missing or stale") || !strings.Contains(message, "continuing with Claude Code confirmation") {
-		t.Fatalf("systemMessage = %q", message)
-	}
-	if context, _ := hookOut["additionalContext"].(string); !strings.Contains(context, "run cc-bash-guard verify") {
-		t.Fatalf("additionalContext = %q", context)
+	if _, ok := hookOut["additionalContext"]; ok {
+		t.Fatalf("unexpected additionalContext: %+v", payload)
 	}
 }
 
-func TestRunHookClaudeAsksWithWarningWhenArtifactStaleByDefault(t *testing.T) {
+func TestRunHookClaudeImplicitlyVerifiesWhenArtifactStale(t *testing.T) {
 	home := t.TempDir()
 	cwd := t.TempDir()
 	writeUserConfig(t, home, `permission:
@@ -1350,6 +1349,46 @@ test:
 		t.Fatalf("json error: %v stdout=%s", err, stdout.String())
 	}
 	hookOut := payload["hookSpecificOutput"].(map[string]any)
+	if hookOut["permissionDecision"] != "allow" {
+		t.Fatalf("payload = %+v", payload)
+	}
+	if _, ok := payload["systemMessage"]; ok {
+		t.Fatalf("unexpected systemMessage: %+v", payload)
+	}
+	if _, ok := hookOut["additionalContext"]; ok {
+		t.Fatalf("unexpected additionalContext: %+v", payload)
+	}
+}
+
+func TestRunHookClaudeAsksWithWarningWhenImplicitVerifyFails(t *testing.T) {
+	home := t.TempDir()
+	writeUserConfig(t, home, `permission:
+  allow:
+    - command:
+
+        name: git
+      test:
+        allow:
+          - "git status"
+test:
+  - in: "git status"
+    decision: allow
+`)
+
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"hook"}, Streams{
+		Stdin:  strings.NewReader(`{"tool_name":"Bash","tool_input":{"command":"git status"}}`),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{Cwd: t.TempDir(), Home: home})
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(stdout.Bytes(), &payload); err != nil {
+		t.Fatalf("json error: %v stdout=%s", err, stdout.String())
+	}
+	hookOut := payload["hookSpecificOutput"].(map[string]any)
 	if hookOut["permissionDecision"] != "ask" {
 		t.Fatalf("payload = %+v", payload)
 	}
@@ -1358,7 +1397,7 @@ test:
 		t.Fatalf("reason = %q", reason)
 	}
 	message, _ := payload["systemMessage"].(string)
-	if !strings.Contains(message, "changed since last verify") || !strings.Contains(message, "continuing with Claude Code confirmation") {
+	if !strings.Contains(message, "verified artifact is missing or stale") || !strings.Contains(message, "continuing with Claude Code confirmation") {
 		t.Fatalf("systemMessage = %q", message)
 	}
 	if context, _ := hookOut["additionalContext"].(string); !strings.Contains(context, "run cc-bash-guard verify") {

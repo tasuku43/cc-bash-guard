@@ -11,8 +11,10 @@ Run:
 cc-bash-guard verify
 ```
 
-The hook asks with a warning when the verified artifact is missing or stale.
-Run `cc-bash-guard verify`, then retry the Claude Code command.
+The hook verifies the current effective config when the verified artifact is
+missing or stale. If verification passes, it regenerates the artifact and
+continues with normal policy evaluation. If verification fails, run
+`cc-bash-guard verify`, then retry the Claude Code command.
 
 The hook prints Claude Code `PreToolUse` JSON with
 `hookSpecificOutput.permissionDecision: "ask"`, a
