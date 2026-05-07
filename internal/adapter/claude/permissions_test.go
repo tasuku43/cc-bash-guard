@@ -89,10 +89,10 @@ func TestCheckCommandClaudeCompatibleCompoundComposition(t *testing.T) {
 			want:  PermissionAllow,
 		},
 		{
-			name:  "pipe all uses pipeline policy",
+			name:  "pipe all is stream merge and asks without explicit policy",
 			cmd:   "git status |& sh",
 			allow: []string{"git status", "sh"},
-			want:  PermissionAllow,
+			want:  PermissionDefault,
 		},
 		{
 			name:  "deny wins in compound command",

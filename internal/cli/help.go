@@ -372,8 +372,12 @@ Rule fields:
   command   Match a command by name/name_in, shape flags, and supported semantic fields.
   env       Match environment variables required or missing for the invocation.
   patterns  Match the raw command string with one or more regular expressions.
+  shape_flags_any/all/none
+            Match parser-derived shell shape flags, with or without command.
 
 Valid combinations:
+  shape_flags_any/all/none
+  shape_flags_any/all/none + env
   command (name)
   command (name) + env
   command (name_in)
@@ -390,9 +394,10 @@ When to use each matcher:
   Use command.semantic for commands listed by cc-bash-guard help semantic.
   The semantic schema is selected by command.name.
   Use command.name_in for a non-semantic OR list of command names.
-  Use command.shape_flags_any/all/none for parser-derived shell shape flags,
-  such as redirect_stream_merge, redirect_to_devnull, redirect_file_write,
-  redirect_append_file, redirect_stdin_from_file, and redirect_heredoc.
+  Use shape_flags_any/all/none, either directly on a permission rule or under
+  command, for parser-derived shell shape flags such as redirect_stream_merge,
+  redirect_to_devnull, redirect_file_write, redirect_append_file,
+  redirect_stdin_from_file, and redirect_heredoc.
   Use permission.tolerated_redirects.only when already allowed commands should
   remain allowed with specific harmless redirects, such as stdout_to_devnull
   or stderr_to_devnull. This global setting applies after includes are merged.
@@ -404,6 +409,8 @@ When to use each matcher:
     stdout_to_devnull
     stderr_to_devnull
     stdin_from_devnull
+  tolerated_redirects.scope defaults to pipeline; add sequence to also cover
+  ;, &&, and || when every segment is otherwise allowed.
   File writes, append redirects, stream merges such as 2>&1, heredocs,
   dynamic redirect targets, and unknown redirects still ask.
   Semantic fields live directly under command.semantic; no extra tool-name
@@ -419,6 +426,9 @@ Example:
       only:
         - stdout_to_devnull
         - stderr_to_devnull
+      scope:
+        - pipeline
+        - sequence
 
     allow:
       - name: git read-only
@@ -451,12 +461,8 @@ Example:
             - wc
     deny:
       - name: block stream merge redirects
-        command:
-          name_in:
-            - ls
-            - git
-          shape_flags_any:
-            - redirect_stream_merge
+        shape_flags_any:
+          - redirect_stream_merge
 
 Docs:
   docs/user/PERMISSION_SCHEMA.md

@@ -631,7 +631,7 @@ func (w *planWalker) visitStmt(stmt *syntax.Stmt) {
 		w.shape.Kind = ShellShapeUnknown
 	}
 	previousStmtFlags := w.stmtFlags
-	w.stmtFlags = redirFlags
+	w.stmtFlags = append(append([]string{}, previousStmtFlags...), redirFlags...)
 	w.visitCommand(stmt.Cmd)
 	w.stmtFlags = previousStmtFlags
 	for _, redir := range stmt.Redirs {
@@ -669,8 +669,18 @@ func (w *planWalker) visitBinary(cmd *syntax.BinaryCmd) {
 		w.shape.HasConditional = true
 	case syntax.OrStmt:
 		w.shape.HasConditional = true
-	case syntax.Pipe, syntax.PipeAll:
+	case syntax.Pipe:
 		w.shape.HasPipeline = true
+	case syntax.PipeAll:
+		w.shape.HasPipeline = true
+		w.shape.HasRedirection = true
+		w.shape.RedirectionFlags = append(w.shape.RedirectionFlags, "redirect_stream_merge")
+		previousStmtFlags := w.stmtFlags
+		w.stmtFlags = append(append([]string{}, previousStmtFlags...), "redirect_stream_merge")
+		w.visitStmt(cmd.X)
+		w.stmtFlags = previousStmtFlags
+		w.visitStmt(cmd.Y)
+		return
 	default:
 		w.shape.Kind = ShellShapeUnknown
 	}

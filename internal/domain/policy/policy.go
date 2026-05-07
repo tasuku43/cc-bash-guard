@@ -30,13 +30,16 @@ type PermissionSpec struct {
 }
 
 type PermissionRuleSpec struct {
-	Name     string                `yaml:"name" json:"name,omitempty"`
-	Command  PermissionCommandSpec `yaml:"command" json:"command,omitempty"`
-	Env      PermissionEnvSpec     `yaml:"env" json:"env,omitempty"`
-	Patterns []string              `yaml:"patterns" json:"patterns,omitempty"`
-	Message  string                `yaml:"message" json:"message,omitempty"`
-	Test     PermissionTestSpec    `yaml:"test" json:"test,omitempty"`
-	Source   Source                `yaml:"-" json:"source,omitempty"`
+	Name           string                `yaml:"name" json:"name,omitempty"`
+	Command        PermissionCommandSpec `yaml:"command" json:"command,omitempty"`
+	Env            PermissionEnvSpec     `yaml:"env" json:"env,omitempty"`
+	Patterns       []string              `yaml:"patterns" json:"patterns,omitempty"`
+	ShapeFlagsAny  []string              `yaml:"shape_flags_any" json:"shape_flags_any,omitempty"`
+	ShapeFlagsAll  []string              `yaml:"shape_flags_all" json:"shape_flags_all,omitempty"`
+	ShapeFlagsNone []string              `yaml:"shape_flags_none" json:"shape_flags_none,omitempty"`
+	Message        string                `yaml:"message" json:"message,omitempty"`
+	Test           PermissionTestSpec    `yaml:"test" json:"test,omitempty"`
+	Source         Source                `yaml:"-" json:"source,omitempty"`
 }
 
 type PermissionCommandSpec struct {
@@ -50,7 +53,8 @@ type PermissionCommandSpec struct {
 }
 
 type ToleratedRedirectsSpec struct {
-	Only []string `yaml:"only" json:"only,omitempty"`
+	Only  []string `yaml:"only" json:"only,omitempty"`
+	Scope []string `yaml:"scope" json:"scope,omitempty"`
 }
 
 type PermissionEnvSpec struct {
@@ -251,10 +255,13 @@ type preparedSelector struct {
 }
 
 type preparedPermissionSelector struct {
-	Command     PermissionCommandSpec
-	Env         PermissionEnvSpec
-	HasPatterns bool
-	Patterns    []*regexp.Regexp
+	Command        PermissionCommandSpec
+	Env            PermissionEnvSpec
+	ShapeFlagsAny  []string
+	ShapeFlagsAll  []string
+	ShapeFlagsNone []string
+	HasPatterns    bool
+	Patterns       []*regexp.Regexp
 }
 
 func NewPipeline(spec PipelineSpec, src Source) Pipeline {
@@ -310,8 +317,11 @@ func preparePermissionRules(rules []PermissionRuleSpec) []preparedPermissionRule
 
 func preparePermissionSelector(rule PermissionRuleSpec) preparedPermissionSelector {
 	selector := preparedPermissionSelector{
-		Command: rule.Command,
-		Env:     rule.Env,
+		Command:        rule.Command,
+		Env:            rule.Env,
+		ShapeFlagsAny:  rule.ShapeFlagsAny,
+		ShapeFlagsAll:  rule.ShapeFlagsAll,
+		ShapeFlagsNone: rule.ShapeFlagsNone,
 	}
 	if len(rule.Patterns) > 0 {
 		selector.HasPatterns = true
@@ -744,14 +754,22 @@ func isAllowableCompositionShape(shape commandpkg.ShellShape) bool {
 func isAllowableCompositionShapeWithToleratedRedirects(plan commandpkg.CommandPlan, decisions []commandDecision, global ToleratedRedirectsSpec) bool {
 	shape := plan.Shape
 	if shape.Kind != commandpkg.ShellShapeCompound ||
-		!shape.HasPipeline ||
 		!shape.HasRedirection ||
-		shape.HasConditional ||
-		shape.HasSequence ||
 		shape.HasBackground ||
 		shape.HasSubshell ||
 		shape.HasCommandSubstitution ||
 		shape.HasProcessSubstitution {
+		return false
+	}
+	if shape.HasPipeline && (shape.HasConditional || shape.HasSequence) {
+		return false
+	}
+	scope := ""
+	if shape.HasPipeline {
+		scope = "pipeline"
+	} else if shape.HasConditional || shape.HasSequence {
+		scope = "sequence"
+	} else {
 		return false
 	}
 	if len(decisions) != len(plan.Commands) {
@@ -762,12 +780,15 @@ func isAllowableCompositionShapeWithToleratedRedirects(plan commandpkg.CommandPl
 			continue
 		}
 		if len(decision.Rule.Command.ToleratedRedirects.Only) > 0 {
-			if !toleratedRedirectsMatch(decision.Rule.Command.ToleratedRedirects, decision.Command.ShapeFlags) {
+			if !toleratedRedirectsScopeIncludes(decision.Rule.Command.ToleratedRedirects, scope) ||
+				!toleratedRedirectsMatch(decision.Rule.Command.ToleratedRedirects, decision.Command.ShapeFlags) {
 				return false
 			}
 			continue
 		}
-		if len(global.Only) == 0 || !toleratedRedirectsMatch(global, decision.Command.ShapeFlags) {
+		if len(global.Only) == 0 ||
+			!toleratedRedirectsScopeIncludes(global, scope) ||
+			!toleratedRedirectsMatch(global, decision.Command.ShapeFlags) {
 			return false
 		}
 	}
@@ -1173,7 +1194,10 @@ func permissionCommandStructuralScopeMatches(command PermissionCommandSpec, env 
 		}
 		return permissionEnvMatches(env, cmd)
 	}
-	if len(command.NameIn) == 0 || !containsTrimmedString(command.NameIn, cmd.Program) {
+	if len(command.NameIn) == 0 {
+		return permissionEnvMatches(env, cmd)
+	}
+	if !containsTrimmedString(command.NameIn, cmd.Program) {
 		return false
 	}
 	return permissionEnvMatches(env, cmd)
@@ -1203,6 +1227,9 @@ func permissionPredicateSummary(rule PermissionRuleSpec) string {
 		if permissionCommandUsesShapeFlags(rule.Command) {
 			groups = append(groups, "shape_flags")
 		}
+	}
+	if permissionRuleUsesShapeFlags(rule) && !containsString(groups, "shape_flags") {
+		groups = append(groups, "shape_flags")
 	}
 	if len(rule.Patterns) > 0 {
 		groups = append(groups, "patterns")
@@ -1354,7 +1381,12 @@ func (s preparedSelector) matchesStructuredCommand(cmd commandpkg.Command) bool 
 }
 
 func (s preparedPermissionSelector) hasCommandSelector() bool {
-	return strings.TrimSpace(s.Command.Name) != "" || len(s.Command.NameIn) > 0
+	return strings.TrimSpace(s.Command.Name) != "" ||
+		len(s.Command.NameIn) > 0 ||
+		permissionCommandUsesShapeFlags(s.Command) ||
+		len(s.ShapeFlagsAny) > 0 ||
+		len(s.ShapeFlagsAll) > 0 ||
+		len(s.ShapeFlagsNone) > 0
 }
 
 func (s preparedPermissionSelector) matchesCommand(command string) (commandpkg.Command, bool) {
@@ -1379,10 +1411,17 @@ func (s preparedPermissionSelector) matchesCommandValue(cmd commandpkg.Command) 
 	if !permissionCommandShapeFlagsMatch(s.Command, cmd.ShapeFlags) {
 		return false
 	}
+	if !permissionShapeFlagsMatch(s.ShapeFlagsAny, s.ShapeFlagsAll, s.ShapeFlagsNone, cmd.ShapeFlags) {
+		return false
+	}
 	if s.Command.Semantic != nil {
 		return permissionSemanticMatches(s.Command.Name, *s.Command.Semantic, cmd)
 	}
 	return true
+}
+
+func permissionRuleUsesShapeFlags(rule PermissionRuleSpec) bool {
+	return len(rule.ShapeFlagsAny) > 0 || len(rule.ShapeFlagsAll) > 0 || len(rule.ShapeFlagsNone) > 0
 }
 
 func permissionCommandUsesShapeFlags(command PermissionCommandSpec) bool {
@@ -1390,15 +1429,19 @@ func permissionCommandUsesShapeFlags(command PermissionCommandSpec) bool {
 }
 
 func permissionCommandShapeFlagsMatch(command PermissionCommandSpec, flags []string) bool {
-	if len(command.ShapeFlagsAny) > 0 && !containsAnyString(flags, command.ShapeFlagsAny) {
+	return permissionShapeFlagsMatch(command.ShapeFlagsAny, command.ShapeFlagsAll, command.ShapeFlagsNone, flags)
+}
+
+func permissionShapeFlagsMatch(any []string, all []string, none []string, flags []string) bool {
+	if len(any) > 0 && !containsAnyString(flags, any) {
 		return false
 	}
-	for _, flag := range command.ShapeFlagsAll {
+	for _, flag := range all {
 		if !containsString(flags, strings.TrimSpace(flag)) {
 			return false
 		}
 	}
-	for _, flag := range command.ShapeFlagsNone {
+	for _, flag := range none {
 		if containsString(flags, strings.TrimSpace(flag)) {
 			return false
 		}
@@ -1417,6 +1460,13 @@ func toleratedRedirectsMatch(spec ToleratedRedirectsSpec, flags []string) bool {
 		}
 	}
 	return true
+}
+
+func toleratedRedirectsScopeIncludes(spec ToleratedRedirectsSpec, scope string) bool {
+	if len(spec.Scope) == 0 {
+		return scope == "pipeline"
+	}
+	return containsTrimmedString(spec.Scope, scope)
 }
 
 func toleratedRedirectFlags(flags []string) []string {
@@ -1607,6 +1657,12 @@ func ValidatePermissionPredicates(prefix string, rule PermissionRuleSpec, effect
 			}
 		}
 	}
+	if permissionRuleUsesShapeFlags(rule) {
+		count++
+		issues = append(issues, validateNonEmptyStrings(prefix+".shape_flags_any", rule.ShapeFlagsAny)...)
+		issues = append(issues, validateNonEmptyStrings(prefix+".shape_flags_all", rule.ShapeFlagsAll)...)
+		issues = append(issues, validateNonEmptyStrings(prefix+".shape_flags_none", rule.ShapeFlagsNone)...)
+	}
 	if !IsZeroPermissionEnvSpec(rule.Env) {
 		issues = append(issues, ValidatePermissionEnvSpec(prefix+".env", rule.Env)...)
 	}
@@ -1615,6 +1671,9 @@ func ValidatePermissionPredicates(prefix string, rule PermissionRuleSpec, effect
 	}
 	if !IsZeroPermissionCommandSpec(rule.Command) && len(rule.Patterns) > 0 {
 		issues = append(issues, prefix+" cannot combine command and patterns")
+	}
+	if permissionRuleUsesShapeFlags(rule) && len(rule.Patterns) > 0 {
+		issues = append(issues, prefix+" cannot combine shape_flags and patterns")
 	}
 	return issues
 }
@@ -1633,13 +1692,13 @@ func ValidatePermissionCommandSpec(prefix string, command PermissionCommandSpec,
 	issues = append(issues, validateNonEmptyStrings(prefix+".shape_flags_any", command.ShapeFlagsAny)...)
 	issues = append(issues, validateNonEmptyStrings(prefix+".shape_flags_all", command.ShapeFlagsAll)...)
 	issues = append(issues, validateNonEmptyStrings(prefix+".shape_flags_none", command.ShapeFlagsNone)...)
-	if len(command.ToleratedRedirects.Only) > 0 {
+	if len(command.ToleratedRedirects.Only) > 0 || len(command.ToleratedRedirects.Scope) > 0 {
 		if effect != "allow" {
 			issues = append(issues, prefix+".tolerated_redirects is only supported in permission.allow rules")
 		}
 		issues = append(issues, ValidateToleratedRedirectsSpec(prefix+".tolerated_redirects", command.ToleratedRedirects)...)
 	}
-	if strings.TrimSpace(command.Name) == "" && len(command.NameIn) == 0 {
+	if strings.TrimSpace(command.Name) == "" && len(command.NameIn) == 0 && !permissionCommandUsesShapeFlags(command) {
 		issues = append(issues, prefix+".name or "+prefix+".name_in must be set")
 	}
 	if command.Semantic != nil {
@@ -1670,12 +1729,30 @@ func ValidatePermissionCommandSpec(prefix string, command PermissionCommandSpec,
 func ValidateToleratedRedirectsSpec(prefix string, spec ToleratedRedirectsSpec) []string {
 	var issues []string
 	issues = append(issues, validateNonEmptyStrings(prefix+".only", spec.Only)...)
+	issues = append(issues, validateNonEmptyStrings(prefix+".scope", spec.Scope)...)
+	if len(spec.Scope) > 0 && len(spec.Only) == 0 {
+		issues = append(issues, prefix+".only must be set when scope is set")
+	}
 	for i, value := range spec.Only {
 		if !isSupportedToleratedRedirect(strings.TrimSpace(value)) {
 			issues = append(issues, fmt.Sprintf("%s.only[%d] is not supported: %s", prefix, i, value))
 		}
 	}
+	for i, value := range spec.Scope {
+		if !isSupportedToleratedRedirectScope(strings.TrimSpace(value)) {
+			issues = append(issues, fmt.Sprintf("%s.scope[%d] is not supported: %s", prefix, i, value))
+		}
+	}
 	return issues
+}
+
+func isSupportedToleratedRedirectScope(value string) bool {
+	switch value {
+	case "pipeline", "sequence":
+		return true
+	default:
+		return false
+	}
 }
 
 func isSupportedToleratedRedirect(value string) bool {
@@ -1877,6 +1954,7 @@ func ErrorStrings(errs []error) []string {
 
 func IsZeroPermissionSpec(spec PermissionSpec) bool {
 	return len(spec.ToleratedRedirects.Only) == 0 &&
+		len(spec.ToleratedRedirects.Scope) == 0 &&
 		len(spec.Deny) == 0 &&
 		len(spec.Ask) == 0 &&
 		len(spec.Allow) == 0
@@ -1889,6 +1967,7 @@ func IsZeroPermissionCommandSpec(command PermissionCommandSpec) bool {
 		len(command.ShapeFlagsAll) == 0 &&
 		len(command.ShapeFlagsNone) == 0 &&
 		len(command.ToleratedRedirects.Only) == 0 &&
+		len(command.ToleratedRedirects.Scope) == 0 &&
 		command.Semantic == nil
 }
 

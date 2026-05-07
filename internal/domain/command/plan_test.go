@@ -432,6 +432,7 @@ func TestParseCommandPlanClassifiesRedirectionShapeFlags(t *testing.T) {
 	}{
 		{name: "stderr stdout stream merge", raw: "ls 2>&1", wantFlag: "redirect_stream_merge", wantUnsafe: true},
 		{name: "stdout stderr stream merge", raw: "git status 1>&2", wantFlag: "redirect_stream_merge", wantUnsafe: true},
+		{name: "pipe all stream merge", raw: "ls |& jq", wantFlag: "redirect_stream_merge", wantUnsafe: true},
 		{name: "file write", raw: "ls > /tmp/out", wantFlag: "redirect_file_write", wantUnsafe: true},
 		{name: "file append", raw: "ls >> /tmp/out", wantFlag: "redirect_append_file", wantUnsafe: true},
 		{name: "devnull sink", raw: "ls > /dev/null", wantFlag: "redirect_to_devnull", wantUnsafe: true},

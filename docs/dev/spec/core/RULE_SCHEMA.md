@@ -72,17 +72,18 @@ permission:
 
 Rules may combine `command + env` or `patterns + env`. `command + patterns` is
 invalid. `command.name` matches one command. `command.name_in` matches a
-non-semantic OR list of command names and may combine with `env` and
+non-semantic OR list of command names and may combine with `env` and nested
 `command.shape_flags_*`; it is mutually exclusive with `command.name` and
 `command.semantic`.
 
-`command.shape_flags_any`, `command.shape_flags_all`, and
-`command.shape_flags_none` match parser-derived shell shape flags on the same
-command segment. Redirection flags are produced from the shell AST after quote
-parsing, so quoted literals do not match as redirects. Implemented redirection
-flags include `redirect_stream_merge`, `redirect_to_devnull`,
-`redirect_file_write`, `redirect_append_file`, `redirect_stdin_from_file`, and
-`redirect_heredoc`.
+`shape_flags_any`, `shape_flags_all`, and `shape_flags_none` may be placed
+directly on a permission rule or under `command`. They match parser-derived
+shell shape flags on the same command segment. Rule-level shape flags are not
+limited to specific command names. Redirection flags are produced from the shell
+AST after quote parsing, so quoted literals do not match as redirects.
+Implemented redirection flags include `redirect_stream_merge`,
+`redirect_to_devnull`, `redirect_file_write`, `redirect_append_file`,
+`redirect_stdin_from_file`, and `redirect_heredoc`.
 
 `permission.tolerated_redirects.only` permits otherwise matching allow rules to
 remain effective when the command has only the listed redirect categories.
@@ -92,10 +93,11 @@ files after config loading merges them.
 when only that rule should tolerate redirects. Tolerated redirects are not match
 predicates for `deny` or `ask`, and they do not allow new commands by
 themselves. Supported categories are
-`stdout_to_devnull`, `stderr_to_devnull`, and `stdin_from_devnull`. Any
-unsupported, dynamic, or untolerated redirect keeps the fail-closed `ask`
-behavior, including file writes, append redirects, stream merges, heredocs, and
-unknown redirects.
+`stdout_to_devnull`, `stderr_to_devnull`, and `stdin_from_devnull`.
+`tolerated_redirects.scope` controls compound relaxation and defaults to
+`pipeline`; `sequence` opts in for `;`, `&&`, and `||`. Any unsupported,
+dynamic, or untolerated redirect keeps the fail-closed `ask` behavior, including
+file writes, append redirects, stream merges, heredocs, and unknown redirects.
 
 ```yaml
 permission:
@@ -103,6 +105,8 @@ permission:
     only:
       - stdout_to_devnull
       - stderr_to_devnull
+    scope:
+      - pipeline
 
   allow:
     - name: read-only basics

@@ -375,6 +375,8 @@ permission:
     only:
       - stdout_to_devnull
       - stderr_to_devnull
+    scope:
+      - pipeline
 
   allow:
     - name: read-only basics
@@ -388,6 +390,8 @@ This allows `ls`, `ls > /dev/null`, and `ls 2> /dev/null`. Other redirects,
 including file writes, append redirects, stream merges such as `2>&1`,
 heredocs, dynamic redirect targets, and unknown redirects, still ask. Supported
 values are `stdout_to_devnull`, `stderr_to_devnull`, and `stdin_from_devnull`.
+`scope` defaults to `pipeline`; add `sequence` to also relax `;`, `&&`, and
+`||` when every segment is otherwise allowed.
 Use `command.tolerated_redirects.only` in a specific `permission.allow` rule
 when only that command rule should tolerate harmless redirects.
 

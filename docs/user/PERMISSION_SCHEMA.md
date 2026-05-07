@@ -79,10 +79,12 @@ The semantic schema is selected by `command.name`. Fields live directly under
 `name` and `name_in` are mutually exclusive. `name_in` cannot be combined with
 `semantic`; it may be combined with `env`.
 
-`shape_flags_any`, `shape_flags_all`, and `shape_flags_none` can be placed under
-`command` to match parser-derived shell shape flags for the same command
-segment. These flags are quote-aware: `grep '2>&1' file` contains a literal
-argument, not a redirection. Redirection flags include:
+`shape_flags_any`, `shape_flags_all`, and `shape_flags_none` can be placed
+directly on a permission rule, or under `command`, to match parser-derived shell
+shape flags for the same command segment. Direct rule-level shape flags are not
+limited to specific command names. These flags are quote-aware:
+`grep '2>&1' file` contains a literal argument, not a redirection. Redirection
+flags include:
 
 - `redirect_stream_merge` for descriptor merges such as `2>&1` and `1>&2`
 - `redirect_to_devnull` for output redirected to `/dev/null`
@@ -95,12 +97,8 @@ argument, not a redirection. Redirection flags include:
 permission:
   deny:
     - name: block stream merge redirects
-      command:
-        name_in:
-          - ls
-          - git
-        shape_flags_any:
-          - redirect_stream_merge
+      shape_flags_any:
+        - redirect_stream_merge
   allow:
     - name: read-only shell basics
       command:
@@ -127,6 +125,8 @@ permission:
     only:
       - stdout_to_devnull
       - stderr_to_devnull
+    scope:
+      - pipeline
 
   allow:
     - name: read-only basics
@@ -139,12 +139,14 @@ permission:
 With this policy, `ls`, `ls > /dev/null`, and `ls 2> /dev/null` are allowed.
 Pipeline forms such as `find . -type f | xargs -r grep foo 2>/dev/null` can
 also allow when every parsed segment matches an allow rule and the only
-redirects are in `tolerated_redirects.only`. Conditional and sequence forms
-such as `cd repo && grep foo . 2>/dev/null` still require confirmation.
+redirects are in `tolerated_redirects.only`. `scope` defaults to `pipeline`;
+add `sequence` to opt in for `;`, `&&`, and `||` forms such as
+`cd repo && grep foo . 2>/dev/null`.
 Supported values are `stdout_to_devnull`, `stderr_to_devnull`, and
-`stdin_from_devnull`. `ls > /tmp/out`, append redirects, dynamic redirect
-targets, stream merges such as `2>&1`, heredocs, and unknown redirects still
-ask unless another rule handles them.
+`stdin_from_devnull`. Supported scope values are `pipeline` and `sequence`.
+`ls > /tmp/out`, append redirects, dynamic redirect targets, stream merges such
+as `2>&1`, heredocs, and unknown redirects still ask unless another rule
+handles them.
 
 ```yaml
 permission:

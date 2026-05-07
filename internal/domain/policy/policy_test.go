@@ -190,6 +190,45 @@ func TestEvaluatePermissionCommandShapeFlagsForRedirectionKinds(t *testing.T) {
 	}
 }
 
+func TestEvaluatePermissionRuleShapeFlagsWithoutCommand(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Deny: []PermissionRuleSpec{{
+				ShapeFlagsAny: []string{"redirect_stream_merge"},
+			}},
+			Allow: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{NameIn: []string{"echo", "git", "grep", "jq", "ls"}},
+			}},
+		},
+	}, Source{})
+
+	tests := []struct {
+		command string
+		want    string
+	}{
+		{command: "ls 2>&1", want: "deny"},
+		{command: "ls 2>&1; echo", want: "deny"},
+		{command: "ls 2>&1 | jq", want: "deny"},
+		{command: "ls |& jq", want: "deny"},
+		{command: "git status 2>&1 && echo done", want: "deny"},
+		{command: "grep '2>&1' file", want: "allow"},
+		{command: "ls", want: "allow"},
+		{command: "ls 2>/dev/null", want: "ask"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			got, err := Evaluate(p, tt.command)
+			if err != nil {
+				t.Fatalf("Evaluate() error = %v", err)
+			}
+			if got.Outcome != tt.want {
+				t.Fatalf("Outcome = %q, want %q; decision=%+v", got.Outcome, tt.want, got)
+			}
+		})
+	}
+}
+
 func TestEvaluateAllowToleratedRedirects(t *testing.T) {
 	p := NewPipeline(PipelineSpec{
 		Permission: PermissionSpec{
@@ -299,13 +338,15 @@ func TestValidateToleratedRedirectsAllowOnly(t *testing.T) {
 	spec := PipelineSpec{
 		Permission: PermissionSpec{
 			ToleratedRedirects: ToleratedRedirectsSpec{
-				Only: []string{"file_write"},
+				Only:  []string{"file_write"},
+				Scope: []string{"background"},
 			},
 			Deny: []PermissionRuleSpec{{
 				Command: PermissionCommandSpec{
 					Name: "ls",
 					ToleratedRedirects: ToleratedRedirectsSpec{
-						Only: []string{"stdout_to_devnull"},
+						Only:  []string{"stdout_to_devnull"},
+						Scope: []string{"sequence"},
 					},
 				},
 			}},
@@ -316,6 +357,13 @@ func TestValidateToleratedRedirectsAllowOnly(t *testing.T) {
 						Only: []string{"file_write"},
 					},
 				},
+			}, {
+				Command: PermissionCommandSpec{
+					Name: "grep",
+					ToleratedRedirects: ToleratedRedirectsSpec{
+						Scope: []string{"sequence"},
+					},
+				},
 			}},
 		},
 	}
@@ -323,8 +371,10 @@ func TestValidateToleratedRedirectsAllowOnly(t *testing.T) {
 	issues := ValidatePipeline(spec)
 	for _, want := range []string{
 		"permission.tolerated_redirects.only[0] is not supported: file_write",
+		"permission.tolerated_redirects.scope[0] is not supported: background",
 		"permission.deny[0].command.tolerated_redirects is only supported in permission.allow rules",
 		"permission.allow[0].command.tolerated_redirects.only[0] is not supported: file_write",
+		"permission.allow[1].command.tolerated_redirects.only must be set when scope is set",
 	} {
 		if !containsSubstring(issues, want) {
 			t.Fatalf("issues=%#v, want %q", issues, want)
@@ -2352,6 +2402,66 @@ func TestEvaluatePipelineCompositionAllowsWhenEveryCommandAllowed(t *testing.T) 
 	}
 	if got.Outcome != "allow" {
 		t.Fatalf("Outcome = %q, want allow; decision=%+v", got.Outcome, got)
+	}
+}
+
+func TestEvaluateToleratedRedirectsScopeSequenceOptIn(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			ToleratedRedirects: ToleratedRedirectsSpec{
+				Only:  []string{"stderr_to_devnull"},
+				Scope: []string{"pipeline", "sequence"},
+			},
+			Deny: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{Name: "rm"},
+			}},
+			Allow: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{NameIn: []string{"cd", "grep", "ls", "pwd"}},
+			}},
+		},
+	}, Source{})
+
+	tests := []struct {
+		command string
+		want    string
+	}{
+		{command: "ls repos/ 2>/dev/null; pwd", want: "allow"},
+		{command: "cd repo && grep foo . 2>/dev/null", want: "allow"},
+		{command: "ls 2>/dev/null; rm -rf /tmp/foo", want: "deny"},
+		{command: "ls 2>/dev/null; some-unknown-cmd", want: "ask"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.command, func(t *testing.T) {
+			got, err := Evaluate(p, tt.command)
+			if err != nil {
+				t.Fatalf("Evaluate() error = %v", err)
+			}
+			if got.Outcome != tt.want {
+				t.Fatalf("Outcome = %q, want %q; decision=%+v", got.Outcome, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestEvaluateToleratedRedirectsScopeDefaultKeepsSequenceAsk(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			ToleratedRedirects: ToleratedRedirectsSpec{
+				Only: []string{"stderr_to_devnull"},
+			},
+			Allow: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{NameIn: []string{"cd", "grep"}},
+			}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "cd repo && grep foo . 2>/dev/null")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "ask" {
+		t.Fatalf("Outcome = %q, want ask; decision=%+v", got.Outcome, got)
 	}
 }
 

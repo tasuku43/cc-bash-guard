@@ -1309,6 +1309,8 @@ permission:
   tolerated_redirects:
     only:
       - stderr_to_devnull
+    scope:
+      - sequence
 test:
   - in: "ls argocd-helmfile/ 2>/dev/null"
     decision: allow
@@ -1320,6 +1322,9 @@ test:
 	}
 	if got := pipeline.Permission.ToleratedRedirects.Only; !reflect.DeepEqual(got, []string{"stderr_to_devnull"}) {
 		t.Fatalf("tolerated redirects = %#v", got)
+	}
+	if got := pipeline.Permission.ToleratedRedirects.Scope; !reflect.DeepEqual(got, []string{"sequence"}) {
+		t.Fatalf("tolerated redirect scope = %#v", got)
 	}
 	assertDecision(t, pipeline, "ls argocd-helmfile/ 2>/dev/null", "allow")
 }
@@ -1341,6 +1346,8 @@ func TestLoadEffectiveWithSourcesAppliesGlobalToleratedRedirectsAcrossSources(t 
   tolerated_redirects:
     only:
       - stderr_to_devnull
+    scope:
+      - sequence
 `)
 
 	loaded := loadEffectiveWithSources([]Source{
@@ -1349,6 +1356,9 @@ func TestLoadEffectiveWithSourcesAppliesGlobalToleratedRedirectsAcrossSources(t 
 	}, LoadFileIfPresent)
 	if len(loaded.Errors) > 0 {
 		t.Fatalf("loadEffectiveWithSources() errors = %v", loaded.Errors)
+	}
+	if got := loaded.Pipeline.Permission.ToleratedRedirects.Scope; !reflect.DeepEqual(got, []string{"sequence"}) {
+		t.Fatalf("tolerated redirect scope = %#v", got)
 	}
 	assertDecision(t, loaded.Pipeline, "ls argocd-helmfile/ 2>/dev/null", "allow")
 }
