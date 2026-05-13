@@ -745,9 +745,6 @@ func isAllowableCompositionShape(shape commandpkg.ShellShape) bool {
 		shape.HasProcessSubstitution {
 		return false
 	}
-	if shape.HasPipeline && (shape.HasConditional || shape.HasSequence) {
-		return false
-	}
 	return shape.HasPipeline || shape.HasConditional || shape.HasSequence
 }
 
@@ -761,15 +758,8 @@ func isAllowableCompositionShapeWithToleratedRedirects(plan commandpkg.CommandPl
 		shape.HasProcessSubstitution {
 		return false
 	}
-	if shape.HasPipeline && (shape.HasConditional || shape.HasSequence) {
-		return false
-	}
-	scope := ""
-	if shape.HasPipeline {
-		scope = "pipeline"
-	} else if shape.HasConditional || shape.HasSequence {
-		scope = "sequence"
-	} else {
+	scopes := requiredToleratedRedirectScopes(shape)
+	if len(scopes) == 0 {
 		return false
 	}
 	if len(decisions) != len(plan.Commands) {
@@ -780,19 +770,30 @@ func isAllowableCompositionShapeWithToleratedRedirects(plan commandpkg.CommandPl
 			continue
 		}
 		if len(decision.Rule.Command.ToleratedRedirects.Only) > 0 {
-			if !toleratedRedirectsScopeIncludes(decision.Rule.Command.ToleratedRedirects, scope) ||
+			if !toleratedRedirectsScopeIncludesAll(decision.Rule.Command.ToleratedRedirects, scopes) ||
 				!toleratedRedirectsMatch(decision.Rule.Command.ToleratedRedirects, decision.Command.ShapeFlags) {
 				return false
 			}
 			continue
 		}
 		if len(global.Only) == 0 ||
-			!toleratedRedirectsScopeIncludes(global, scope) ||
+			!toleratedRedirectsScopeIncludesAll(global, scopes) ||
 			!toleratedRedirectsMatch(global, decision.Command.ShapeFlags) {
 			return false
 		}
 	}
 	return true
+}
+
+func requiredToleratedRedirectScopes(shape commandpkg.ShellShape) []string {
+	scopes := []string{}
+	if shape.HasPipeline {
+		scopes = append(scopes, "pipeline")
+	}
+	if shape.HasConditional || shape.HasSequence {
+		scopes = append(scopes, "sequence")
+	}
+	return scopes
 }
 
 func unsafeCompositionReason(shape commandpkg.ShellShape) string {
@@ -1495,6 +1496,15 @@ func toleratedRedirectsScopeIncludes(spec ToleratedRedirectsSpec, scope string) 
 		return scope == "pipeline"
 	}
 	return containsTrimmedString(spec.Scope, scope)
+}
+
+func toleratedRedirectsScopeIncludesAll(spec ToleratedRedirectsSpec, scopes []string) bool {
+	for _, scope := range scopes {
+		if !toleratedRedirectsScopeIncludes(spec, scope) {
+			return false
+		}
+	}
+	return true
 }
 
 func toleratedRedirectFlags(flags []string) []string {

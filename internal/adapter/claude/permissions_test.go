@@ -89,6 +89,12 @@ func TestCheckCommandClaudeCompatibleCompoundComposition(t *testing.T) {
 			want:  PermissionAllow,
 		},
 		{
+			name:  "conditional and pipeline allows when every command is allowed",
+			cmd:   "git fetch origin && git log | head -30",
+			allow: []string{"git fetch", "git log", "head"},
+			want:  PermissionAllow,
+		},
+		{
 			name:  "pipe all is stream merge and asks without explicit policy",
 			cmd:   "git status |& sh",
 			allow: []string{"git status", "sh"},

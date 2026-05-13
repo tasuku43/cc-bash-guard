@@ -43,12 +43,14 @@ unsafe feature is tolerated redirection. `tolerated_redirects.scope` defaults to
 
 Compound commands are evaluated through `CommandPlan.Commands`. If any inner
 command is denied, the whole command is denied. If all inner commands are
-allowed and the composition shape is allowable, the whole command may allow;
-pipeline plus tolerated redirection is allowable, and sequence plus tolerated
-redirection is allowable only when `scope` includes `sequence`. Other unsafe
-composition shapes fall back to `ask`. When multiple permission sources are
-active, each inner command is evaluated through the merged source result before
-the compound decision is aggregated.
+allowed and the composition shape is allowable, the whole command may allow,
+including mixed chains that combine pipelines with `;`, `&&`, or `||`. Pipeline
+plus tolerated redirection is allowable, and sequence plus tolerated redirection
+is allowable only when `scope` includes `sequence`; mixed pipeline and sequence
+chains with tolerated redirection require both `pipeline` and `sequence` scope.
+Other unsafe composition shapes fall back to `ask`. When multiple permission
+sources are active, each inner command is evaluated through the merged source
+result before the compound decision is aggregated.
 
 Raw regex matching is always `patterns`. `patterns` match the original command
 string and parsed command elements in `CommandPlan.Commands`, including shell

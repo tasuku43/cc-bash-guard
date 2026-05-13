@@ -2074,6 +2074,25 @@ func TestEvaluateCompoundGitCommandsComposeIndividualCommandDecisions(t *testing
 			want:    "allow",
 		},
 		{
+			name:    "allowed conditional with pipeline",
+			command: "git fetch origin && git log | head -30",
+			allow: []PermissionRuleSpec{
+				gitRule("fetch"),
+				gitRule("log"),
+				{Command: PermissionCommandSpec{Name: "head"}},
+			},
+			want: "allow",
+		},
+		{
+			name:    "allowed conditional with grep pipeline",
+			command: "git status && grep foo . | head -3",
+			allow: []PermissionRuleSpec{
+				gitRule("status"),
+				{Command: PermissionCommandSpec{NameIn: []string{"grep", "head"}}},
+			},
+			want: "allow",
+		},
+		{
 			name:    "three command and list allowed",
 			command: "git status && git diff && git log",
 			allow:   []PermissionRuleSpec{gitRule("status"), gitRule("diff"), gitRule("log")},
@@ -2105,6 +2124,36 @@ func TestEvaluateCompoundGitCommandsComposeIndividualCommandDecisions(t *testing
 			}
 			if got.Outcome != tt.want {
 				t.Fatalf("Evaluate(%q).Outcome = %q, want %q; decision=%+v", tt.command, got.Outcome, tt.want, got)
+			}
+		})
+	}
+}
+
+func TestEvaluateMixedCompoundDenyStillWins(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Deny: []PermissionRuleSpec{
+				{Command: PermissionCommandSpec{Name: "git", Semantic: &SemanticMatchSpec{Verb: "push"}}},
+			},
+			Allow: []PermissionRuleSpec{
+				{Command: PermissionCommandSpec{Name: "git", Semantic: &SemanticMatchSpec{VerbIn: []string{"fetch", "status"}}}},
+				{Command: PermissionCommandSpec{NameIn: []string{"head", "tee", "ls"}}},
+			},
+		},
+	}, Source{})
+
+	tests := []string{
+		"git fetch && git push --force | tee /tmp/x",
+		"ls | head; git push --force",
+	}
+	for _, command := range tests {
+		t.Run(command, func(t *testing.T) {
+			got, err := Evaluate(p, command)
+			if err != nil {
+				t.Fatalf("Evaluate() error = %v", err)
+			}
+			if got.Outcome != "deny" {
+				t.Fatalf("Outcome = %q, want deny; decision=%+v", got.Outcome, got)
 			}
 		})
 	}
@@ -2479,7 +2528,7 @@ func TestEvaluateToleratedRedirectsScopeSequenceOptIn(t *testing.T) {
 				Command: PermissionCommandSpec{Name: "rm"},
 			}},
 			Allow: []PermissionRuleSpec{{
-				Command: PermissionCommandSpec{NameIn: []string{"cd", "grep", "ls", "pwd"}},
+				Command: PermissionCommandSpec{NameIn: []string{"cd", "grep", "head", "ls", "pwd"}},
 			}},
 		},
 	}, Source{})
@@ -2490,6 +2539,7 @@ func TestEvaluateToleratedRedirectsScopeSequenceOptIn(t *testing.T) {
 	}{
 		{command: "ls repos/ 2>/dev/null; pwd", want: "allow"},
 		{command: "cd repo && grep foo . 2>/dev/null", want: "allow"},
+		{command: "ls repos/ 2>/dev/null && grep foo . | head -3", want: "allow"},
 		{command: "ls 2>/dev/null; rm -rf /tmp/foo", want: "deny"},
 		{command: "ls 2>/dev/null; some-unknown-cmd", want: "ask"},
 	}
@@ -2520,6 +2570,27 @@ func TestEvaluateToleratedRedirectsScopeDefaultKeepsSequenceAsk(t *testing.T) {
 	}, Source{})
 
 	got, err := Evaluate(p, "cd repo && grep foo . 2>/dev/null")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "ask" {
+		t.Fatalf("Outcome = %q, want ask; decision=%+v", got.Outcome, got)
+	}
+}
+
+func TestEvaluateToleratedRedirectsMixedCompoundRequiresPipelineAndSequenceScope(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			ToleratedRedirects: ToleratedRedirectsSpec{
+				Only: []string{"stderr_to_devnull"},
+			},
+			Allow: []PermissionRuleSpec{{
+				Command: PermissionCommandSpec{NameIn: []string{"grep", "head", "ls"}},
+			}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "ls 2>/dev/null && grep foo . | head -3")
 	if err != nil {
 		t.Fatalf("Evaluate() error = %v", err)
 	}

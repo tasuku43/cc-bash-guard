@@ -276,9 +276,6 @@ func claudeCompositionAllows(shape commandpkg.ShellShape) bool {
 		shape.HasProcessSubstitution {
 		return false
 	}
-	if shape.HasPipeline && (shape.HasConditional || shape.HasSequence) {
-		return false
-	}
 	return shape.HasPipeline || shape.HasConditional || shape.HasSequence
 }
 
