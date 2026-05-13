@@ -59,19 +59,43 @@ func SettingsFingerprintData(path string) []byte {
 	}
 	permissions, ok := root["permissions"].(map[string]any)
 	if !ok {
-		return []byte("{}")
+		return nil
 	}
 	relevant := map[string]any{}
 	for _, key := range []string{"allow", "ask", "deny"} {
-		if value, ok := permissions[key]; ok {
-			relevant[key] = value
+		var bashRules []string
+		for _, item := range permissionItems(permissions[key]) {
+			if strings.HasPrefix(item, "Bash(") {
+				bashRules = append(bashRules, item)
+			}
 		}
+		if len(bashRules) > 0 {
+			relevant[key] = bashRules
+		}
+	}
+	if len(relevant) == 0 {
+		return nil
 	}
 	canonical, err := json.Marshal(map[string]any{"permissions": relevant})
 	if err != nil {
 		return data
 	}
 	return canonical
+}
+
+func permissionItems(value any) []string {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	out := make([]string, 0, len(items))
+	for _, item := range items {
+		s, ok := item.(string)
+		if ok {
+			out = append(out, s)
+		}
+	}
+	return out
 }
 
 func ProjectRoot(cwd string) string {
@@ -210,13 +234,8 @@ func findProjectRoot(cwd string) string {
 }
 
 func appendBashRules(value any, target *[]string) {
-	items, ok := value.([]any)
-	if !ok {
-		return
-	}
-	for _, item := range items {
-		s, ok := item.(string)
-		if !ok || !strings.HasPrefix(s, "Bash(") {
+	for _, s := range permissionItems(value) {
+		if !strings.HasPrefix(s, "Bash(") {
 			continue
 		}
 		*target = append(*target, extractBashPattern(s))

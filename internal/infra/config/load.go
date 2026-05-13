@@ -85,7 +85,7 @@ type EffectiveInputs struct {
 
 func ResolveEffectiveInputs(cwd string, home string, xdgConfigHome string, tool string) EffectiveInputs {
 	configSources := configSources(cwd, home, xdgConfigHome, tool)
-	settingsPaths := existingPaths(settingsPaths(tool, cwd, home))
+	settingsPaths := effectiveSettingsPaths(tool, cwd, home)
 	configFiles := configDependencySources(configSources)
 	fingerprintInputs := EffectiveFingerprintInputs(tool, configFiles, settingsPaths)
 	fingerprint := effectiveFingerprint(fingerprintInputs)
@@ -1199,6 +1199,20 @@ func settingsPaths(tool string, cwd string, home string) []string {
 	return nil
 }
 
+func effectiveSettingsPaths(tool string, cwd string, home string) []string {
+	paths := existingPaths(settingsPaths(tool, cwd, home))
+	if tool != claude.Tool {
+		return paths
+	}
+	filtered := make([]string, 0, len(paths))
+	for _, path := range paths {
+		if claude.SettingsFingerprintData(path) != nil {
+			filtered = append(filtered, path)
+		}
+	}
+	return filtered
+}
+
 func projectRoot(tool string, cwd string) string {
 	if tool == claude.Tool {
 		return claude.ProjectRoot(cwd)
@@ -1245,7 +1259,11 @@ func EffectiveFingerprintInputs(tool string, sources []Source, settingsPaths []s
 	for _, path := range settingsPaths {
 		value := fileContentHash(path)
 		if tool == claude.Tool {
-			value = shortHash(string(claude.SettingsFingerprintData(path)))
+			data := claude.SettingsFingerprintData(path)
+			if data == nil {
+				continue
+			}
+			value = shortHash(string(data))
 		}
 		inputs = append(inputs, FingerprintInput{Kind: "settings", Name: path, Value: value})
 	}

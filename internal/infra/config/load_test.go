@@ -1055,6 +1055,44 @@ test:
 	}
 }
 
+func TestLoadEffectiveForHookToolIgnoresGeneratedClaudeSettingsWithoutBashPermissions(t *testing.T) {
+	home := t.TempDir()
+	cwd := filepath.Join(home, ".claude")
+	cacheHome := t.TempDir()
+	writeFile(t, filepath.Join(home, ".config", "cc-bash-guard", "cc-bash-guard.yml"), `permission:
+  allow:
+    - command:
+        name: git
+        semantic:
+          verb: status
+      test:
+        allow: ["git status"]
+        abstain: ["git diff"]
+test:
+  - in: "git status"
+    decision: allow
+`)
+	if err := os.MkdirAll(cwd, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := VerifyEffectiveToAllCaches(cwd, home, "", cacheHome, "claude", "vtest"); err != nil {
+		t.Fatalf("VerifyEffectiveToAllCaches() error = %v", err)
+	}
+
+	generatedSettingsPath := filepath.Join(cwd, ".claude", "settings.json")
+	writeFile(t, generatedSettingsPath, `{"hooks":{"PreToolUse":[]}}`)
+	loaded := LoadEffectiveForHookTool(cwd, home, "", cacheHome, "claude")
+	if len(loaded.Errors) != 0 {
+		t.Fatalf("generated settings without Bash permissions should not invalidate artifact: %v", loaded.Errors)
+	}
+
+	writeFile(t, generatedSettingsPath, `{"permissions":{"allow":["Bash(git status)"]}}`)
+	loaded = LoadEffectiveForHookTool(cwd, home, "", cacheHome, "claude")
+	if len(loaded.Errors) == 0 {
+		t.Fatal("expected Bash permission settings to invalidate artifact")
+	}
+}
+
 func TestLoadEffectiveForHookToolRejectsChangedIncludedFile(t *testing.T) {
 	home := t.TempDir()
 	cwd := t.TempDir()
