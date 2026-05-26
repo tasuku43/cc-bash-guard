@@ -102,10 +102,14 @@ type SemanticMatchSpec struct {
 	StateValuesSetStringKeysContains []string `yaml:"state_values_set_string_keys_contains" json:"state_values_set_string_keys_contains,omitempty"`
 	Area                             string   `yaml:"area" json:"area,omitempty"`
 	AreaIn                           []string `yaml:"area_in" json:"area_in,omitempty"`
+	SubArea                          string   `yaml:"sub_area" json:"sub_area,omitempty"`
+	SubAreaIn                        []string `yaml:"sub_area_in" json:"sub_area_in,omitempty"`
 	Repo                             string   `yaml:"repo" json:"repo,omitempty"`
 	RepoIn                           []string `yaml:"repo_in" json:"repo_in,omitempty"`
 	Org                              string   `yaml:"org" json:"org,omitempty"`
 	OrgIn                            []string `yaml:"org_in" json:"org_in,omitempty"`
+	Output                           string   `yaml:"output" json:"output,omitempty"`
+	OutputIn                         []string `yaml:"output_in" json:"output_in,omitempty"`
 	EnvName                          string   `yaml:"env" json:"env,omitempty"`
 	EnvNameIn                        []string `yaml:"env_in" json:"env_in,omitempty"`
 	AppName                          string   `yaml:"app_name" json:"app_name,omitempty"`
@@ -173,6 +177,9 @@ type SemanticMatchSpec struct {
 	Job                              string   `yaml:"job" json:"job,omitempty"`
 	Debug                            *bool    `yaml:"debug" json:"debug,omitempty"`
 	ExitStatus                       *bool    `yaml:"exit_status" json:"exit_status,omitempty"`
+	Yes                              *bool    `yaml:"yes" json:"yes,omitempty"`
+	Agent                            *bool    `yaml:"agent" json:"agent,omitempty"`
+	NoAgent                          *bool    `yaml:"no_agent" json:"no_agent,omitempty"`
 	Subcommand                       string   `yaml:"subcommand" json:"subcommand,omitempty"`
 	SubcommandIn                     []string `yaml:"subcommand_in" json:"subcommand_in,omitempty"`
 	GlobalChdir                      string   `yaml:"global_chdir" json:"global_chdir,omitempty"`
@@ -627,6 +634,24 @@ type XargsSemanticSpec struct {
 	FlagsPrefixes     []string
 }
 
+type PupSemanticSpec struct {
+	Area          string
+	AreaIn        []string
+	SubArea       string
+	SubAreaIn     []string
+	Verb          string
+	VerbIn        []string
+	Org           string
+	OrgIn         []string
+	Output        string
+	OutputIn      []string
+	Yes           *bool
+	Agent         *bool
+	NoAgent       *bool
+	FlagsContains []string
+	FlagsPrefixes []string
+}
+
 func (s SemanticMatchSpec) Git() GitSemanticSpec {
 	return GitSemanticSpec{
 		Verb: s.Verb, VerbIn: s.VerbIn, Remote: s.Remote, RemoteIn: s.RemoteIn,
@@ -678,6 +703,15 @@ func (s SemanticMatchSpec) GH() GHSemanticSpec {
 		Fill: s.Fill, Force: s.Force, Admin: s.Admin, Auto: s.Auto, DeleteBranch: s.DeleteBranch,
 		MergeStrategy: s.MergeStrategy, MergeStrategyIn: s.MergeStrategyIn, RunID: s.RunID,
 		Failed: s.Failed, Job: s.Job, Debug: s.Debug, ExitStatus: s.ExitStatus,
+		FlagsContains: s.FlagsContains, FlagsPrefixes: s.FlagsPrefixes,
+	}
+}
+
+func (s SemanticMatchSpec) Pup() PupSemanticSpec {
+	return PupSemanticSpec{
+		Area: s.Area, AreaIn: s.AreaIn, SubArea: s.SubArea, SubAreaIn: s.SubAreaIn,
+		Verb: s.Verb, VerbIn: s.VerbIn, Org: s.Org, OrgIn: s.OrgIn,
+		Output: s.Output, OutputIn: s.OutputIn, Yes: s.Yes, Agent: s.Agent, NoAgent: s.NoAgent,
 		FlagsContains: s.FlagsContains, FlagsPrefixes: s.FlagsPrefixes,
 	}
 }

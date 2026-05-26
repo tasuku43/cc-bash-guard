@@ -168,3 +168,13 @@ func IsZeroXargsSemanticSpec(semantic XargsSemanticSpec) bool {
 		semantic.MaxArgs == "" && semantic.DynamicArgs == nil && semantic.ImplicitEcho == nil &&
 		len(semantic.FlagsContains) == 0 && len(semantic.FlagsPrefixes) == 0
 }
+
+func IsZeroPupSemanticSpec(semantic PupSemanticSpec) bool {
+	return semantic.Area == "" && len(semantic.AreaIn) == 0 &&
+		semantic.SubArea == "" && len(semantic.SubAreaIn) == 0 &&
+		semantic.Verb == "" && len(semantic.VerbIn) == 0 &&
+		semantic.Org == "" && len(semantic.OrgIn) == 0 &&
+		semantic.Output == "" && len(semantic.OutputIn) == 0 &&
+		semantic.Yes == nil && semantic.Agent == nil && semantic.NoAgent == nil &&
+		len(semantic.FlagsContains) == 0 && len(semantic.FlagsPrefixes) == 0
+}

@@ -635,3 +635,8 @@ permission:
       patterns:
         - "^my-tool\\s+preview(\\s|$)"
 ```
+
+
+## pup
+
+`pup` semantic schema is available via `command.semantic`.
