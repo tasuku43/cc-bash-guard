@@ -671,6 +671,90 @@
       ]
     },
     {
+      "command": "pup",
+      "semantic_path": "command.semantic",
+      "description": "Datadog pup CLI area, optional sub-area, verb, and global option semantics.",
+      "parser": "pup",
+      "fields": [
+        {
+          "name": "area",
+          "type": "string",
+          "description": "Top-level pup area, such as logs, monitors, dashboards, metrics, or auth."
+        },
+        {
+          "name": "area_in",
+          "type": "[]string",
+          "description": "Allowed pup areas."
+        },
+        {
+          "name": "sub_area",
+          "type": "string",
+          "description": "Optional second-level pup area for three-level commands like pup logs archives list."
+        },
+        {
+          "name": "sub_area_in",
+          "type": "[]string",
+          "description": "Allowed pup sub-areas."
+        },
+        {
+          "name": "verb",
+          "type": "string",
+          "description": "Leaf pup verb such as list, get, aggregate, create, or delete."
+        },
+        {
+          "name": "verb_in",
+          "type": "[]string",
+          "description": "Allowed pup verbs."
+        },
+        {
+          "name": "org",
+          "type": "string",
+          "description": "Organization selected by --org."
+        },
+        {
+          "name": "org_in",
+          "type": "[]string",
+          "description": "Allowed organizations selected by --org."
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Output format selected by -o or --output."
+        },
+        {
+          "name": "output_in",
+          "type": "[]string",
+          "description": "Allowed output formats."
+        },
+        {
+          "name": "yes",
+          "type": "bool",
+          "description": "True when --yes is present."
+        },
+        {
+          "name": "agent",
+          "type": "bool",
+          "description": "True when --agent is present."
+        },
+        {
+          "name": "no_agent",
+          "type": "bool",
+          "description": "True when --no-agent is present."
+        },
+        {
+          "name": "flags_contains",
+          "type": "[]string",
+          "description": "Parser-recognized pup option tokens that must be present; this does not scan raw argv words."
+        },
+        {
+          "name": "flags_prefixes",
+          "type": "[]string",
+          "description": "Parser-recognized pup option tokens that must start with these prefixes; this depends on the pup parser."
+        }
+      ],
+      "examples": null
+    },
+    {
       "command": "argocd",
       "semantic_path": "command.semantic",
       "description": "Argo CD app operations such as app get, list, diff, sync, rollback, and delete.",
@@ -3498,6 +3582,90 @@
           "yaml": "permission:\n  deny:\n    - command:\n        name: kubectl\n        semantic:\n          verb: delete\n          namespace: prod"
         }
       ]
+    },
+    "pup": {
+      "command": "pup",
+      "semantic_path": "command.semantic",
+      "description": "Datadog pup CLI area, optional sub-area, verb, and global option semantics.",
+      "parser": "pup",
+      "fields": [
+        {
+          "name": "area",
+          "type": "string",
+          "description": "Top-level pup area, such as logs, monitors, dashboards, metrics, or auth."
+        },
+        {
+          "name": "area_in",
+          "type": "[]string",
+          "description": "Allowed pup areas."
+        },
+        {
+          "name": "sub_area",
+          "type": "string",
+          "description": "Optional second-level pup area for three-level commands like pup logs archives list."
+        },
+        {
+          "name": "sub_area_in",
+          "type": "[]string",
+          "description": "Allowed pup sub-areas."
+        },
+        {
+          "name": "verb",
+          "type": "string",
+          "description": "Leaf pup verb such as list, get, aggregate, create, or delete."
+        },
+        {
+          "name": "verb_in",
+          "type": "[]string",
+          "description": "Allowed pup verbs."
+        },
+        {
+          "name": "org",
+          "type": "string",
+          "description": "Organization selected by --org."
+        },
+        {
+          "name": "org_in",
+          "type": "[]string",
+          "description": "Allowed organizations selected by --org."
+        },
+        {
+          "name": "output",
+          "type": "string",
+          "description": "Output format selected by -o or --output."
+        },
+        {
+          "name": "output_in",
+          "type": "[]string",
+          "description": "Allowed output formats."
+        },
+        {
+          "name": "yes",
+          "type": "bool",
+          "description": "True when --yes is present."
+        },
+        {
+          "name": "agent",
+          "type": "bool",
+          "description": "True when --agent is present."
+        },
+        {
+          "name": "no_agent",
+          "type": "bool",
+          "description": "True when --no-agent is present."
+        },
+        {
+          "name": "flags_contains",
+          "type": "[]string",
+          "description": "Parser-recognized pup option tokens that must be present; this does not scan raw argv words."
+        },
+        {
+          "name": "flags_prefixes",
+          "type": "[]string",
+          "description": "Parser-recognized pup option tokens that must start with these prefixes; this depends on the pup parser."
+        }
+      ],
+      "examples": null
     },
     "terraform": {
       "command": "terraform",

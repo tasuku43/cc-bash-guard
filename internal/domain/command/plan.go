@@ -39,6 +39,7 @@ type Command struct {
 	Docker           *DockerSemantic
 	Terraform        *TerraformSemantic
 	Xargs            *XargsSemantic
+	Pup              *PupSemantic
 }
 
 type Option struct {
@@ -332,6 +333,18 @@ type XargsSemantic struct {
 	DynamicArgs   bool
 	ImplicitEcho  bool
 	Flags         []string
+}
+
+type PupSemantic struct {
+	Area    string
+	SubArea string
+	Verb    string
+	Org     string
+	Output  string
+	Yes     bool
+	Agent   bool
+	NoAgent bool
+	Flags   []string
 }
 
 func (c Command) HasOption(name string) bool {

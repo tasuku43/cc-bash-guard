@@ -332,7 +332,8 @@ permission:
 ```
 
 Supported semantic parsers currently include `git`, `aws`, `kubectl`, `gh`,
-`gws`, `helm`, `helmfile`, `argocd`, `terraform`, `docker`, and `xargs`. Treat
+`gws`, `helm`, `helmfile`, `argocd`, `terraform`, `docker`, `xargs`, and
+`pup`. Treat
 `cc-bash-guard help semantic` and
 `cc-bash-guard semantic-schema --format json` as the source of truth for the
 installed binary. See

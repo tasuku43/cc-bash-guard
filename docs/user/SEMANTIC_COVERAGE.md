@@ -1015,3 +1015,10 @@ Notes:
 - `dynamic_args` records that stdin can append runtime arguments. Keep allow rules narrow.
 
 <!-- END GENERATED SEMANTIC FIELD REFERENCE -->
+
+
+### `pup`
+
+Datadog pup CLI semantic coverage.
+
+Fields: `area`, `area_in`, `sub_area`, `sub_area_in`, `verb`, `verb_in`, `org`, `org_in`, `output`, `output_in`, `yes`, `agent`, `no_agent`, `flags_contains`, `flags_prefixes`.
