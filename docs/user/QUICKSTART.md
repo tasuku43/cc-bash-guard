@@ -15,7 +15,7 @@ checks, and writes the artifact used by the hook.
 Install and initialize with a conservative profile:
 
 ```sh
-brew install tasuku43/cc-bash-guard/cc-bash-guard
+brew install tasuku43/tap/cc-bash-guard
 cc-bash-guard init --profile git-safe
 ```
 
@@ -45,7 +45,7 @@ Claude settings permission change.
 Homebrew:
 
 ```sh
-brew install tasuku43/cc-bash-guard/cc-bash-guard
+brew install tasuku43/tap/cc-bash-guard
 cc-bash-guard init --profile git-safe
 cc-bash-guard verify
 ```

@@ -96,7 +96,7 @@ See the complete runnable file at
 Homebrew:
 
 ```sh
-brew install tasuku43/cc-bash-guard/cc-bash-guard
+brew install tasuku43/tap/cc-bash-guard
 cc-bash-guard init --profile git-safe
 ```
 
@@ -599,11 +599,11 @@ For vulnerability reporting and supported-version guidance, see
 ### Homebrew
 
 ```sh
-brew install tasuku43/cc-bash-guard/cc-bash-guard
+brew install tasuku43/tap/cc-bash-guard
 ```
 
 The formula in
-[`tasuku43/homebrew-cc-bash-guard`](https://github.com/tasuku43/homebrew-cc-bash-guard)
+[`tasuku43/homebrew-tap`](https://github.com/tasuku43/homebrew-tap)
 pins SHA-256 checksums against GitHub Releases archives.
 
 ### mise

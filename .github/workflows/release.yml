@@ -79,13 +79,13 @@ jobs:
           app-id: ${{ secrets.HOMEBREW_APP_ID }}
           private-key: ${{ secrets.HOMEBREW_APP_KEY }}
           owner: tasuku43
-          repositories: homebrew-cc-bash-guard
+          repositories: homebrew-tap
 
       - name: Checkout Homebrew tap
         if: steps.channel.outputs.stable == 'true'
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          repository: tasuku43/homebrew-cc-bash-guard
+          repository: tasuku43/homebrew-tap
           token: ${{ steps.homebrew-token.outputs.token }}
           path: homebrew-tap
 

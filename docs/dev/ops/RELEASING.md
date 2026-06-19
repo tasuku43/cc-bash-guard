@@ -11,7 +11,7 @@ The intended pipeline is:
 3. build archives with GoReleaser
 4. publish GitHub Release artifacts and `checksums.txt`
 5. for stable tags without prerelease suffixes, optionally open a PR against
-   `tasuku43/homebrew-cc-bash-guard`
+   `tasuku43/homebrew-tap`
 
 This document describes the designed release process. If no public GitHub
 Release exists yet, treat these steps as the target release policy rather than

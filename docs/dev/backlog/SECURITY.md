@@ -193,26 +193,26 @@ user-authored rules.
   - Depends: SECURITY-011
   - Serial: no
 
-- [x] SECURITY-023: `homebrew-cc-bash-guard` release-pipeline integration
+- [x] SECURITY-023: `homebrew-tap` release-pipeline integration
   - What: define and implement the release-path contract between the main
-    `cc-bash-guard` repository and `tasuku43/homebrew-cc-bash-guard`, so Homebrew formula
+    `cc-bash-guard` repository and `tasuku43/homebrew-tap`, so Homebrew formula
     updates are treated as part of the trusted publish pipeline rather than an
     ad-hoc post-release step.
   - Specs:
     - `.github/workflows/release.yml`
     - `.github/scripts/update-homebrew-formula.sh`
     - `docs/dev/ops/RELEASING.md`
-    - `/Users/tasuku43/work/github.com/tasuku43/homebrew-cc-bash-guard`
+    - `/Users/tasuku43/work/github.com/tasuku43/homebrew-tap`
   - Depends: SECURITY-006
   - Serial: yes
 
-- [x] SECURITY-024: `homebrew-cc-bash-guard` repository protections and CI baseline
+- [x] SECURITY-024: `homebrew-tap` repository protections and CI baseline
   - What: apply the same minimum trust controls to the tap repository, including
     branch protection, required review, and CI validation for formula changes,
     so a compromised or weakly protected tap cannot undercut signed releases and
     checksums from the main repository.
   - Specs:
-    - `/Users/tasuku43/work/github.com/tasuku43/homebrew-cc-bash-guard`
+    - `/Users/tasuku43/work/github.com/tasuku43/homebrew-tap`
     - `docs/dev/ops/RELEASING.md`
   - Depends: SECURITY-023
   - Serial: yes
