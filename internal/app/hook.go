@@ -121,9 +121,13 @@ func artifactDriftDecision(command string, err error) policy.Decision {
 func hookPayload(decision policy.Decision, req hookinput.ExecRequest) map[string]any {
 	switch decision.Outcome {
 	case "allow", "ask":
+		fallback := "cc-bash-guard " + decision.Outcome + ": permission evaluated"
+		if decision.Outcome == "ask" {
+			fallback = "cc-bash-guard ask: confirmation required before running this Bash command"
+		}
 		hookOutput := map[string]any{
 			"hookEventName":            "PreToolUse",
-			"permissionDecisionReason": permissionDecisionReason(decision, "cc-bash-guard permission evaluated"),
+			"permissionDecisionReason": permissionDecisionReason(decision, fallback),
 		}
 		// updatedInput is reserved for hook --rtk after a non-deny decision.
 		// Policy evaluation and the default hook never rewrite commands.
@@ -155,7 +159,7 @@ func hookPayload(decision policy.Decision, req hookinput.ExecRequest) map[string
 		}
 		return payload
 	case "deny":
-		reason := permissionDecisionReason(decision, "cc-bash-guard denied by policy")
+		reason := permissionDecisionReason(decision, "cc-bash-guard deny: blocked by policy; review the matched deny rule before retrying")
 		return map[string]any{
 			"hookSpecificOutput": map[string]any{
 				"hookEventName":            "PreToolUse",
@@ -215,7 +219,7 @@ func hookErrorPayload(tool string, code string, message string) map[string]any {
 		"hookSpecificOutput": map[string]any{
 			"hookEventName":            "PreToolUse",
 			"permissionDecision":       "deny",
-			"permissionDecisionReason": "cc-bash-guard " + tool + " " + code + ": " + message,
+			"permissionDecisionReason": "cc-bash-guard deny: " + tool + " " + code + ": " + message,
 		},
 	}
 }

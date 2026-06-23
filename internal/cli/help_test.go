@@ -32,7 +32,7 @@ func TestRootHelpOrientsNewUsers(t *testing.T) {
 		"permission guard",
 		"evaluates Bash commands against policy",
 		"Start here:",
-		"cc-bash-guard help setup",
+		"cc-bash-guard setup",
 		"Claude Code ready check:",
 		"cc-bash-guard init --profile git-safe",
 		"add the printed PreToolUse Bash snippet to Claude Code settings",
@@ -51,6 +51,8 @@ func TestRootHelpOrientsNewUsers(t *testing.T) {
 		"cc-bash-guard help semantic",
 		"cc-bash-guard help examples",
 		"cc-bash-guard help troubleshoot",
+		"cc-bash-guard help setup",
+		"docs/user/START_HERE.md",
 		"docs/user/QUICKSTART.md",
 		"docs/user/THREAT_MODEL.md",
 	} {
@@ -58,9 +60,32 @@ func TestRootHelpOrientsNewUsers(t *testing.T) {
 			t.Fatalf("root help missing %q:\n%s", want, stdout)
 		}
 	}
-	learnMore := stdout[strings.Index(stdout, "Learn more:"):]
-	if strings.Contains(learnMore, "cc-bash-guard help setup") {
-		t.Fatalf("root help Learn more should not repeat setup entrypoint:\n%s", stdout)
+	startHere := stdout[strings.Index(stdout, "Start here:"):strings.Index(stdout, "Claude Code ready check:")]
+	if strings.Contains(startHere, "cc-bash-guard help setup") {
+		t.Fatalf("root help Start here should use runnable setup command:\n%s", stdout)
+	}
+}
+
+func TestSetupCommandPrintsFirstRunChecklist(t *testing.T) {
+	code, stdout, stderr := runCLIHelpTest("setup")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, stderr)
+	}
+	for _, want := range []string{
+		"cc-bash-guard setup",
+		"Recommended first run:",
+		"cc-bash-guard init --profile git-safe",
+		"cc-bash-guard verify",
+		"cc-bash-guard doctor",
+		"Local paths:",
+		"user config:",
+		"Claude settings:",
+		"cc-bash-guard init --list-profiles --verbose",
+		"docs/user/START_HERE.md",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("setup output missing %q:\n%s", want, stdout)
+		}
 	}
 }
 
@@ -176,6 +201,7 @@ func TestHelpInitGivesNextSteps(t *testing.T) {
 	for _, want := range []string{
 		"cc-bash-guard init --profile git-safe",
 		"cc-bash-guard init --list-profiles",
+		"cc-bash-guard init --list-profiles --verbose",
 		"creates a starter config when the config file is missing",
 		"can create a verified starter profile with policy examples and tests",
 		"leaves an existing config file unchanged",
@@ -396,6 +422,26 @@ func TestSemanticSchemaJSON(t *testing.T) {
 	}
 	if payload.SchemasByCommand["git"].Command != "git" || payload.SchemasByCommand["git"].SemanticPath != "command.semantic" || len(payload.SchemasByCommand["git"].Fields) == 0 {
 		t.Fatalf("schema by command missing git: %+v", payload.SchemasByCommand["git"])
+	}
+}
+
+func TestSemanticSchemaExamplesFlagShowsCompactWorkflow(t *testing.T) {
+	code, stdout, stderr := runCLIHelpTest("semantic-schema", "docker", "--examples")
+	if code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, stderr)
+	}
+	for _, want := range []string{
+		"Semantic schema examples: docker",
+		"Common fields:",
+		"Examples:",
+		"Recommended loop:",
+		"cc-bash-guard explain \"<command>\"",
+		"cc-bash-guard suggest \"<command>\"",
+		"cc-bash-guard verify",
+	} {
+		if !strings.Contains(stdout, want) {
+			t.Fatalf("semantic examples output missing %q:\n%s", want, stdout)
+		}
 	}
 }
 

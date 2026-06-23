@@ -18,6 +18,7 @@ modifying existing user configuration.
 - create a starter user-wide config when one does not exist
 - create a built-in profile config when `--profile <name>` is specified
 - list built-in profiles with `--list-profiles`
+- show profile comparison details with `--list-profiles --verbose`
 - explain where the user-wide config lives
 - detect compatible Claude Code settings files
 - print the hook snippet needed to register `cc-bash-guard hook`
@@ -31,6 +32,10 @@ Supported profiles:
 - `argocd`
 
 `init` without `--profile` preserves the legacy starter config.
+
+`--list-profiles --verbose` is an orientation view. It should compare each
+profile by summary, best-fit use case, posture, and the next `init --profile`
+command. It must not create or overwrite config.
 
 ## Starter Config Goal
 

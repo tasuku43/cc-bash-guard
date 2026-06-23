@@ -16,7 +16,7 @@ cc-bash-guard is a security-first Bash permission guard for Claude Code hooks.
 It evaluates Bash commands against policy and returns allow, ask, or deny.
 
 Start here:
-  cc-bash-guard help setup
+  cc-bash-guard setup
 
 Claude Code ready check:
   cc-bash-guard init --profile git-safe
@@ -32,6 +32,7 @@ Usage:
   cc-bash-guard <command> [flags]
 
 Commands:
+  setup    show the first-run checklist and local paths
   init     create the user config and print the Claude Code hook snippet
   explain  diagnose why a command would be allowed, asked, or denied
   suggest  suggest a pasteable starter permission rule for a command
@@ -53,6 +54,7 @@ Policy model:
   ask, or deny. The default hook does not emit updatedInput.
 
 Learn more:
+  cc-bash-guard help setup
   cc-bash-guard help init
   cc-bash-guard help explain
   cc-bash-guard help suggest
@@ -64,6 +66,7 @@ Learn more:
   cc-bash-guard help troubleshoot
 
 Examples:
+  cc-bash-guard setup
   cc-bash-guard init
   cc-bash-guard verify
   cc-bash-guard explain "git status"
@@ -72,6 +75,7 @@ Examples:
   cc-bash-guard hook
 
 Docs:
+  docs/user/START_HERE.md
   docs/user/QUICKSTART.md
   docs/user/THREAT_MODEL.md
 `)
@@ -181,6 +185,7 @@ Usage:
   cc-bash-guard init --profile aws-k8s
   cc-bash-guard init --profile argocd
   cc-bash-guard init --list-profiles
+  cc-bash-guard init --list-profiles --verbose
 
 What it does:
   - creates a starter config when the config file is missing
@@ -355,11 +360,15 @@ Examples:
 Print supported command-specific semantic match schemas.
 
 Usage:
-  cc-bash-guard semantic-schema [command] [--format json]
+  cc-bash-guard semantic-schema [command] [--format json] [--examples]
 
 Examples:
   cc-bash-guard semantic-schema --format json
   cc-bash-guard semantic-schema git --format json
+  cc-bash-guard semantic-schema docker --examples
+
+Notes:
+  --examples prints a compact field and example view for one command.
 `)
 	case "permission":
 		fmt.Fprint(w, `cc-bash-guard help permission

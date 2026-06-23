@@ -33,6 +33,26 @@ it as a Claude Code Bash hook.
 - let coding agents propose or maintain policy rules safely with `suggest`,
   `verify`, and `explain`
 
+## Find your path
+
+If you are new, run:
+
+```sh
+cc-bash-guard setup
+```
+
+Then choose the path that matches what you are doing:
+
+| Goal | Start with |
+| --- | --- |
+| First local setup | `cc-bash-guard init --profile git-safe` |
+| Choose a starter posture | `cc-bash-guard init --list-profiles --verbose` |
+| Check installation health | `cc-bash-guard doctor` |
+| Check trust-critical policy state | `cc-bash-guard verify` |
+| Understand one command | `cc-bash-guard explain "git status"` |
+| Draft a rule | `cc-bash-guard suggest "git status"` |
+| Inspect semantic support | `cc-bash-guard semantic-schema docker --examples` |
+
 ## 30-second example
 
 Start with one semantic rule that allows `git status`:
@@ -112,6 +132,7 @@ snippet for your environment. Add that printed snippet to Claude Code settings,
 then run:
 
 ```sh
+cc-bash-guard setup
 cc-bash-guard verify
 cc-bash-guard explain "git status"
 ```
@@ -127,8 +148,8 @@ The minimal flow is:
 4. Run `cc-bash-guard verify`.
 5. Test one command with `cc-bash-guard explain "git status"`.
 
-Use `cc-bash-guard init --list-profiles` to see starter profiles such as
-`balanced`, `strict`, `git-safe`, `aws-k8s`, and `argocd`.
+Use `cc-bash-guard init --list-profiles --verbose` to compare starter profiles
+such as `balanced`, `strict`, `git-safe`, `aws-k8s`, and `argocd`.
 
 For practical operating postures, see
 [`docs/user/OPERATIONAL_TEMPLATES.md`](docs/user/OPERATIONAL_TEMPLATES.md).
@@ -519,15 +540,17 @@ cc-bash-guard explain --format json "git status"
 cc-bash-guard explain --why-not allow "git status > /tmp/out"
 ```
 
-The output shows the parsed command, semantic fields, matched rule, rule source
-file, Claude settings contribution, and final merged decision. It uses the same
-verified artifact as the hook. See [`docs/user/EXPLAIN.md`](docs/user/EXPLAIN.md)
-for how to read the output.
+Human output starts with the final decision and next action, then shows the
+parsed command, semantic fields, matched rule, rule source file, Claude settings
+contribution, and final merged decision. It uses the same verified artifact as
+the hook. See [`docs/user/EXPLAIN.md`](docs/user/EXPLAIN.md) for how to read
+the output.
 
 Use `--why-not allow|ask|deny` when you need a direct, agent-friendly diagnosis
 for a near miss. The output includes the requested outcome, actual policy,
 Claude settings, final outcomes, parsed shape, semantic fields, concise reasons,
-and safe suggestions.
+and safe suggestions such as an exact `cc-bash-guard suggest --decision ...`
+command.
 
 Use `suggest` to generate a pasteable starter rule without executing the command
 or mutating config:
@@ -704,13 +727,16 @@ Visible boundaries:
 Useful commands:
 
 ```sh
+cc-bash-guard setup
 cc-bash-guard init
 cc-bash-guard init --profile git-safe
 cc-bash-guard init --list-profiles
+cc-bash-guard init --list-profiles --verbose
 cc-bash-guard verify
 cc-bash-guard explain "git status"
 cc-bash-guard suggest "git status"
 cc-bash-guard doctor
+cc-bash-guard semantic-schema docker --examples
 cc-bash-guard version
 cc-bash-guard help setup
 cc-bash-guard help permission
@@ -724,8 +750,8 @@ cc-bash-guard help troubleshoot
 
 ## User documentation links
 
-- [`docs/user/QUICKSTART.md`](docs/user/QUICKSTART.md)
 - [`docs/user/START_HERE.md`](docs/user/START_HERE.md)
+- [`docs/user/QUICKSTART.md`](docs/user/QUICKSTART.md)
 - [`docs/user/OPERATIONAL_TEMPLATES.md`](docs/user/OPERATIONAL_TEMPLATES.md)
 - [`docs/user/AGENTIC_POLICY_AUTHORING.md`](docs/user/AGENTIC_POLICY_AUTHORING.md)
 - [`docs/user/EXPLAIN.md`](docs/user/EXPLAIN.md)

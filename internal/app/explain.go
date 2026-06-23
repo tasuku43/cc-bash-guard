@@ -533,7 +533,7 @@ func addSuggestions(analysis *ExplainWhyNotResult, result ExplainResult, request
 		addSuggestion(analysis, "review_ask_rule", "Review the matched ask rule; explicit ask is intentionally not overridden by allow")
 	}
 	if hasReason(*analysis, "no_policy_match") {
-		addSuggestion(analysis, "add_policy_rule", "Use cc-bash-guard suggest to generate a starter rule")
+		addSuggestion(analysis, "add_policy_rule", "Use cc-bash-guard suggest: cc-bash-guard suggest --decision "+requested+" "+shellQuote(result.Command))
 	}
 	if hasReason(*analysis, "semantic_mismatch") {
 		addSuggestion(analysis, "compare_semantic_fields", "Compare the parsed semantic fields with command.semantic in the intended rule")
@@ -542,7 +542,7 @@ func addSuggestions(analysis *ExplainWhyNotResult, result ExplainResult, request
 		addSuggestion(analysis, "avoid_unsafe_shell_shape", "Avoid redirects, subshells, background execution, and other unsafe shell shapes for automatic allow")
 	}
 	if requested == "deny" && result.Final.Outcome != "deny" {
-		addSuggestion(analysis, "add_deny_rule", "Add a permission.deny rule for this command if it must be blocked")
+		addSuggestion(analysis, "add_deny_rule", "Use cc-bash-guard suggest: cc-bash-guard suggest --decision deny "+shellQuote(result.Command))
 	}
 }
 
@@ -569,6 +569,13 @@ func hasReason(analysis ExplainWhyNotResult, kind string) bool {
 		}
 	}
 	return false
+}
+
+func shellQuote(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "''"
+	}
+	return "'" + strings.ReplaceAll(s, "'", "'\\''") + "'"
 }
 
 func nonEmptyString(values ...string) string {
