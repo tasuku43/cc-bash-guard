@@ -304,7 +304,7 @@ func TestRunHookClaudeDoesNotBypassCompoundSelfCommand(t *testing.T) {
 		t.Fatalf("permissionDecision = %v, payload=%+v", hookOut["permissionDecision"], payload)
 	}
 	reason, _ := hookOut["permissionDecisionReason"].(string)
-	if reason != "cc-bash-guard permission evaluated" {
+	if reason != "cc-bash-guard ask: confirmation required before running this Bash command" {
 		t.Fatalf("reason = %q", reason)
 	}
 	if _, ok := payload["systemMessage"]; ok {
@@ -1452,7 +1452,9 @@ test:
 		t.Fatalf("code=%d stderr=%s stdout=%s", code, stderr, stdout)
 	}
 	for _, want := range []string{
+		"Final:",
 		"outcome: allow",
+		"next: no prompt expected from Claude Code",
 		"name: git status",
 		"parser: git",
 		"verb: status",
@@ -1679,6 +1681,7 @@ test:
 		"no_policy_match",
 		"fallback_ask",
 		"Use cc-bash-guard suggest",
+		"cc-bash-guard suggest --decision allow 'unknown-tool foo'",
 	} {
 		if !strings.Contains(stdout, want) {
 			t.Fatalf("why-not output missing %q:\n%s", want, stdout)
@@ -2500,6 +2503,23 @@ func TestVerifyStatus(t *testing.T) {
 	}
 }
 
+func TestWriteDoctorCheckIncludesNextActionForWarnings(t *testing.T) {
+	var out bytes.Buffer
+	writeDoctorCheck(&out, doctoring.Check{
+		ID:      "artifact.evaluation-semantics",
+		Status:  doctoring.StatusWarn,
+		Message: "verified artifact not found",
+	})
+	for _, want := range []string{
+		"[WARN] artifact.evaluation-semantics: verified artifact not found",
+		"next: run cc-bash-guard verify",
+	} {
+		if !strings.Contains(out.String(), want) {
+			t.Fatalf("doctor check output missing %q:\n%s", want, out.String())
+		}
+	}
+}
+
 func TestRunVerifyHumanSuccessSummaryNoColorForBuffer(t *testing.T) {
 	home := t.TempDir()
 	writeUserConfig(t, home, `permission:
@@ -2915,6 +2935,7 @@ test:
 	for _, want := range []string{
 		"FAIL verify",
 		"E2E test failed",
+		"fix target:",
 		".cc-bash-guard/cc-bash-guard.yaml test[0]",
 		"input: git push --force origin main",
 		"expected: ask",
@@ -3566,6 +3587,33 @@ func TestRunInitListProfiles(t *testing.T) {
 	}
 	out := stdout.String()
 	for _, want := range []string{"balanced", "strict", "git-safe", "aws-k8s", "argocd"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("stdout missing %q:\n%s", want, out)
+		}
+	}
+	if !strings.Contains(out, "More detail: cc-bash-guard init --list-profiles --verbose") {
+		t.Fatalf("stdout missing verbose hint:\n%s", out)
+	}
+}
+
+func TestRunInitListProfilesVerbose(t *testing.T) {
+	var stdout, stderr bytes.Buffer
+	code := Run([]string{"init", "--list-profiles", "--verbose"}, Streams{
+		Stdin:  strings.NewReader(""),
+		Stdout: &stdout,
+		Stderr: &stderr,
+	}, Env{Cwd: t.TempDir(), Home: t.TempDir()})
+	if code != 0 {
+		t.Fatalf("code = %d stderr=%s", code, stderr.String())
+	}
+	out := stdout.String()
+	for _, want := range []string{
+		"Built-in profiles:",
+		"git-safe",
+		"best for:",
+		"posture:",
+		"next: cc-bash-guard init --profile git-safe",
+	} {
 		if !strings.Contains(out, want) {
 			t.Fatalf("stdout missing %q:\n%s", want, out)
 		}

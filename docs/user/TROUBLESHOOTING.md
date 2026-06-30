@@ -42,6 +42,7 @@ PASS verify
 On failure, `verify` prints each failure with source-aware context. For an E2E
 test failure, check:
 
+- `fix target`: the most likely YAML location to edit
 - `source`: YAML file and `test[index]`
 - `input`: command under test
 - `expected` and `actual`: final permission decisions
@@ -77,6 +78,13 @@ To collect every failure instead of stopping after the first E2E failure, run:
 ```sh
 cc-bash-guard verify --all-failures
 ```
+
+## Reading Doctor Output
+
+`doctor` reports setup health. Warnings and failures include a `next:` line for
+the most likely recovery step, such as running `cc-bash-guard verify`, adding
+the printed Claude Code hook snippet, or replacing broad allow rules with
+semantic rules plus tests.
 
 ## Include Errors
 

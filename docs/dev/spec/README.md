@@ -61,6 +61,8 @@ The current `cc-bash-guard` contract prioritizes:
 | `commands/doctor.md` | proposed | setup and pipeline health diagnostics |
 | `commands/hook.md` | proposed | Claude Code hook entrypoint and hook-specific output contract |
 | `commands/init.md` | proposed | setup and starter config behavior |
+| `commands/setup.md` | implemented | non-mutating first-run checklist and documentation orientation |
+| `commands/semantic-schema.md` | implemented | semantic schema registry output for humans and tooling |
 | `commands/verify.md` | proposed | trust-oriented local verification |
 | `commands/version.md` | proposed | binary build metadata and provenance visibility |
 

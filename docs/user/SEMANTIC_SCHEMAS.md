@@ -24,14 +24,17 @@ cc-bash-guard help semantic
 cc-bash-guard help semantic git
 cc-bash-guard semantic-schema --format json
 cc-bash-guard semantic-schema git --format json
+cc-bash-guard semantic-schema docker --examples
 ```
 
 `cc-bash-guard help semantic` lists commands from the semantic schema registry.
 `cc-bash-guard help semantic <command>` shows fields, types, descriptions,
 boolean notes, and examples for one command. `semantic-schema --format json`
-prints the same registry as machine-readable JSON. The installed binary's
-schema output is authoritative; repository docs are explanatory and may lag a
-newer or older binary.
+prints the same registry as machine-readable JSON. `semantic-schema <command>
+--examples` prints a compact human view with common fields, examples, and the
+recommended explain/suggest/verify loop. The installed binary's schema output
+is authoritative; repository docs are explanatory and may lag a newer or older
+binary.
 
 For a user-facing matrix of supported commands, semantic fields, examples,
 recommended policy style, and known limitations, see
