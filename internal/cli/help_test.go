@@ -269,6 +269,7 @@ func TestHelpConfigSeparatesRuleAndTopLevelTests(t *testing.T) {
 		"test: end-to-end expect cases",
 		"rule-local test checks whether one rule matches or passes examples",
 		"top-level test checks final allow / ask / deny decisions",
+		"time and shell -c wrappers are inspected as inner commands",
 		"Permission source merge rule:",
 		"Decision order:",
 	} {

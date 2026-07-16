@@ -239,8 +239,8 @@ What it helps with:
 - evaluates command strings using parser-backed command plans, semantic rules,
   raw `patterns`, environment checks, Claude settings permissions, and verified
   policy artifacts
-- unwraps clearly bounded wrapper forms for evaluation, including shell `-c`
-  and `rtk proxy <command...>` with an optional `--` separator, and exposes
+- unwraps clearly bounded wrapper forms for evaluation, including `time`, shell
+  `-c`, and `rtk proxy <command...>` with an optional `--` separator, and exposes
   `xargs` inner command metadata through explicit `xargs` semantic rules
 - merges permission sources as `deny > ask > allow > abstain`, with final
   fallback to `ask` when all sources abstain

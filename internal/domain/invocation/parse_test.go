@@ -15,6 +15,50 @@ func TestParseUnwrapsCommonWrappers(t *testing.T) {
 	}
 }
 
+func TestParseUnwrapsTimeWrapper(t *testing.T) {
+	tests := []string{
+		"time git status",
+		"/usr/bin/time git status",
+		"time -p git status",
+		"time -pv git status",
+		"time -f %E git status",
+		"time --format=%E git status",
+		"time -o /tmp/time.txt git status",
+		"time --output=/tmp/time.txt git status",
+		"time -- git status",
+	}
+
+	for _, command := range tests {
+		t.Run(command, func(t *testing.T) {
+			parsed := Parse(command)
+			if parsed.Command != "git" {
+				t.Fatalf("Command = %q, want git; parsed=%+v", parsed.Command, parsed)
+			}
+			if !reflect.DeepEqual(parsed.Args, []string{"status"}) {
+				t.Fatalf("Args = %#v, want [status]", parsed.Args)
+			}
+		})
+	}
+}
+
+func TestParseKeepsUnsupportedOrIncompleteTimeWrapper(t *testing.T) {
+	tests := []string{
+		"time --unknown git status",
+		"time --format",
+		"time -o",
+		"time --help",
+	}
+
+	for _, command := range tests {
+		t.Run(command, func(t *testing.T) {
+			parsed := Parse(command)
+			if parsed.Command != "time" {
+				t.Fatalf("Command = %q, want time; parsed=%+v", parsed.Command, parsed)
+			}
+		})
+	}
+}
+
 func TestTokensPreserveQuotedPayload(t *testing.T) {
 	got := Tokens("bash -c 'git status'")
 	if len(got) != 3 || got[2] != "git status" {
@@ -97,6 +141,7 @@ func TestClassify(t *testing.T) {
 		{name: "env prefixed", command: "AWS_PROFILE=dev git status", want: CommandClassEnvPrefixedSimple},
 		{name: "wrapper prefixed env", command: "env AWS_PROFILE=dev git status", want: CommandClassWrapperPrefixed},
 		{name: "wrapper prefixed sudo", command: "sudo -u root git status", want: CommandClassWrapperPrefixed},
+		{name: "wrapper prefixed time", command: "time git status", want: CommandClassWrapperPrefixed},
 		{name: "compound and", command: "git status && rm -rf /tmp/x", want: CommandClassUnsafeCompound},
 		{name: "compound semicolon", command: "git status; rm -rf /tmp/x", want: CommandClassUnsafeCompound},
 		{name: "pipeline", command: "git status | sh", want: CommandClassUnsafeCompound},

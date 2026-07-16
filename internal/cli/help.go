@@ -669,8 +669,8 @@ Tests:
 
 Top-level rewrite is no longer supported. cc-bash-guard never changes the
 command string it evaluates or returns to Claude. Parser-backed normalization is
-evaluation-only: shell -c wrappers are inspected as inner commands, absolute
-paths match by basename, and AWS profile flags are parsed semantically.
+evaluation-only: time and shell -c wrappers are inspected as inner commands,
+absolute paths match by basename, and AWS profile flags are parsed semantically.
 
 Permission source merge rule:
   cc-bash-guard policy and Claude settings.json permissions are both permission

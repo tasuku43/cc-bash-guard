@@ -671,6 +671,12 @@ func (w *planWalker) visitCommand(cmd syntax.Command) {
 		for _, stmt := range x.Stmts {
 			w.visitStmt(stmt)
 		}
+	case *syntax.TimeClause:
+		if x.Stmt == nil {
+			w.shape.Kind = ShellShapeUnknown
+			return
+		}
+		w.visitStmt(x.Stmt)
 	default:
 		w.shape.Kind = ShellShapeUnknown
 	}
