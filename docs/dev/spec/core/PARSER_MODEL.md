@@ -85,7 +85,10 @@ the helmfile verb and static CLI targets such as environment, state files,
 namespace, kube context, selectors, and safety flags without reading
 `helmfile.yaml`. `ArgoCDParser` identifies Argo CD app action paths and static
 CLI targets such as app name, project, and revision without contacting the
-Argo CD API.
+Argo CD API. `TWGParser` identifies help-backed Teamwork Graph action paths,
+normalizes documented read shorthands, and classifies known actions as
+read-only or mutating without contacting Atlassian services. Unknown action
+paths and authentication/control-plane commands remain unclassified.
 
 Adding a new parser must not change the meaning of existing parser output or
 existing raw-word matchers. It may only improve semantic precision for its own

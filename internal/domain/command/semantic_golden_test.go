@@ -25,6 +25,7 @@ func TestSemanticParserGoldenOutputs(t *testing.T) {
 		"argocd app rollback my-app 42 --project prod",
 		"terraform -chdir=infra plan -target=module.web -out=tfplan",
 		"docker run --rm --network host -v /var/run/docker.sock:/var/run/docker.sock alpine sh",
+		"twg -o json jira workitem get PROJ-123",
 	}
 
 	got := mustMarshalSemanticParseGolden(t, cases)
@@ -141,6 +142,8 @@ func semanticPayload(cmd Command) any {
 		return cmd.Terraform
 	case "docker":
 		return cmd.Docker
+	case "twg":
+		return cmd.TWG
 	default:
 		return nil
 	}
@@ -158,6 +161,7 @@ func TestSemanticStructFieldsAreRepresentedInSchemas(t *testing.T) {
 		"argocd":    reflect.TypeOf(ArgoCDSemantic{}),
 		"terraform": reflect.TypeOf(TerraformSemantic{}),
 		"docker":    reflect.TypeOf(DockerSemantic{}),
+		"twg":       reflect.TypeOf(TWGSemantic{}),
 	}
 	for commandName, typ := range semanticTypes {
 		schema, ok := semanticpkg.Lookup(commandName)

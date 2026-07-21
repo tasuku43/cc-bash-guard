@@ -40,6 +40,7 @@ type Command struct {
 	Terraform        *TerraformSemantic
 	Xargs            *XargsSemantic
 	Pup              *PupSemantic
+	TWG              *TWGSemantic
 }
 
 type Option struct {
@@ -345,6 +346,13 @@ type PupSemantic struct {
 	Agent   bool
 	NoAgent bool
 	Flags   []string
+}
+
+type TWGSemantic struct {
+	Namespace string
+	Verb      string
+	ReadOnly  bool
+	Mutating  bool
 }
 
 func (c Command) HasOption(name string) bool {

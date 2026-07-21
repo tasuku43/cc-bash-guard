@@ -316,6 +316,26 @@ var coverageDetails = map[string]commandCoverageDetail{
         semantic:
           verb: app sync`,
 	},
+	"twg": {
+		ReadOnlyExamples:  []string{"twg jira workitem PROJ-123", "twg confluence content get 12345", "twg search topic"},
+		MutatingExamples:  []string{"twg jira workitem create --space PROJ --summary example", "twg confluence content delete 12345"},
+		RecommendedPolicy: "Allow only read_only: true; ask for mutating: true; leave auth/control-plane and unknown paths on fallback ask.",
+		Limitations:       []string{"TWG commands added after the 1.0.25 help surface", "remote authorization", "request payload contents", "server-side effects"},
+		ExplainCommand:    "twg -o json jira workitem get PROJ-123",
+		YAML: `permission:
+  ask:
+    - name: twg writes
+      command:
+        name: twg
+        semantic:
+          mutating: true
+  allow:
+    - name: twg read-only
+      command:
+        name: twg
+        semantic:
+          read_only: true`,
+	},
 	"terraform": {
 		ReadOnlyExamples:  []string{"terraform plan", "terraform show", "terraform validate"},
 		MutatingExamples:  []string{"terraform apply", "terraform destroy", "terraform state rm", "terraform workspace delete"},

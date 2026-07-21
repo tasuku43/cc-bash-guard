@@ -259,6 +259,11 @@ func semanticMap(cmd commandpkg.Command) map[string]any {
 		addString(fields, "app_name", cmd.ArgoCD.AppName)
 		addString(fields, "project", cmd.ArgoCD.Project)
 		addString(fields, "revision", cmd.ArgoCD.Revision)
+	case cmd.TWG != nil:
+		addString(fields, "namespace", cmd.TWG.Namespace)
+		addString(fields, "verb", cmd.TWG.Verb)
+		addBool(fields, "read_only", cmd.TWG.ReadOnly)
+		addBool(fields, "mutating", cmd.TWG.Mutating)
 	case cmd.Docker != nil:
 		addString(fields, "verb", cmd.Docker.Verb)
 		addString(fields, "subverb", cmd.Docker.Subverb)

@@ -1,0 +1,84 @@
+permission:
+  deny:
+    - name: twg destructive admin user operations
+      command:
+        name: twg
+        semantic:
+          namespace: admin
+          verb_in:
+            - cancel-delete
+            - delete
+          mutating: true
+      message: "destructive TWG admin user operation is blocked"
+      test:
+        deny:
+          - "twg admin user delete 557058:example"
+          - "twg admin user cancel-delete 557058:example"
+        abstain:
+          - "twg admin user get 557058:example"
+          - "twg confluence content delete 12345"
+
+  ask:
+    - name: twg mutating operations
+      command:
+        name: twg
+        semantic:
+          mutating: true
+      message: "TWG write operation requires confirmation"
+      test:
+        ask:
+          - "twg confluence content delete 12345"
+          - "twg jira workitem create --space PROJ --summary example"
+        abstain:
+          - "twg jira workitem PROJ-123"
+          - "twg api /rest/api/3/myself"
+          - "twg login"
+
+  allow:
+    - name: twg read-only
+      command:
+        name: twg
+        semantic:
+          read_only: true
+      message: "allow help-backed TWG read-only commands"
+      test:
+        allow:
+          - "twg confluence content get 12345"
+          - "twg jira workitem PROJ-123"
+          - "twg -o json jira workitem get PROJ-123"
+          - "twg search deployment-failures"
+          - "twg doctor"
+          - "bash -c 'twg confluence content get 12345'"
+        abstain:
+          - "twg confluence content delete 12345"
+          - "twg jira workitem create --space PROJ --summary list"
+          - "twg api /rest/api/3/myself"
+          - "twg login"
+
+    - name: local directory change for TWG chains
+      command:
+        name: cd
+      message: "allow local directory changes"
+      test:
+        allow:
+          - "cd repo"
+        abstain:
+          - "twg jira workitem PROJ-123"
+
+test:
+  allow:
+    - "twg confluence content get 12345"
+    - "twg jira workitem PROJ-123"
+    - "twg -o json jira workitem get PROJ-123"
+    - "twg search deployment-failures"
+    - "twg doctor"
+    - "cd repo && twg jira workitem PROJ-123"
+    - "bash -c 'twg confluence content get 12345'"
+  ask:
+    - "twg confluence content delete 12345"
+    - "twg jira workitem create --space PROJ --summary example"
+    - "twg api /rest/api/3/myself"
+    - "twg login"
+    - "bash -c 'twg confluence content delete 12345'"
+  deny:
+    - "twg admin user delete 557058:example"

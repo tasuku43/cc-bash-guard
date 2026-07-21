@@ -5,7 +5,7 @@ Declarative, testable Bash permission policy for Claude Code.
 `cc-bash-guard` evaluates Claude Code Bash commands against reviewed YAML
 policy and returns `allow`, `ask`, or `deny`. It adds semantic matching for
 tools such as `git`, `aws`, `kubectl`, `gh`, `gws`, `helm`, `helmfile`,
-`argocd`, `terraform`, and `docker`, so policy can describe command intent
+`argocd`, `twg`, `terraform`, and `docker`, so policy can describe command intent
 instead of relying only on broad string patterns.
 
 `cc-bash-guard` policy evaluation never rewrites commands. Parser-backed
@@ -353,7 +353,7 @@ permission:
 ```
 
 Supported semantic parsers currently include `git`, `aws`, `kubectl`, `gh`,
-`gws`, `helm`, `helmfile`, `argocd`, `terraform`, `docker`, `xargs`, and
+`gws`, `helm`, `helmfile`, `argocd`, `twg`, `terraform`, `docker`, `xargs`, and
 `pup`. Treat
 `cc-bash-guard help semantic` and
 `cc-bash-guard semantic-schema --format json` as the source of truth for the
@@ -376,6 +376,7 @@ Use the focused examples when you want one parser or workflow in isolation:
 - [`examples/kubectl-readonly.yml`](examples/kubectl-readonly.yml)
 - [`examples/gws-readonly.yml`](examples/gws-readonly.yml)
 - [`examples/argocd-app-delete-deny.yml`](examples/argocd-app-delete-deny.yml)
+- [`examples/twg-readonly.yml`](examples/twg-readonly.yml)
 - [`examples/helm-readonly-upgrade.yml`](examples/helm-readonly-upgrade.yml)
 - [`examples/helmfile-diff-apply.yml`](examples/helmfile-diff-apply.yml)
 - [`examples/terraform-readonly.yml`](examples/terraform-readonly.yml)
