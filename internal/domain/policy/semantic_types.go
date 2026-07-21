@@ -652,6 +652,15 @@ type PupSemanticSpec struct {
 	FlagsPrefixes []string
 }
 
+type TWGSemanticSpec struct {
+	Namespace   string
+	NamespaceIn []string
+	Verb        string
+	VerbIn      []string
+	ReadOnly    *bool
+	Mutating    *bool
+}
+
 func (s SemanticMatchSpec) Git() GitSemanticSpec {
 	return GitSemanticSpec{
 		Verb: s.Verb, VerbIn: s.VerbIn, Remote: s.Remote, RemoteIn: s.RemoteIn,
@@ -713,6 +722,13 @@ func (s SemanticMatchSpec) Pup() PupSemanticSpec {
 		Verb: s.Verb, VerbIn: s.VerbIn, Org: s.Org, OrgIn: s.OrgIn,
 		Output: s.Output, OutputIn: s.OutputIn, Yes: s.Yes, Agent: s.Agent, NoAgent: s.NoAgent,
 		FlagsContains: s.FlagsContains, FlagsPrefixes: s.FlagsPrefixes,
+	}
+}
+
+func (s SemanticMatchSpec) TWG() TWGSemanticSpec {
+	return TWGSemanticSpec{
+		Namespace: s.Namespace, NamespaceIn: s.NamespaceIn,
+		Verb: s.Verb, VerbIn: s.VerbIn, ReadOnly: s.ReadOnly, Mutating: s.Mutating,
 	}
 }
 

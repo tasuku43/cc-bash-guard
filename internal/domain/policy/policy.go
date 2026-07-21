@@ -210,6 +210,10 @@ type TraceStep struct {
 	ArgoCDAppName       string   `json:"argocd_app_name,omitempty"`
 	ArgoCDProject       string   `json:"argocd_project,omitempty"`
 	ArgoCDRevision      string   `json:"argocd_revision,omitempty"`
+	TWGNamespace        string   `json:"twg_namespace,omitempty"`
+	TWGVerb             string   `json:"twg_verb,omitempty"`
+	TWGReadOnly         *bool    `json:"twg_read_only,omitempty"`
+	TWGMutating         *bool    `json:"twg_mutating,omitempty"`
 	FromShape           string   `json:"from_shape,omitempty"`
 	FromShapeFlags      []string `json:"from_shape_flags,omitempty"`
 	FromSafe            *bool    `json:"from_safe,omitempty"`
@@ -541,6 +545,12 @@ func permissionTraceStepForCommand(effect string, ruleType string, rule Permissi
 		step.ArgoCDAppName = cmd.ArgoCD.AppName
 		step.ArgoCDProject = cmd.ArgoCD.Project
 		step.ArgoCDRevision = cmd.ArgoCD.Revision
+	}
+	if cmd.TWG != nil {
+		step.TWGNamespace = cmd.TWG.Namespace
+		step.TWGVerb = cmd.TWG.Verb
+		step.TWGReadOnly = boolPtr(cmd.TWG.ReadOnly)
+		step.TWGMutating = boolPtr(cmd.TWG.Mutating)
 	}
 	if rule.Command.Semantic != nil {
 		step.SemanticMatch = true

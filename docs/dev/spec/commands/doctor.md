@@ -42,3 +42,6 @@ Useful install checks include:
 - which executable path is currently running
 - whether the binary exposes build metadata such as VCS revision
 - whether Claude Code is wired to `cc-bash-guard hook`
+
+Human output should include a concise `next:` line for warnings and failures
+when the likely recovery step is known.

@@ -65,3 +65,28 @@ func parseVerifyFlags(args []string) (format string, color string, allFailures b
 	}
 	return format, color, allFailures, rest, nil
 }
+
+func parseSemanticSchemaFlags(args []string) (format string, examplesOnly bool, rest []string, err error) {
+	rest = make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--format":
+			if i+1 >= len(args) {
+				return "", false, nil, errors.New("missing --format value")
+			}
+			format = args[i+1]
+			i++
+		case strings.HasPrefix(arg, "--format="):
+			format = strings.TrimPrefix(arg, "--format=")
+		case arg == "--examples":
+			examplesOnly = true
+		default:
+			rest = append(rest, arg)
+		}
+	}
+	if format != "" && format != "json" {
+		return "", false, nil, fmt.Errorf("unsupported format %q", format)
+	}
+	return format, examplesOnly, rest, nil
+}

@@ -4,6 +4,10 @@
 same verified artifact as `cc-bash-guard hook`, so run `cc-bash-guard verify`
 after editing policy or included files.
 
+Human output starts with the final outcome and a short next action, then shows
+the parsed command shape, cc-bash-guard policy result, Claude settings result,
+and final merged decision.
+
 ```sh
 cc-bash-guard explain "bash -c 'git status'"
 cc-bash-guard explain --format json "git push --force origin main"
@@ -48,7 +52,9 @@ reports:
 - command shape, shape flags, parser, and semantic fields
 - concise reasons why the requested outcome did not happen
 - safe suggestions such as running `verify`, adding a rule with `suggest`, or
-  reviewing a higher-priority `deny` or `ask` rule
+  reviewing a higher-priority `deny` or `ask` rule. Suggestions include exact
+  `cc-bash-guard suggest --decision ...` commands when a new rule is the likely
+  next step.
 
 The JSON output is shaped for agents:
 

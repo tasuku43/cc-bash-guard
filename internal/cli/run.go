@@ -27,6 +27,8 @@ func Run(args []string, streams Streams, env Env) int {
 	}
 
 	switch args[0] {
+	case "setup":
+		return runSetup(args[1:], streams, env)
 	case "hook":
 		return runHook(args[1:], streams, env)
 	case "explain":

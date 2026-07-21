@@ -299,6 +299,7 @@ permission decision: `allow`, `ask`, or `deny`.
 
 Parser-backed normalization is evaluation-only:
 
+- `time` wrappers can be inspected as inner commands
 - shell `-c` wrappers can be inspected as inner commands
 - absolute command paths can match by basename
 - command-specific parsers can expose semantic fields such as AWS profile,

@@ -107,6 +107,9 @@ func writeVerifyDiagnostic(w io.Writer, color colorScheme, label string, index i
 		title = strings.ReplaceAll(d.Kind, "_", " ")
 	}
 	fmt.Fprintf(w, "%s %d: %s\n", label, index, color.bold(title))
+	if target := diagnosticFixTarget(d); target != "" {
+		fmt.Fprintf(w, "  fix target: %s\n", color.cyan(target))
+	}
 	if d.Source != nil {
 		fmt.Fprintf(w, "  source: %s\n", color.cyan(formatVerifySource(*d.Source)))
 	}
@@ -184,6 +187,19 @@ func writeVerifyDiagnostic(w io.Writer, color colorScheme, label string, index i
 		fmt.Fprintf(w, "    %s\n", d.SaferAlternative)
 	}
 	fmt.Fprintln(w)
+}
+
+func diagnosticFixTarget(d app.VerifyDiagnostic) string {
+	for _, src := range []*app.VerifySource{d.Source, d.MatchedRule, d.First, d.Second} {
+		if src == nil {
+			continue
+		}
+		formatted := formatVerifySource(*src)
+		if strings.TrimSpace(formatted) != "" {
+			return formatted
+		}
+	}
+	return ""
 }
 
 func decisionText(color colorScheme, decision string) string {

@@ -31,6 +31,7 @@ is a generated coverage guide for humans.
 | `helm` | `verb`, `subverb`, release/chart, namespace/context, values/set fields, repo/registry/plugin fields, safety booleans, parser-recognized flags | `helm list`, `helm status`, `helm get values` | `helm upgrade --install`, `helm uninstall`, `helm rollback` | Allow inspection verbs; ask for install/upgrade/rollback/uninstall/plugin changes. | Does not inspect charts, values files, templates, plugins, kube credentials, or cluster effects. |
 | `helmfile` | `verb`, environment/file/namespace/context/selector, dry-run/wait/diff/delete booleans, state values fields, parser-recognized flags | `helmfile diff` | `helmfile apply`, `helmfile sync`, `helmfile destroy` | Allow review commands only with expected environment/file/context; ask for apply/sync/destroy. | Does not inspect helmfile state, releases, nested helm behavior, values files, or cluster effects. |
 | `argocd` | `verb`, `app_name`, `project`, `revision`, parser-recognized flags | `argocd app get my-app`, `argocd app list` | `argocd app sync my-app`, `argocd app delete my-app` | Allow read-only app verbs for known apps/projects; ask for sync/rollback/delete. | Does not inspect Argo CD RBAC, app manifests, sync waves, hooks, or server-side effects. |
+| `twg` | `namespace`, `verb`, `read_only`, `mutating` | `twg jira workitem PROJ-123`, `twg confluence content get 12345`, `twg search topic` | `twg jira workitem create ...`, `twg confluence content delete 12345` | Allow only `read_only: true`; ask for `mutating: true`; leave auth/control-plane and unknown paths on fallback ask. | Classification is pinned to the TWG 1.0.25 help surface and does not inspect remote authorization, request payloads, or future commands. |
 | `terraform` | `subcommand`, workspace/state subcommands, `global_chdir`, target/replace/destroy/apply/init/fmt booleans, plan/var fields, parser-recognized flags | `terraform plan`, `terraform show`, `terraform validate` | `terraform apply`, `terraform destroy`, `terraform state rm`, workspace changes | Allow review/read-only subcommands narrowly; ask for apply/import/state/workspace writes; deny auto-approved destroy. | Does not inspect providers, modules, plans, state contents, backend credentials, or provisioner effects. |
 | `docker` | `verb`, `subverb`, compose/image/container/service, context/host/file/project/profile, runtime risk fields, prune/build/publish booleans, parser-recognized flags | `docker ps`, `docker images`, `docker inspect` | `docker run --privileged`, host/socket mounts, `docker system prune -a --volumes`, `docker compose up` | Allow inspection verbs; deny privileged/socket/root mounts and destructive prune; ask for run/compose/build. | Does not inspect images, Dockerfiles, Compose files, daemon state, container entrypoints, or mounted file contents. |
 | `xargs` | `inner_command`, static inner args, null/no-run/replace/parallel/max-args fields, dynamic argv booleans, parser-recognized flags | `find . -type f -print0 \| xargs -0 -r grep -n TODO` | `xargs rm -rf`, `xargs gh pr merge`, `xargs git reset` | Allow only explicit xargs semantic rules for known inner commands; keep stdin-derived argv in mind. | Does not inspect stdin contents, paths from earlier pipeline commands, or runtime argv expansion. |
@@ -409,6 +410,79 @@ permission:
 | `flags_contains` | `[]string` | Parser-recognized gh option tokens that must be present; this does not scan raw argv words. |
 | `flags_prefixes` | `[]string` | Parser-recognized gh option tokens that must start with these prefixes; this depends on the gh parser. |
 
+### pup
+
+Datadog pup CLI area, nested sub-area, leaf verb, and global option semantics.
+
+**Common safe/read-only examples:**
+
+- `pup monitors get 123`
+- `pup logs archives list`
+- `pup logs aggregate --query=* --compute=count`
+
+**Common mutating/destructive examples:**
+
+- `pup -y logs metrics delete abc`
+- `pup dashboards create --title example`
+- `pup workflows run workflow-id`
+
+**Suggested policy style:** Allow an explicit read-only verb list; deny --yes/-y for known mutating verbs; refresh the action inventory after pup upgrades.
+
+**Known limitations / conservative fallback cases:**
+
+- `pup commands added after the generated action inventory`
+- `Datadog authorization`
+- `request payload contents`
+- `server-side effects`
+
+Inspect parser output:
+
+```sh
+cc-bash-guard explain "pup --org acme logs archives list"
+```
+
+Example rule snippet:
+
+```yaml
+permission:
+  allow:
+    - name: pup read-only
+      command:
+        name: pup
+        semantic:
+          verb_in: [list, get, status, search, query, aggregate]
+  deny:
+    - name: pup auto-approved mutation
+      command:
+        name: pup
+        semantic:
+          verb_in: [create, delete, update, enable, disable, run]
+          yes: true
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `area` | `string` | Top-level pup area, such as logs, monitors, dashboards, metrics, or auth. |
+| `area_in` | `[]string` | Allowed pup areas. |
+| `sub_area` | `string` | First nested pup area, such as archives in pup logs archives list. |
+| `sub_area_in` | `[]string` | Allowed pup sub-areas. |
+| `verb` | `string` | Leaf pup verb such as list, get, aggregate, create, or delete. |
+| `verb_in` | `[]string` | Allowed pup verbs. |
+| `org` | `string` | Organization selected by --org. |
+| `org_in` | `[]string` | Allowed organizations selected by --org. |
+| `output` | `string` | Output format selected by -o or --output. |
+| `output_in` | `[]string` | Allowed output formats. |
+| `yes` | `bool` | True when --yes is present. |
+| `agent` | `bool` | True when --agent is present. |
+| `no_agent` | `bool` | True when --no-agent is present. |
+| `flags_contains` | `[]string` | Parser-recognized pup option tokens that must be present; this does not scan raw argv words. |
+| `flags_prefixes` | `[]string` | Parser-recognized pup option tokens that must start with these prefixes; this depends on the pup parser. |
+
+Notes:
+
+- Known pup action paths are generated from pup's command schema; paths with no known leaf prefix do not infer a verb.
+- For action paths deeper than three words, sub_area is the first nested area and verb is the final leaf action.
+
 ### argocd
 
 Argo CD app operations such as app get, list, diff, sync, rollback, and delete.
@@ -468,6 +542,68 @@ permission:
 | `revision` | `string` | Revision selected by --revision, or rollback revision positional. |
 | `flags_contains` | `[]string` | Parser-recognized argocd option tokens that must be present; this does not scan raw argv words. |
 | `flags_prefixes` | `[]string` | Parser-recognized argocd option tokens that must start with these prefixes; this depends on the argocd parser. |
+
+### twg
+
+Atlassian Teamwork Graph CLI namespaces, verbs, and conservative read/write classification.
+
+**Common safe/read-only examples:**
+
+- `twg jira workitem PROJ-123`
+- `twg confluence content get 12345`
+- `twg search topic`
+
+**Common mutating/destructive examples:**
+
+- `twg jira workitem create --space PROJ --summary example`
+- `twg confluence content delete 12345`
+
+**Suggested policy style:** Allow only read_only: true; ask for mutating: true; leave auth/control-plane and unknown paths on fallback ask.
+
+**Known limitations / conservative fallback cases:**
+
+- `TWG commands added after the 1.0.25 help surface`
+- `remote authorization`
+- `request payload contents`
+- `server-side effects`
+
+Inspect parser output:
+
+```sh
+cc-bash-guard explain "twg -o json jira workitem get PROJ-123"
+```
+
+Example rule snippet:
+
+```yaml
+permission:
+  ask:
+    - name: twg writes
+      command:
+        name: twg
+        semantic:
+          mutating: true
+  allow:
+    - name: twg read-only
+      command:
+        name: twg
+        semantic:
+          read_only: true
+```
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `namespace` | `string` | Top-level TWG namespace, with aliases normalized (for example bb to bitbucket). |
+| `namespace_in` | `[]string` | Allowed top-level TWG namespaces. |
+| `verb` | `string` | Effective TWG verb from a help-backed action path; read shorthands use their effective get or query verb. |
+| `verb_in` | `[]string` | Allowed effective TWG verbs. |
+| `read_only` | `bool` | True only for help/version, documented read-only namespaces, and help-backed read actions. |
+| `mutating` | `bool` | True only for help-backed create/update/delete and other write actions. |
+
+Notes:
+
+- Unknown actions and authentication/control-plane commands have both read_only and mutating set to false, so a read-only allow rule abstains.
+- Classification is based on the TWG 1.0.25 help surface and exact action-path matching; positional words are never searched for a read verb.
 
 ### gws
 
@@ -1015,10 +1151,3 @@ Notes:
 - `dynamic_args` records that stdin can append runtime arguments. Keep allow rules narrow.
 
 <!-- END GENERATED SEMANTIC FIELD REFERENCE -->
-
-
-### `pup`
-
-Datadog pup CLI semantic coverage.
-
-Fields: `area`, `area_in`, `sub_area`, `sub_area_in`, `verb`, `verb_in`, `org`, `org_in`, `output`, `output_in`, `yes`, `agent`, `no_agent`, `flags_contains`, `flags_prefixes`.

@@ -145,6 +145,12 @@ func unwrapCommand(tokens []string) (string, []string) {
 		case "timeout":
 			i = skipTimeoutWrapper(tokens, i+1)
 			continue
+		case "time":
+			if next, ok := skipTimeWrapper(tokens, i+1); ok {
+				i = next
+				continue
+			}
+			return tokens[i], append([]string(nil), tokens[i+1:]...)
 		case "busybox":
 			if i+1 < len(tokens) && isShellCommand(tokens[i+1]) {
 				return tokens[i+1], append([]string(nil), tokens[i+2:]...)
@@ -298,6 +304,64 @@ func timeoutOptionConsumesValue(token string) bool {
 	return false
 }
 
+func skipTimeWrapper(tokens []string, i int) (int, bool) {
+	for i < len(tokens) {
+		token := tokens[i]
+		if token == "--" {
+			i++
+			break
+		}
+		if !strings.HasPrefix(token, "-") || token == "-" {
+			break
+		}
+
+		switch {
+		case token == "--portability", token == "--append", token == "--verbose", token == "--quiet":
+			i++
+			continue
+		case token == "--format", token == "--output":
+			if i+1 >= len(tokens) {
+				return i, false
+			}
+			i += 2
+			continue
+		case strings.HasPrefix(token, "--format="), strings.HasPrefix(token, "--output="):
+			i++
+			continue
+		case strings.HasPrefix(token, "--"):
+			return i, false
+		}
+
+		next, ok := skipTimeShortOptions(tokens, i)
+		if !ok {
+			return i, false
+		}
+		i = next
+	}
+	return i, i < len(tokens)
+}
+
+func skipTimeShortOptions(tokens []string, i int) (int, bool) {
+	token := tokens[i]
+	for j := 1; j < len(token); j++ {
+		switch token[j] {
+		case 'p', 'a', 'v', 'q', 'l', 'h':
+			continue
+		case 'f', 'o':
+			if j+1 < len(token) {
+				return i + 1, true
+			}
+			if i+1 >= len(tokens) {
+				return i, false
+			}
+			return i + 2, true
+		default:
+			return i, false
+		}
+	}
+	return i + 1, true
+}
+
 func isShellCommand(token string) bool {
 	switch BaseCommand(token) {
 	case "bash", "sh", "zsh", "dash", "ksh":
@@ -374,13 +438,29 @@ func IsASTSafeSimpleCommand(command string) bool {
 		return false
 	}
 
-	stmt := file.Stmts[0]
+	return isASTSafeSimpleStmt(file.Stmts[0])
+}
+
+func isASTSafeSimpleStmt(stmt *syntax.Stmt) bool {
+	if stmt == nil {
+		return false
+	}
 	if len(stmt.Comments) > 0 || stmt.Negated || stmt.Background || stmt.Coprocess || stmt.Disown || len(stmt.Redirs) > 0 {
 		return false
 	}
 
-	call, ok := stmt.Cmd.(*syntax.CallExpr)
-	if !ok || len(call.Args) == 0 {
+	switch cmd := stmt.Cmd.(type) {
+	case *syntax.CallExpr:
+		return isASTSafeCall(cmd)
+	case *syntax.TimeClause:
+		return cmd.Stmt != nil && isASTSafeSimpleStmt(cmd.Stmt)
+	default:
+		return false
+	}
+}
+
+func isASTSafeCall(call *syntax.CallExpr) bool {
+	if call == nil || len(call.Args) == 0 {
 		return false
 	}
 	for _, assign := range call.Assigns {
@@ -458,6 +538,8 @@ func hasKnownWrapperPrefix(tokens []string) bool {
 		case "sudo":
 			return true
 		case "timeout":
+			return true
+		case "time":
 			return true
 		case "busybox":
 			return true

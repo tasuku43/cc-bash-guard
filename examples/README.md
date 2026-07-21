@@ -36,6 +36,8 @@ reviewed in isolation.
   with destructive and unmasked credential export operations denied.
 - [`argocd-app-delete-deny.yml`](argocd-app-delete-deny.yml): Argo CD app get,
   sync, and delete posture.
+- [`twg-readonly.yml`](twg-readonly.yml): TWG help-backed read-only commands,
+  write confirmation, gray control-plane fallback, and destructive admin denial.
 - [`helm-readonly-upgrade.yml`](helm-readonly-upgrade.yml): Helm read-only,
   install/upgrade, plugin changes, and uninstall posture.
 - [`helmfile-diff-apply.yml`](helmfile-diff-apply.yml): Helmfile diff allowed

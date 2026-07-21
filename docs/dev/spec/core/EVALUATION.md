@@ -21,6 +21,11 @@ the original command.
 
 Evaluation-only normalization includes:
 
+- shell-keyword `time [-p] <command...>` and external
+  `time [options] <command...>` wrapper inspection, including POSIX and common
+  GNU/BSD options;
+  unsupported or incomplete option forms remain wrapped and therefore do not
+  broaden to `allow`
 - shell `-c` wrapper inspection, including `bash`, `sh`, `zsh`, `dash`, `ksh`,
   `/bin/bash`, `env bash`, `command bash`, `exec sh`, `sudo bash`, `nohup`,
   `timeout`, and `busybox sh`

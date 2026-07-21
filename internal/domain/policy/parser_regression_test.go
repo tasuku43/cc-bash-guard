@@ -332,6 +332,12 @@ func TestParserRegressionUnsafeShellShapesDoNotBecomeSemanticAllow(t *testing.T)
 		"git status; rm -rf /tmp/x",
 		"git status && rm -rf /tmp/x",
 		"git status || rm -rf /tmp/x",
+		"time git status > /tmp/out",
+		"time echo $(git status)",
+		"time git status &",
+		"time git status | sh",
+		"time git status; rm -rf /tmp/x",
+		"time git status && rm -rf /tmp/x",
 	}
 
 	for _, command := range tests {

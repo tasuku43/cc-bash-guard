@@ -11,6 +11,19 @@ import (
 	semanticpkg "github.com/tasuku43/cc-bash-guard/internal/domain/semantic"
 )
 
+func runSetup(args []string, streams Streams, env Env) int {
+	if wantsHelp(args) {
+		writeCommandHelp(streams.Stdout, "setup")
+		return exitAllow
+	}
+	if len(args) != 0 {
+		writeCommandHelp(streams.Stderr, "setup")
+		return exitError
+	}
+	writeSetupGuide(streams.Stdout, env)
+	return exitAllow
+}
+
 func runHook(args []string, streams Streams, env Env) int {
 	if wantsHelp(args) {
 		writeCommandHelp(streams.Stdout, "hook")
@@ -258,18 +271,15 @@ func runInit(args []string, streams Streams, env Env) int {
 		return exitAllow
 	}
 	var opts app.InitOptions
+	listProfiles := false
+	verboseProfiles := false
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
 		switch {
 		case arg == "--list-profiles":
-			if len(args) != 1 {
-				writeCommandHelp(streams.Stderr, "init")
-				return exitError
-			}
-			for _, profile := range app.InitProfiles() {
-				writeLine(streams.Stdout, profile.Name+"\t"+profile.Description)
-			}
-			return exitAllow
+			listProfiles = true
+		case arg == "--verbose":
+			verboseProfiles = true
 		case arg == "--profile":
 			if i+1 >= len(args) {
 				writeCommandHelp(streams.Stderr, "init")
@@ -283,6 +293,18 @@ func runInit(args []string, streams Streams, env Env) int {
 			writeCommandHelp(streams.Stderr, "init")
 			return exitError
 		}
+	}
+	if verboseProfiles && !listProfiles {
+		writeCommandHelp(streams.Stderr, "init")
+		return exitError
+	}
+	if listProfiles {
+		if opts.Profile != "" {
+			writeCommandHelp(streams.Stderr, "init")
+			return exitError
+		}
+		writeInitProfiles(streams.Stdout, verboseProfiles)
+		return exitAllow
 	}
 	if opts.Profile == "" {
 		for _, arg := range args {
@@ -353,7 +375,7 @@ func runSemanticSchema(args []string, streams Streams) int {
 		writeCommandHelp(streams.Stdout, "semantic-schema")
 		return exitAllow
 	}
-	format, rest, err := parseCommonFlags(args)
+	format, examplesOnly, rest, err := parseSemanticSchemaFlags(args)
 	if err != nil || len(rest) > 1 {
 		writeCommandHelp(streams.Stderr, "semantic-schema")
 		return exitError
@@ -371,11 +393,19 @@ func runSemanticSchema(args []string, streams Streams) int {
 			}
 			return exitAllow
 		}
+		if examplesOnly {
+			writeSemanticSchemaExamples(streams.Stdout, schema)
+			return exitAllow
+		}
 		if err := writeSemanticHelp(streams.Stdout, rest); err != nil {
 			writeErr(streams.Stderr, err.Error())
 			return exitError
 		}
 		return exitAllow
+	}
+	if examplesOnly {
+		writeCommandHelp(streams.Stderr, "semantic-schema")
+		return exitError
 	}
 	if format == "json" {
 		payload := map[string]any{
@@ -412,9 +442,19 @@ func writeDoctorCheck(w io.Writer, check doctoring.Check) {
 		status = "OK"
 	}
 	writeLine(w, "["+status+"] "+check.ID+": "+check.Message)
+	if next := doctorNextAction(check); next != "" {
+		writeLine(w, "  next: "+next)
+	}
 }
 
 func writeExplainText(w io.Writer, result app.ExplainResult) {
+	writeLine(w, "Final:")
+	writeLine(w, "  outcome: "+result.Final.Outcome)
+	writeLine(w, "  reason: "+result.Final.Reason)
+	if next := explainNextAction(result); next != "" {
+		writeLine(w, "  next: "+next)
+	}
+	writeLine(w, "")
 	writeLine(w, "Command:")
 	writeLine(w, "  "+result.Command)
 	writeLine(w, "")
@@ -554,4 +594,168 @@ func writeMatchedRule(w io.Writer, matched *app.ExplainRuleMatch) {
 	if matched.Message != "" {
 		writeLine(w, "    message: "+matched.Message)
 	}
+}
+
+func writeSetupGuide(w io.Writer, env Env) {
+	writeLine(w, "cc-bash-guard setup")
+	writeLine(w, "")
+	writeLine(w, "Recommended first run:")
+	writeLine(w, "  1. cc-bash-guard init --profile git-safe")
+	writeLine(w, "  2. add the printed PreToolUse Bash snippet to Claude Code settings")
+	writeLine(w, "  3. cc-bash-guard verify")
+	writeLine(w, "  4. cc-bash-guard doctor")
+	writeLine(w, "  5. cc-bash-guard explain \"git status\"")
+	writeLine(w, "")
+	writeLine(w, "Local paths:")
+	configBase := env.XDGConfigHome
+	if configBase == "" {
+		configBase = env.Home + "/.config"
+	}
+	writeLine(w, "  user config: "+configBase+"/cc-bash-guard/cc-bash-guard.yml")
+	writeLine(w, "  Claude settings: "+env.Home+"/.claude/settings.json")
+	writeLine(w, "")
+	writeLine(w, "Profile chooser:")
+	writeLine(w, "  cc-bash-guard init --list-profiles --verbose")
+	writeLine(w, "")
+	writeLine(w, "Policy authoring:")
+	writeLine(w, "  cc-bash-guard suggest \"git status\"")
+	writeLine(w, "  cc-bash-guard explain --why-not allow \"git status\"")
+	writeLine(w, "")
+	writeLine(w, "Docs:")
+	writeLine(w, "  docs/user/START_HERE.md")
+}
+
+func writeInitProfiles(w io.Writer, verbose bool) {
+	if !verbose {
+		for _, profile := range app.InitProfiles() {
+			writeLine(w, profile.Name+"\t"+profile.Description)
+		}
+		writeLine(w, "")
+		writeLine(w, "More detail: cc-bash-guard init --list-profiles --verbose")
+		return
+	}
+	writeLine(w, "Built-in profiles:")
+	writeLine(w, "")
+	for _, profile := range app.InitProfiles() {
+		writeLine(w, profile.Name)
+		writeLine(w, "  summary: "+profile.Description)
+		writeLine(w, "  best for: "+profileBestFor(profile.Name))
+		writeLine(w, "  posture: "+profilePosture(profile.Name))
+		writeLine(w, "  next: cc-bash-guard init --profile "+profile.Name)
+		writeLine(w, "")
+	}
+}
+
+func profileBestFor(name string) string {
+	switch name {
+	case "balanced":
+		return "general local coding with Git and Kubernetes read-only automation"
+	case "strict":
+		return "new teams, sensitive repositories, and first audits"
+	case "git-safe":
+		return "Git-heavy work where read-only inspection should be quiet"
+	case "aws-k8s":
+		return "infrastructure work that starts with AWS and kubectl read-only checks"
+	case "argocd":
+		return "Argo CD application inspection with destructive deletion blocked"
+	default:
+		return "reviewed policy authoring"
+	}
+}
+
+func profilePosture(name string) string {
+	switch name {
+	case "balanced":
+		return "allow known read-only commands, ask for writes, deny dangerous Git examples"
+	case "strict":
+		return "ask for most known operations and deny destructive examples"
+	case "git-safe":
+		return "allow Git inspection, ask for normal writes, deny risky history changes"
+	case "aws-k8s":
+		return "allow narrow identity/read-only checks and ask for mutations"
+	case "argocd":
+		return "allow app get/list/diff-style inspection and deny app deletion"
+	default:
+		return "security-first and test-backed"
+	}
+}
+
+func doctorNextAction(check doctoring.Check) string {
+	if check.Status == doctoring.StatusPass {
+		return ""
+	}
+	switch check.ID {
+	case "install.binary-on-path":
+		return "install cc-bash-guard on PATH, or register an absolute hook command in Claude Code settings"
+	case "install.binary-build-info":
+		return "prefer a release binary or a VCS-aware build before trusting long-lived hook enforcement"
+	case "install.claude-registered":
+		return "run cc-bash-guard init and add the printed PreToolUse Bash snippet to Claude Code settings"
+	case "artifact.evaluation-semantics":
+		return "run cc-bash-guard verify after policy, include, Claude settings, or binary changes"
+	case "config.parse", "config.schema":
+		return "fix the reported config error, then run cc-bash-guard verify --all-failures"
+	case "permission.tests-present":
+		return "add rule-local tests so each permission rule has reviewed examples"
+	case "test.e2e-present":
+		return "add top-level test examples for final allow, ask, deny, and important near misses"
+	case "tests.pass":
+		return "inspect mismatches with cc-bash-guard verify --all-failures"
+	case "permission.broad-allow":
+		return "move broad namespaces to permission.ask and keep permission.allow semantic and narrow"
+	default:
+		return "run cc-bash-guard verify --all-failures for source-aware diagnostics"
+	}
+}
+
+func explainNextAction(result app.ExplainResult) string {
+	if result.Policy.Outcome == "error" && strings.Contains(result.Final.Reason, "verified artifact") {
+		return "run cc-bash-guard verify"
+	}
+	switch result.Final.Outcome {
+	case "allow":
+		return "no prompt expected from Claude Code"
+	case "ask":
+		if result.Policy.Outcome == "abstain" && result.ClaudeSettings.Outcome == "abstain" {
+			return "add a narrow rule with cc-bash-guard suggest if this should not prompt"
+		}
+		return "review the matched ask source before broadening allow rules"
+	case "deny":
+		return "review the matched deny source before changing policy"
+	default:
+		return ""
+	}
+}
+
+func writeSemanticSchemaExamples(w io.Writer, schema semanticpkg.Schema) {
+	writeLine(w, "Semantic schema examples: "+schema.Command)
+	writeLine(w, "")
+	writeLine(w, "Description:")
+	writeLine(w, "  "+schema.Description)
+	writeLine(w, "")
+	writeLine(w, "Common fields:")
+	limit := len(schema.Fields)
+	if limit > 8 {
+		limit = 8
+	}
+	for i := 0; i < limit; i++ {
+		field := schema.Fields[i]
+		writeLine(w, fmt.Sprintf("  %-24s %-9s %s", field.Name, field.Type, field.Description))
+	}
+	if len(schema.Fields) > limit {
+		writeLine(w, fmt.Sprintf("  ... %d more fields; run cc-bash-guard semantic-schema %s", len(schema.Fields)-limit, schema.Command))
+	}
+	if len(schema.Examples) > 0 {
+		writeLine(w, "")
+		writeLine(w, "Examples:")
+		for _, example := range schema.Examples {
+			writeLine(w, "  "+example.Title+":")
+			writeLine(w, indent(example.YAML, "    "))
+		}
+	}
+	writeLine(w, "")
+	writeLine(w, "Recommended loop:")
+	writeLine(w, "  cc-bash-guard explain \"<command>\"")
+	writeLine(w, "  cc-bash-guard suggest \"<command>\"")
+	writeLine(w, "  cc-bash-guard verify")
 }
