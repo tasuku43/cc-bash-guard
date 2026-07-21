@@ -365,6 +365,10 @@ The `pup` parser assigns leaf verbs from a checked-in `pup` command-schema
 inventory. Refresh that inventory after upgrading `pup`; paths with no known
 leaf prefix keep `verb` empty and do not match verb-based allow rules.
 
+The `twg` parser normalizes aliases declared by its pinned help surface at each
+command-path depth before read/write classification. For example, `twg bb prs
+query` has the same read-only semantics as `twg bitbucket pull-requests query`.
+
 Complete runnable examples are listed in [`examples/README.md`](examples/README.md).
 Use the broader operational templates when you want a starting posture:
 

@@ -1,6 +1,9 @@
 package command
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestTWGParserClassifiesCommandsFromHelpSurface(t *testing.T) {
 	tests := []struct {
@@ -30,6 +33,7 @@ func TestTWGParserClassifiesCommandsFromHelpSurface(t *testing.T) {
 		{name: "login remains unknown", raw: "twg login", namespace: "login"},
 		{name: "rovo auth remains unknown", raw: "twg rovo auth slack", namespace: "rovo"},
 		{name: "unknown mixed path remains unknown", raw: "twg confluence unknown get", namespace: "confluence"},
+		{name: "alias outside declared parent remains unknown", raw: "twg jira prs query", namespace: "jira"},
 		{name: "option before write does not preserve shorthand read", raw: "twg jira workitem --unknown value create", namespace: "jira"},
 		{name: "explicit write remains write before unknown option", raw: "twg jira workitem create --unknown get", namespace: "jira", verb: "create", mutating: true},
 	}
@@ -41,6 +45,53 @@ func TestTWGParserClassifiesCommandsFromHelpSurface(t *testing.T) {
 				t.Fatalf("parser state = (%q, %q, %v), want twg semantic", cmd.Parser, cmd.SemanticParser, cmd.TWG)
 			}
 			got := cmd.TWG
+			if got.Namespace != tt.namespace || got.Verb != tt.verb || got.ReadOnly != tt.readOnly || got.Mutating != tt.mutating {
+				t.Fatalf("TWG=%+v, want namespace=%q verb=%q readOnly=%v mutating=%v", got, tt.namespace, tt.verb, tt.readOnly, tt.mutating)
+			}
+		})
+	}
+}
+
+func TestTWGParserNormalizesHelpSurfaceAliases(t *testing.T) {
+	tests := []struct {
+		name       string
+		raw        string
+		actionPath string
+		namespace  string
+		verb       string
+		readOnly   bool
+		mutating   bool
+	}{
+		{name: "canonical bitbucket pull requests", raw: "twg bitbucket pull-requests query", actionPath: "bitbucket pull-requests query", namespace: "bitbucket", verb: "query", readOnly: true},
+		{name: "bitbucket pull requests alias", raw: "twg bitbucket prs query", actionPath: "bitbucket pull-requests query", namespace: "bitbucket", verb: "query", readOnly: true},
+		{name: "bitbucket namespace and pull requests aliases", raw: "twg bb prs query", actionPath: "bitbucket pull-requests query", namespace: "bitbucket", verb: "query", readOnly: true},
+		{name: "assets schema", raw: "twg assets schema get abc", actionPath: "assets objectschema get", namespace: "assets", verb: "get", readOnly: true},
+		{name: "assets reference type", raw: "twg assets referencetype create", actionPath: "assets reference-type create", namespace: "assets", verb: "create", mutating: true},
+		{name: "assets list attributes", raw: "twg assets type list-attributes query", actionPath: "assets type list-attr query", namespace: "assets", verb: "query", readOnly: true},
+		{name: "confluence comment", raw: "twg confluence content comment create 123", actionPath: "confluence content comments create", namespace: "confluence", verb: "create", mutating: true},
+		{name: "confluence label", raw: "twg confluence content label list 123", actionPath: "confluence content labels list", namespace: "confluence", verb: "list", readOnly: true},
+		{name: "csm organisation", raw: "twg csm organisation", actionPath: "csm organization", namespace: "csm", verb: "organization", readOnly: true},
+		{name: "jira custom fields", raw: "twg jira workitem custom-fields create-metadata", actionPath: "jira workitem field create-metadata", namespace: "jira", verb: "create-metadata", readOnly: true},
+		{name: "jsm help centre", raw: "twg jsm help-centre query", actionPath: "jsm help-center query", namespace: "jsm", verb: "query", readOnly: true},
+		{name: "jsm affected services", raw: "twg jsm incident affected-services query INC-1", actionPath: "jsm incident affected-service query", namespace: "jsm", verb: "query", readOnly: true},
+		{name: "jsm pir", raw: "twg jsm pir delete PIR-1", actionPath: "jsm post-incident-review delete", namespace: "jsm", verb: "delete", mutating: true},
+		{name: "jsm request type fields", raw: "twg jsm request-type fields get 1", actionPath: "jsm request-type field get", namespace: "jsm", verb: "get", readOnly: true},
+		{name: "loom videos", raw: "twg loom videos get 1", actionPath: "loom video get", namespace: "loom", verb: "get", readOnly: true},
+		{name: "rovo list connectors", raw: "twg rovo list-connectors", actionPath: "rovo list-apps", namespace: "rovo", verb: "list-apps", readOnly: true},
+		{name: "search list connectors", raw: "twg search list-connectors", actionPath: "search list-apps", namespace: "search", verb: "list-apps", readOnly: true},
+		{name: "teams search", raw: "twg teams search platform", actionPath: "teams query", namespace: "teams", verb: "query", readOnly: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cmd := singleParsedCommand(t, tt.raw)
+			got := cmd.TWG
+			if got == nil {
+				t.Fatal("TWG semantic is nil")
+			}
+			if actionPath := strings.Join(cmd.ActionPath, " "); actionPath != tt.actionPath {
+				t.Fatalf("ActionPath = %q, want %q", actionPath, tt.actionPath)
+			}
 			if got.Namespace != tt.namespace || got.Verb != tt.verb || got.ReadOnly != tt.readOnly || got.Mutating != tt.mutating {
 				t.Fatalf("TWG=%+v, want namespace=%q verb=%q readOnly=%v mutating=%v", got, tt.namespace, tt.verb, tt.readOnly, tt.mutating)
 			}

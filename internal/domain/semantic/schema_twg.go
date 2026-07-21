@@ -6,9 +6,9 @@ var twgSchema = Schema{
 	Description: "Atlassian Teamwork Graph CLI namespaces, verbs, and conservative read/write classification.",
 	Parser:      "twg",
 	Fields: []Field{
-		stringField("namespace", "Top-level TWG namespace, with aliases normalized (for example bb to bitbucket)."),
+		stringField("namespace", "Top-level TWG namespace, with help-declared aliases normalized (for example bb to bitbucket)."),
 		stringListField("namespace_in", "Allowed top-level TWG namespaces."),
-		stringField("verb", "Effective TWG verb from a help-backed action path; read shorthands use their effective get or query verb."),
+		stringField("verb", "Effective TWG verb from a canonical help-backed action path; nested aliases and read shorthands are normalized first."),
 		stringListField("verb_in", "Allowed effective TWG verbs."),
 		boolField("read_only", "True only for help/version, documented read-only namespaces, and help-backed read actions."),
 		boolField("mutating", "True only for help-backed create/update/delete and other write actions."),
@@ -23,7 +23,8 @@ var twgSchema = Schema{
 	},
 	Notes: []string{
 		"Unknown actions and authentication/control-plane commands have both read_only and mutating set to false, so a read-only allow rule abstains.",
-		"Classification is based on the TWG 1.0.25 help surface and exact action-path matching; positional words are never searched for a read verb.",
+		"Help-declared aliases are normalized at every action-path depth (for example, bb to bitbucket and prs to pull-requests) before classification.",
+		"Classification is based on the TWG 1.0.25 help surface and exact canonical action-path matching; positional words are never searched for a read verb.",
 	},
 }
 

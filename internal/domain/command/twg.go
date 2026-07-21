@@ -36,9 +36,10 @@ func (TWGParser) Parse(base Command) (Command, bool) {
 
 	words, globalOptions, complete := twgPathWords(base.RawWords)
 	cmd.GlobalOptions = globalOptions
+	words = canonicalTWGWords(words)
 	semantic := &TWGSemantic{}
 	if len(words) > 0 {
-		semantic.Namespace = canonicalTWGNamespace(words[0])
+		semantic.Namespace = words[0]
 	}
 
 	if twgHasHelpFlag(base.RawWords) {
@@ -60,7 +61,6 @@ func (TWGParser) Parse(base Command) (Command, bool) {
 		return cmd, true
 	}
 
-	words[0] = semantic.Namespace
 	if semantic.Namespace == "help" {
 		semantic.Verb = "help"
 		semantic.ReadOnly = true
@@ -176,26 +176,18 @@ func twgHelpActionPath(words []string) []string {
 }
 
 func canonicalTWGNamespace(namespace string) string {
-	switch namespace {
-	case "bb":
-		return "bitbucket"
-	case "prs":
-		return "pull-requests"
-	case "whoami":
-		return "user"
-	case "pull-requests-tree":
-		return "pr-tree"
-	case "issue-tree":
-		return "workitem-tree"
-	case "status-rollup":
-		return "work-tree"
-	case "ownership":
-		return "responsibility"
-	case "visualise":
-		return "visualize"
-	default:
-		return namespace
+	return canonicalTWGWords([]string{namespace})[0]
+}
+
+func canonicalTWGWords(words []string) []string {
+	canonical := append([]string(nil), words...)
+	for i := range canonical {
+		aliasPath := strings.Join(canonical[:i+1], " ")
+		if name, ok := twgCommandAliases[aliasPath]; ok {
+			canonical[i] = name
+		}
 	}
+	return canonical
 }
 
 func twgHasHelpFlag(words []string) bool {
@@ -231,6 +223,36 @@ var twgGlobalFlagOptions = map[string]bool{
 }
 
 var twgOutputSummaryValues = stringSet("stats auto inline")
+
+// twgCommandAliases is pinned to command aliases declared by the TWG 1.0.25
+// help surface. Keys include the canonical parent path so aliases are resolved
+// only in the namespace where TWG declares them.
+var twgCommandAliases = map[string]string{
+	"bb":                             "bitbucket",
+	"prs":                            "pull-requests",
+	"whoami":                         "user",
+	"pull-requests-tree":             "pr-tree",
+	"issue-tree":                     "workitem-tree",
+	"status-rollup":                  "work-tree",
+	"ownership":                      "responsibility",
+	"visualise":                      "visualize",
+	"assets schema":                  "objectschema",
+	"assets referencetype":           "reference-type",
+	"assets type list-attributes":    "list-attr",
+	"bitbucket prs":                  "pull-requests",
+	"confluence content comment":     "comments",
+	"confluence content label":       "labels",
+	"csm organisation":               "organization",
+	"jira workitem custom-fields":    "field",
+	"jsm help-centre":                "help-center",
+	"jsm incident affected-services": "affected-service",
+	"jsm pir":                        "post-incident-review",
+	"jsm request-type fields":        "field",
+	"loom videos":                    "video",
+	"rovo list-connectors":           "list-apps",
+	"search list-connectors":         "list-apps",
+	"teams search":                   "query",
+}
 
 var twgReadOnlyNamespaces = stringSet(`
 access collaborators commits context csm deployments docs doctor focus-areas

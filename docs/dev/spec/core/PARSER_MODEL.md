@@ -88,7 +88,10 @@ CLI targets such as app name, project, and revision without contacting the
 Argo CD API. `TWGParser` identifies help-backed Teamwork Graph action paths,
 normalizes documented read shorthands, and classifies known actions as
 read-only or mutating without contacting Atlassian services. Unknown action
-paths and authentication/control-plane commands remain unclassified.
+paths and authentication/control-plane commands remain unclassified. The TWG
+parser normalizes aliases declared by its pinned help surface at every command
+path depth before classification, so namespace and nested aliases resolve to
+the same canonical action path.
 
 Adding a new parser must not change the meaning of existing parser output or
 existing raw-word matchers. It may only improve semantic precision for its own

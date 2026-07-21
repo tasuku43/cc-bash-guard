@@ -571,9 +571,11 @@ permission:
 
 Use TWG semantic fields to match the top-level `namespace`, effective `verb`,
 and conservative `read_only` / `mutating` classification. The parser uses the
-TWG 1.0.25 help surface and exact action-path matching. It does not search
-positional arguments for verb-like words, so `twg jira workitem create ...
-list` remains mutating.
+TWG 1.0.25 help surface, normalizes help-declared aliases at every action-path
+depth, and then performs exact canonical action-path matching. For example,
+`twg bb prs query` is classified as `twg bitbucket pull-requests query`. The
+parser does not search positional arguments for verb-like words, so `twg jira
+workitem create ... list` remains mutating.
 
 Help/version forms and documented read-only namespaces set `read_only: true`.
 Read/write namespaces such as Jira and Confluence are classified by their

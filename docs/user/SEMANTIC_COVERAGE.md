@@ -593,9 +593,9 @@ permission:
 
 | Field | Type | Meaning |
 | --- | --- | --- |
-| `namespace` | `string` | Top-level TWG namespace, with aliases normalized (for example bb to bitbucket). |
+| `namespace` | `string` | Top-level TWG namespace, with help-declared aliases normalized (for example bb to bitbucket). |
 | `namespace_in` | `[]string` | Allowed top-level TWG namespaces. |
-| `verb` | `string` | Effective TWG verb from a help-backed action path; read shorthands use their effective get or query verb. |
+| `verb` | `string` | Effective TWG verb from a canonical help-backed action path; nested aliases and read shorthands are normalized first. |
 | `verb_in` | `[]string` | Allowed effective TWG verbs. |
 | `read_only` | `bool` | True only for help/version, documented read-only namespaces, and help-backed read actions. |
 | `mutating` | `bool` | True only for help-backed create/update/delete and other write actions. |
@@ -603,7 +603,8 @@ permission:
 Notes:
 
 - Unknown actions and authentication/control-plane commands have both read_only and mutating set to false, so a read-only allow rule abstains.
-- Classification is based on the TWG 1.0.25 help surface and exact action-path matching; positional words are never searched for a read verb.
+- Help-declared aliases are normalized at every action-path depth (for example, bb to bitbucket and prs to pull-requests) before classification.
+- Classification is based on the TWG 1.0.25 help surface and exact canonical action-path matching; positional words are never searched for a read verb.
 
 ### gws
 
