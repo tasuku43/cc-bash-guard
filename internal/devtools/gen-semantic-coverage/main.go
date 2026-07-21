@@ -124,7 +124,7 @@ func replaceGeneratedBlock(content, generated string) (string, error) {
 		return "", fmt.Errorf("missing end marker %q in %s", endMarker, docPath)
 	}
 	end += len(endMarker)
-	return content[:start] + strings.TrimRight(generated, "\n") + content[end:] + "\n", nil
+	return content[:start] + strings.TrimRight(generated, "\n") + strings.TrimRight(content[end:], "\r\n") + "\n", nil
 }
 
 func escapeTableCell(value string) string {
@@ -315,6 +315,27 @@ var coverageDetails = map[string]commandCoverageDetail{
         name: argocd
         semantic:
           verb: app sync`,
+	},
+	"pup": {
+		ReadOnlyExamples:  []string{"pup monitors get 123", "pup logs archives list", "pup logs aggregate --query=* --compute=count"},
+		MutatingExamples:  []string{"pup -y logs metrics delete abc", "pup dashboards create --title example", "pup workflows run workflow-id"},
+		RecommendedPolicy: "Allow an explicit read-only verb list; deny --yes/-y for known mutating verbs; refresh the action inventory after pup upgrades.",
+		Limitations:       []string{"pup commands added after the generated action inventory", "Datadog authorization", "request payload contents", "server-side effects"},
+		ExplainCommand:    "pup --org acme logs archives list",
+		YAML: `permission:
+  allow:
+    - name: pup read-only
+      command:
+        name: pup
+        semantic:
+          verb_in: [list, get, status, search, query, aggregate]
+  deny:
+    - name: pup auto-approved mutation
+      command:
+        name: pup
+        semantic:
+          verb_in: [create, delete, update, enable, disable, run]
+          yes: true`,
 	},
 	"twg": {
 		ReadOnlyExamples:  []string{"twg jira workitem PROJ-123", "twg confluence content get 12345", "twg search topic"},

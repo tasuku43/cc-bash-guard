@@ -117,6 +117,14 @@ decision from `deny` to `allow`.
 Trace output must include `Parser` for every parsed command. Commands with
 CLI-specific semantics also set `SemanticParser`.
 
+`PupParser` separates positional arguments from the longest known leaf action
+path generated from `pup agent schema --compact`. It exposes the top-level area,
+the first nested sub-area, and the final leaf verb. When no known leaf prefix
+matches, the parser retains the top-level area but does not infer a verb.
+Refresh the checked-in inventory with
+`go generate ./internal/domain/command` while the target `pup` version is
+installed.
+
 `command.semantic` is interpreted by exact `command.name`. For example,
 `name: gh` uses the gh semantic schema directly under `semantic`; nested
 forms such as `semantic.gh.area` or `semantic.helmfile.verb` are invalid.

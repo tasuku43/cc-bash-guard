@@ -673,7 +673,7 @@
     {
       "command": "pup",
       "semantic_path": "command.semantic",
-      "description": "Datadog pup CLI area, optional sub-area, verb, and global option semantics.",
+      "description": "Datadog pup CLI area, nested sub-area, leaf verb, and global option semantics.",
       "parser": "pup",
       "fields": [
         {
@@ -689,7 +689,7 @@
         {
           "name": "sub_area",
           "type": "string",
-          "description": "Optional second-level pup area for three-level commands like pup logs archives list."
+          "description": "First nested pup area, such as archives in pup logs archives list."
         },
         {
           "name": "sub_area_in",
@@ -752,7 +752,11 @@
           "description": "Parser-recognized pup option tokens that must start with these prefixes; this depends on the pup parser."
         }
       ],
-      "examples": null
+      "examples": null,
+      "notes": [
+        "Known pup action paths are generated from pup's command schema; paths with no known leaf prefix do not infer a verb.",
+        "For action paths deeper than three words, sub_area is the first nested area and verb is the final leaf action."
+      ]
     },
     {
       "command": "argocd",
@@ -3634,7 +3638,7 @@
     "pup": {
       "command": "pup",
       "semantic_path": "command.semantic",
-      "description": "Datadog pup CLI area, optional sub-area, verb, and global option semantics.",
+      "description": "Datadog pup CLI area, nested sub-area, leaf verb, and global option semantics.",
       "parser": "pup",
       "fields": [
         {
@@ -3650,7 +3654,7 @@
         {
           "name": "sub_area",
           "type": "string",
-          "description": "Optional second-level pup area for three-level commands like pup logs archives list."
+          "description": "First nested pup area, such as archives in pup logs archives list."
         },
         {
           "name": "sub_area_in",
@@ -3713,7 +3717,11 @@
           "description": "Parser-recognized pup option tokens that must start with these prefixes; this depends on the pup parser."
         }
       ],
-      "examples": null
+      "examples": null,
+      "notes": [
+        "Known pup action paths are generated from pup's command schema; paths with no known leaf prefix do not infer a verb.",
+        "For action paths deeper than three words, sub_area is the first nested area and verb is the final leaf action."
+      ]
     },
     "terraform": {
       "command": "terraform",

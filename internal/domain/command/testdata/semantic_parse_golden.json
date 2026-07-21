@@ -151,6 +151,31 @@
   },
   {
     "action_path": [
+      "logs",
+      "metrics",
+      "delete"
+    ],
+    "parser": "pup",
+    "program": "pup",
+    "raw": "pup --org acme -y logs metrics delete abc",
+    "semantic": {
+      "Area": "logs",
+      "SubArea": "metrics",
+      "Verb": "delete",
+      "Org": "acme",
+      "Output": "",
+      "Yes": true,
+      "Agent": false,
+      "NoAgent": false,
+      "Flags": [
+        "--org",
+        "-y"
+      ]
+    },
+    "semantic_parser": "pup"
+  },
+  {
+    "action_path": [
       "users",
       "list"
     ],

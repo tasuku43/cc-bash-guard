@@ -361,6 +361,10 @@ installed binary. See
 [`docs/user/SEMANTIC_COVERAGE.md`](docs/user/SEMANTIC_COVERAGE.md) for the
 user-facing coverage matrix, fields, examples, and limitations.
 
+The `pup` parser assigns leaf verbs from a checked-in `pup` command-schema
+inventory. Refresh that inventory after upgrading `pup`; paths with no known
+leaf prefix keep `verb` empty and do not match verb-based allow rules.
+
 Complete runnable examples are listed in [`examples/README.md`](examples/README.md).
 Use the broader operational templates when you want a starting posture:
 

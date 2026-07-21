@@ -412,13 +412,59 @@ permission:
 
 ### pup
 
-Datadog pup CLI area, optional sub-area, verb, and global option semantics.
+Datadog pup CLI area, nested sub-area, leaf verb, and global option semantics.
+
+**Common safe/read-only examples:**
+
+- `pup monitors get 123`
+- `pup logs archives list`
+- `pup logs aggregate --query=* --compute=count`
+
+**Common mutating/destructive examples:**
+
+- `pup -y logs metrics delete abc`
+- `pup dashboards create --title example`
+- `pup workflows run workflow-id`
+
+**Suggested policy style:** Allow an explicit read-only verb list; deny --yes/-y for known mutating verbs; refresh the action inventory after pup upgrades.
+
+**Known limitations / conservative fallback cases:**
+
+- `pup commands added after the generated action inventory`
+- `Datadog authorization`
+- `request payload contents`
+- `server-side effects`
+
+Inspect parser output:
+
+```sh
+cc-bash-guard explain "pup --org acme logs archives list"
+```
+
+Example rule snippet:
+
+```yaml
+permission:
+  allow:
+    - name: pup read-only
+      command:
+        name: pup
+        semantic:
+          verb_in: [list, get, status, search, query, aggregate]
+  deny:
+    - name: pup auto-approved mutation
+      command:
+        name: pup
+        semantic:
+          verb_in: [create, delete, update, enable, disable, run]
+          yes: true
+```
 
 | Field | Type | Meaning |
 | --- | --- | --- |
 | `area` | `string` | Top-level pup area, such as logs, monitors, dashboards, metrics, or auth. |
 | `area_in` | `[]string` | Allowed pup areas. |
-| `sub_area` | `string` | Optional second-level pup area for three-level commands like pup logs archives list. |
+| `sub_area` | `string` | First nested pup area, such as archives in pup logs archives list. |
 | `sub_area_in` | `[]string` | Allowed pup sub-areas. |
 | `verb` | `string` | Leaf pup verb such as list, get, aggregate, create, or delete. |
 | `verb_in` | `[]string` | Allowed pup verbs. |
@@ -431,6 +477,11 @@ Datadog pup CLI area, optional sub-area, verb, and global option semantics.
 | `no_agent` | `bool` | True when --no-agent is present. |
 | `flags_contains` | `[]string` | Parser-recognized pup option tokens that must be present; this does not scan raw argv words. |
 | `flags_prefixes` | `[]string` | Parser-recognized pup option tokens that must start with these prefixes; this depends on the pup parser. |
+
+Notes:
+
+- Known pup action paths are generated from pup's command schema; paths with no known leaf prefix do not infer a verb.
+- For action paths deeper than three words, sub_area is the first nested area and verb is the final leaf action.
 
 ### argocd
 
@@ -1100,10 +1151,3 @@ Notes:
 - `dynamic_args` records that stdin can append runtime arguments. Keep allow rules narrow.
 
 <!-- END GENERATED SEMANTIC FIELD REFERENCE -->
-
-
-### `pup`
-
-Datadog pup CLI semantic coverage.
-
-Fields: `area`, `area_in`, `sub_area`, `sub_area_in`, `verb`, `verb_in`, `org`, `org_in`, `output`, `output_in`, `yes`, `agent`, `no_agent`, `flags_contains`, `flags_prefixes`.

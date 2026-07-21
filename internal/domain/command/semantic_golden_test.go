@@ -19,6 +19,7 @@ func TestSemanticParserGoldenOutputs(t *testing.T) {
 		"aws --profile prod --region us-east-1 ec2 describe-instances --no-cli-pager",
 		"kubectl -n prod get pods -l app=web",
 		"gh api -X POST repos/OWNER/REPO/actions/workflows/deploy.yml/dispatches -f ref=main",
+		"pup --org acme -y logs metrics delete abc",
 		"gws users list --customer my_customer --page-all",
 		"helm upgrade --install web ./chart -n prod --dry-run --set image.tag=abc",
 		"helmfile -e prod -f helmfile.yaml diff --selector app=web",
@@ -130,6 +131,8 @@ func semanticPayload(cmd Command) any {
 		return cmd.Kubectl
 	case "gh":
 		return cmd.Gh
+	case "pup":
+		return cmd.Pup
 	case "gws":
 		return cmd.Gws
 	case "helm":
@@ -155,6 +158,7 @@ func TestSemanticStructFieldsAreRepresentedInSchemas(t *testing.T) {
 		"aws":       reflect.TypeOf(AWSSemantic{}),
 		"kubectl":   reflect.TypeOf(KubectlSemantic{}),
 		"gh":        reflect.TypeOf(GhSemantic{}),
+		"pup":       reflect.TypeOf(PupSemantic{}),
 		"gws":       reflect.TypeOf(GwsSemantic{}),
 		"helm":      reflect.TypeOf(HelmSemantic{}),
 		"helmfile":  reflect.TypeOf(HelmfileSemantic{}),
