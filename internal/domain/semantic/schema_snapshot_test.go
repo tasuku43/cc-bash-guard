@@ -34,7 +34,7 @@ func TestSemanticSchemaSnapshot(t *testing.T) {
 
 func TestSemanticSchemaRegistryIsConsistent(t *testing.T) {
 	commands := SupportedCommands()
-	want := []string{"git", "aws", "kubectl", "gh", "pup", "argocd", "gws", "helmfile", "helm", "terraform", "docker", "xargs"}
+	want := []string{"git", "aws", "kubectl", "gh", "pup", "argocd", "twg", "gws", "helmfile", "helm", "terraform", "docker", "xargs"}
 	if !reflect.DeepEqual(commands, want) {
 		t.Fatalf("supported commands = %#v, want %#v", commands, want)
 	}

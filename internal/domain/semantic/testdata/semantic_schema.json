@@ -673,7 +673,7 @@
     {
       "command": "pup",
       "semantic_path": "command.semantic",
-      "description": "Datadog pup CLI area, optional sub-area, verb, and global option semantics.",
+      "description": "Datadog pup CLI area, nested sub-area, leaf verb, and global option semantics.",
       "parser": "pup",
       "fields": [
         {
@@ -689,7 +689,7 @@
         {
           "name": "sub_area",
           "type": "string",
-          "description": "Optional second-level pup area for three-level commands like pup logs archives list."
+          "description": "First nested pup area, such as archives in pup logs archives list."
         },
         {
           "name": "sub_area_in",
@@ -752,7 +752,11 @@
           "description": "Parser-recognized pup option tokens that must start with these prefixes; this depends on the pup parser."
         }
       ],
-      "examples": null
+      "examples": null,
+      "notes": [
+        "Known pup action paths are generated from pup's command schema; paths with no known leaf prefix do not infer a verb.",
+        "For action paths deeper than three words, sub_area is the first nested area and verb is the final leaf action."
+      ]
     },
     {
       "command": "argocd",
@@ -811,6 +815,54 @@
           "title": "Ask before syncing an app",
           "yaml": "permission:\n  ask:\n    - command:\n        name: argocd\n        semantic:\n          verb: app sync"
         }
+      ]
+    },
+    {
+      "command": "twg",
+      "semantic_path": "command.semantic",
+      "description": "Atlassian Teamwork Graph CLI namespaces, verbs, and conservative read/write classification.",
+      "parser": "twg",
+      "fields": [
+        {
+          "name": "namespace",
+          "type": "string",
+          "description": "Top-level TWG namespace, with aliases normalized (for example bb to bitbucket)."
+        },
+        {
+          "name": "namespace_in",
+          "type": "[]string",
+          "description": "Allowed top-level TWG namespaces."
+        },
+        {
+          "name": "verb",
+          "type": "string",
+          "description": "Effective TWG verb from a help-backed action path; read shorthands use their effective get or query verb."
+        },
+        {
+          "name": "verb_in",
+          "type": "[]string",
+          "description": "Allowed effective TWG verbs."
+        },
+        {
+          "name": "read_only",
+          "type": "bool",
+          "description": "True only for help/version, documented read-only namespaces, and help-backed read actions."
+        },
+        {
+          "name": "mutating",
+          "type": "bool",
+          "description": "True only for help-backed create/update/delete and other write actions."
+        }
+      ],
+      "examples": [
+        {
+          "title": "Allow TWG read-only commands",
+          "yaml": "permission:\n  allow:\n    - command:\n        name: twg\n        semantic:\n          read_only: true"
+        }
+      ],
+      "notes": [
+        "Unknown actions and authentication/control-plane commands have both read_only and mutating set to false, so a read-only allow rule abstains.",
+        "Classification is based on the TWG 1.0.25 help surface and exact action-path matching; positional words are never searched for a read verb."
       ]
     },
     {
@@ -3586,7 +3638,7 @@
     "pup": {
       "command": "pup",
       "semantic_path": "command.semantic",
-      "description": "Datadog pup CLI area, optional sub-area, verb, and global option semantics.",
+      "description": "Datadog pup CLI area, nested sub-area, leaf verb, and global option semantics.",
       "parser": "pup",
       "fields": [
         {
@@ -3602,7 +3654,7 @@
         {
           "name": "sub_area",
           "type": "string",
-          "description": "Optional second-level pup area for three-level commands like pup logs archives list."
+          "description": "First nested pup area, such as archives in pup logs archives list."
         },
         {
           "name": "sub_area_in",
@@ -3665,7 +3717,11 @@
           "description": "Parser-recognized pup option tokens that must start with these prefixes; this depends on the pup parser."
         }
       ],
-      "examples": null
+      "examples": null,
+      "notes": [
+        "Known pup action paths are generated from pup's command schema; paths with no known leaf prefix do not infer a verb.",
+        "For action paths deeper than three words, sub_area is the first nested area and verb is the final leaf action."
+      ]
     },
     "terraform": {
       "command": "terraform",
@@ -3842,6 +3898,54 @@
           "title": "Deny auto-approved destroy",
           "yaml": "permission:\n  deny:\n    - command:\n        name: terraform\n        semantic:\n          subcommand: destroy\n          auto_approve: true"
         }
+      ]
+    },
+    "twg": {
+      "command": "twg",
+      "semantic_path": "command.semantic",
+      "description": "Atlassian Teamwork Graph CLI namespaces, verbs, and conservative read/write classification.",
+      "parser": "twg",
+      "fields": [
+        {
+          "name": "namespace",
+          "type": "string",
+          "description": "Top-level TWG namespace, with aliases normalized (for example bb to bitbucket)."
+        },
+        {
+          "name": "namespace_in",
+          "type": "[]string",
+          "description": "Allowed top-level TWG namespaces."
+        },
+        {
+          "name": "verb",
+          "type": "string",
+          "description": "Effective TWG verb from a help-backed action path; read shorthands use their effective get or query verb."
+        },
+        {
+          "name": "verb_in",
+          "type": "[]string",
+          "description": "Allowed effective TWG verbs."
+        },
+        {
+          "name": "read_only",
+          "type": "bool",
+          "description": "True only for help/version, documented read-only namespaces, and help-backed read actions."
+        },
+        {
+          "name": "mutating",
+          "type": "bool",
+          "description": "True only for help-backed create/update/delete and other write actions."
+        }
+      ],
+      "examples": [
+        {
+          "title": "Allow TWG read-only commands",
+          "yaml": "permission:\n  allow:\n    - command:\n        name: twg\n        semantic:\n          read_only: true"
+        }
+      ],
+      "notes": [
+        "Unknown actions and authentication/control-plane commands have both read_only and mutating set to false, so a read-only allow rule abstains.",
+        "Classification is based on the TWG 1.0.25 help surface and exact action-path matching; positional words are never searched for a read verb."
       ]
     },
     "xargs": {

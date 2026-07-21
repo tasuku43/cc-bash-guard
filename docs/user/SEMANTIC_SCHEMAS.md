@@ -24,14 +24,17 @@ cc-bash-guard help semantic
 cc-bash-guard help semantic git
 cc-bash-guard semantic-schema --format json
 cc-bash-guard semantic-schema git --format json
+cc-bash-guard semantic-schema docker --examples
 ```
 
 `cc-bash-guard help semantic` lists commands from the semantic schema registry.
 `cc-bash-guard help semantic <command>` shows fields, types, descriptions,
 boolean notes, and examples for one command. `semantic-schema --format json`
-prints the same registry as machine-readable JSON. The installed binary's
-schema output is authoritative; repository docs are explanatory and may lag a
-newer or older binary.
+prints the same registry as machine-readable JSON. `semantic-schema <command>
+--examples` prints a compact human view with common fields, examples, and the
+recommended explain/suggest/verify loop. The installed binary's schema output
+is authoritative; repository docs are explanatory and may lag a newer or older
+binary.
 
 For a user-facing matrix of supported commands, semantic fields, examples,
 recommended policy style, and known limitations, see
@@ -49,6 +52,7 @@ The current registry supports:
 - `helm`
 - `helmfile`
 - `argocd`
+- `twg`
 - `terraform`
 - `docker`
 - `xargs`
@@ -562,6 +566,53 @@ permission:
         semantic:
           verb_in: [app delete, app rollback]
 ```
+
+## twg
+
+Use TWG semantic fields to match the top-level `namespace`, effective `verb`,
+and conservative `read_only` / `mutating` classification. The parser uses the
+TWG 1.0.25 help surface and exact action-path matching. It does not search
+positional arguments for verb-like words, so `twg jira workitem create ...
+list` remains mutating.
+
+Help/version forms and documented read-only namespaces set `read_only: true`.
+Read/write namespaces such as Jira and Confluence are classified by their
+help-backed action path. Authentication and control-plane forms such as `api`,
+`login`, `logout`, `env`, `cache`, `setup`, `update`, `consent`, and `rovo auth`
+set neither boolean and therefore remain on the normal ask fallback.
+
+```yaml
+permission:
+  ask:
+    - name: twg writes
+      command:
+        name: twg
+        semantic:
+          mutating: true
+  allow:
+    - name: twg read-only
+      command:
+        name: twg
+        semantic:
+          read_only: true
+```
+
+The Jira workitem shorthand is normalized to effective verb `get`:
+
+```yaml
+permission:
+  allow:
+    - name: jira workitem reads
+      command:
+        name: twg
+        semantic:
+          namespace: jira
+          verb_in: [get, query, search]
+          read_only: true
+```
+
+See [`examples/twg-readonly.yml`](../../examples/twg-readonly.yml) for a
+complete policy with inline and end-to-end tests.
 
 ## terraform
 

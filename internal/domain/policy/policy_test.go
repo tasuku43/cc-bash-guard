@@ -819,6 +819,46 @@ func TestEvaluateTraceIncludesCommandPlanNormalization(t *testing.T) {
 	}
 }
 
+func TestEvaluateTimeWrapperUsesInnerCommandPermission(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Allow: []PermissionRuleSpec{{Command: PermissionCommandSpec{Name: "git", Semantic: &SemanticMatchSpec{Verb: "status"}}}},
+		},
+	}, Source{})
+
+	for _, command := range []string{"time git status", "time -p git status", "/usr/bin/time -o /tmp/time.txt git status"} {
+		t.Run(command, func(t *testing.T) {
+			got, err := Evaluate(p, command)
+			if err != nil {
+				t.Fatalf("Evaluate() error = %v", err)
+			}
+			if got.Outcome != "allow" {
+				t.Fatalf("Outcome = %q, want allow; decision=%+v", got.Outcome, got)
+			}
+			if got.Command != command {
+				t.Fatalf("Command = %q, want original %q", got.Command, command)
+			}
+		})
+	}
+}
+
+func TestEvaluateTimeWrapperPreservesInnerDeny(t *testing.T) {
+	p := NewPipeline(PipelineSpec{
+		Permission: PermissionSpec{
+			Deny:  []PermissionRuleSpec{{Command: PermissionCommandSpec{Name: "rm"}}},
+			Allow: []PermissionRuleSpec{{Command: PermissionCommandSpec{Name: "git", Semantic: &SemanticMatchSpec{Verb: "status"}}}},
+		},
+	}, Source{})
+
+	got, err := Evaluate(p, "time git status && rm -rf /tmp/x")
+	if err != nil {
+		t.Fatalf("Evaluate() error = %v", err)
+	}
+	if got.Outcome != "deny" {
+		t.Fatalf("Outcome = %q, want deny; decision=%+v", got.Outcome, got)
+	}
+}
+
 func TestEvaluatePermissionPriorityDenyAskAllow(t *testing.T) {
 	p := NewPipeline(PipelineSpec{
 		Permission: PermissionSpec{

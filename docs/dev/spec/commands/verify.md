@@ -54,6 +54,7 @@ The default output should include:
 - artifact status
 - source-aware failures with YAML file, section, bucket, index, and rule name
   when available
+- `fix target` for the most likely YAML source the user should edit
 - E2E failure details: input, expected decision, actual decision, final reason,
   source decisions, and matched rule
 - semantic validation details: command, field, expected/actual type when

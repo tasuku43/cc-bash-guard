@@ -16,6 +16,7 @@ Install and initialize with a conservative profile:
 
 ```sh
 brew install tasuku43/tap/cc-bash-guard
+cc-bash-guard setup
 cc-bash-guard init --profile git-safe
 ```
 
@@ -67,6 +68,7 @@ see `INSTALL.md`.
 cc-bash-guard version
 cc-bash-guard doctor
 cc-bash-guard init --list-profiles
+cc-bash-guard init --list-profiles --verbose
 cc-bash-guard init --profile git-safe
 ```
 

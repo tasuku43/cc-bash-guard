@@ -4,6 +4,8 @@ import "strings"
 
 type PupParser struct{}
 
+//go:generate go run ../../devtools/gen-pup-actions
+
 func init() {
 	RegisterDefaultParser(PupParser{})
 }
@@ -20,26 +22,38 @@ func (PupParser) Parse(base Command) (Command, bool) {
 	cmd.Args = []string{}
 
 	var positionals []string
+	endOfOptions := false
 	for i := 0; i < len(base.RawWords); i++ {
 		word := base.RawWords[i]
 		switch {
+		case endOfOptions:
+			positionals = append(positionals, word)
+		case word == "--":
+			endOfOptions = true
 		case pupOptionWithValue(word, "", "--org"):
-			value, consumed := pupOptionValue(word, "--org", base.RawWords, i)
+			value, consumed := pupOptionValue(word, "", "--org", base.RawWords, i)
 			cmd.Options = append(cmd.Options, Option{Name: "--org", Value: value, HasValue: consumed, Position: i})
-			if consumed && !strings.Contains(word, "=") {
+			if consumed && !pupOptionHasInlineValue(word, "", "--org") {
 				i++
 			}
 		case pupOptionWithValue(word, "-o", "--output"):
-			value, consumed := pupOptionValue(word, "--output", base.RawWords, i)
+			value, consumed := pupOptionValue(word, "-o", "--output", base.RawWords, i)
 			name := "--output"
-			if word == "-o" {
+			if strings.HasPrefix(word, "-o") && !strings.HasPrefix(word, "--") {
 				name = "-o"
 			}
 			cmd.Options = append(cmd.Options, Option{Name: name, Value: value, HasValue: consumed, Position: i})
-			if consumed && !strings.Contains(word, "=") {
+			if consumed && !pupOptionHasInlineValue(word, "-o", "--output") {
 				i++
 			}
-		case word == "--yes" || word == "--agent" || word == "--no-agent":
+		case pupOptionWithValue(word, "", "--jq"):
+			value, consumed := pupOptionValue(word, "", "--jq", base.RawWords, i)
+			cmd.Options = append(cmd.Options, Option{Name: "--jq", Value: value, HasValue: consumed, Position: i})
+			if consumed && !pupOptionHasInlineValue(word, "", "--jq") {
+				i++
+			}
+		case word == "-y" || word == "--yes" || word == "--agent" || word == "--no-agent" ||
+			word == "--read-only" || word == "--trust-site":
 			cmd.Options = append(cmd.Options, Option{Name: word, Position: i})
 		case strings.HasPrefix(word, "-") && word != "-":
 			cmd.Options = append(cmd.Options, parseOptionWord(word, i))
@@ -54,15 +68,24 @@ func (PupParser) Parse(base Command) (Command, bool) {
 }
 
 func pupOptionWithValue(word, short, long string) bool {
-	if short != "" && word == short {
+	if short != "" && (word == short || strings.HasPrefix(word, short+"=") ||
+		(strings.HasPrefix(word, short) && !strings.HasPrefix(word, "--") && len(word) > len(short))) {
 		return true
 	}
 	return word == long || strings.HasPrefix(word, long+"=")
 }
 
-func pupOptionValue(word, long string, words []string, i int) (string, bool) {
+func pupOptionValue(word, short, long string, words []string, i int) (string, bool) {
 	if value, ok := strings.CutPrefix(word, long+"="); ok {
 		return value, true
+	}
+	if short != "" {
+		if value, ok := strings.CutPrefix(word, short+"="); ok {
+			return value, true
+		}
+		if strings.HasPrefix(word, short) && !strings.HasPrefix(word, "--") && len(word) > len(short) {
+			return strings.TrimPrefix(word, short), true
+		}
 	}
 	if i+1 >= len(words) {
 		return "", false
@@ -70,14 +93,40 @@ func pupOptionValue(word, long string, words []string, i int) (string, bool) {
 	return words[i+1], true
 }
 
+func pupOptionHasInlineValue(word, short, long string) bool {
+	if strings.HasPrefix(word, long+"=") {
+		return true
+	}
+	return short != "" && strings.HasPrefix(word, short) && word != short && !strings.HasPrefix(word, "--")
+}
+
 func pupActionPathAndArgs(positionals []string) ([]string, []string) {
 	if len(positionals) == 0 {
 		return []string{}, []string{}
 	}
-	if len(positionals) >= 3 {
-		return append([]string(nil), positionals[:3]...), append([]string(nil), positionals[3:]...)
+	end := len(positionals)
+	if end > pupMaxActionPathWords {
+		end = pupMaxActionPathWords
 	}
-	return append([]string(nil), positionals...), []string{}
+	for ; end > 0; end-- {
+		if pupKnownActionPaths[strings.Join(positionals[:end], " ")] {
+			return append([]string(nil), positionals[:end]...), append([]string(nil), positionals[end:]...)
+		}
+	}
+	// Unknown command shapes retain only the top-level area. In particular, do
+	// not guess that an argument or a future nested area is a leaf verb: doing
+	// so could widen verb-based allow rules after pup adds commands.
+	return append([]string(nil), positionals[:1]...), append([]string(nil), positionals[1:]...)
+}
+
+func pupActionPathSet(spec string) map[string]bool {
+	set := make(map[string]bool)
+	for _, path := range strings.Split(strings.TrimSpace(spec), "\n") {
+		if path = strings.TrimSpace(path); path != "" {
+			set[path] = true
+		}
+	}
+	return set
 }
 
 func buildPupSemantic(actionPath []string, options []Option) *PupSemantic {
@@ -85,16 +134,15 @@ func buildPupSemantic(actionPath []string, options []Option) *PupSemantic {
 	if len(actionPath) > 0 {
 		semantic.Area = actionPath[0]
 	}
-	if len(actionPath) > 1 {
-		semantic.Verb = actionPath[1]
-	}
 	if len(actionPath) > 2 {
 		semantic.SubArea = actionPath[1]
-		semantic.Verb = actionPath[2]
+	}
+	if len(actionPath) > 1 {
+		semantic.Verb = actionPath[len(actionPath)-1]
 	}
 	semantic.Org = pupLastOptionValue(options, "--org")
 	semantic.Output = pupLastOptionValue(options, "-o", "--output")
-	semantic.Yes = hasOption(options, "--yes")
+	semantic.Yes = hasOption(options, "--yes") || hasOption(options, "-y")
 	semantic.Agent = hasOption(options, "--agent")
 	semantic.NoAgent = hasOption(options, "--no-agent")
 	return semantic

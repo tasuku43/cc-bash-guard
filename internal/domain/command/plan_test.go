@@ -172,6 +172,31 @@ func TestParseCommandPlanRtkProxyWithoutCommandPassesThrough(t *testing.T) {
 	}
 }
 
+func TestParseCommandPlanTimeWrapperEvaluation(t *testing.T) {
+	tests := []string{
+		"time git status",
+		"time -p git status",
+		"/usr/bin/time --format=%E git status",
+		"/usr/bin/time -o /tmp/time.txt git status",
+	}
+
+	for _, raw := range tests {
+		t.Run(raw, func(t *testing.T) {
+			plan := Parse(raw)
+			if plan.Shape.Kind != ShellShapeSimple || !plan.SafeForStructuredAllow {
+				t.Fatalf("plan safety = (%q, %v), want simple/true; plan=%+v", plan.Shape.Kind, plan.SafeForStructuredAllow, plan)
+			}
+			if len(plan.Commands) != 1 {
+				t.Fatalf("len(Commands) = %d, want 1; plan=%+v", len(plan.Commands), plan)
+			}
+			cmd := plan.Commands[0]
+			if cmd.Program != "git" || cmd.Git == nil || cmd.Git.Verb != "status" {
+				t.Fatalf("command = %+v, want semantic git status", cmd)
+			}
+		})
+	}
+}
+
 func TestGitParserBuildsSemanticFields(t *testing.T) {
 	tests := []struct {
 		name string

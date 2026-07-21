@@ -4,8 +4,13 @@
 Code. It is policy-as-code for Bash permissions: semantic rules, examples as
 tests, `verify`, `explain`, and verified artifacts for hook execution.
 
-Start with:
+Start with `docs/user/START_HERE.md`. It points to the right next document for
+first setup, policy authoring, command explanation, semantic schemas, examples,
+and troubleshooting.
 
+Common paths:
+
+- `docs/user/START_HERE.md`
 - `docs/user/QUICKSTART.md`
 - `docs/user/OPERATIONAL_TEMPLATES.md`
 - `docs/user/AGENTIC_POLICY_AUTHORING.md`
@@ -21,9 +26,11 @@ Start with:
 Useful CLI help:
 
 ```sh
+cc-bash-guard setup
 cc-bash-guard help
 cc-bash-guard help permission
 cc-bash-guard help semantic
+cc-bash-guard semantic-schema docker --examples
 cc-bash-guard help examples
 cc-bash-guard help troubleshoot
 ```

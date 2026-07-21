@@ -178,3 +178,9 @@ func IsZeroPupSemanticSpec(semantic PupSemanticSpec) bool {
 		semantic.Yes == nil && semantic.Agent == nil && semantic.NoAgent == nil &&
 		len(semantic.FlagsContains) == 0 && len(semantic.FlagsPrefixes) == 0
 }
+
+func IsZeroTWGSemanticSpec(semantic TWGSemanticSpec) bool {
+	return semantic.Namespace == "" && len(semantic.NamespaceIn) == 0 &&
+		semantic.Verb == "" && len(semantic.VerbIn) == 0 &&
+		semantic.ReadOnly == nil && semantic.Mutating == nil
+}

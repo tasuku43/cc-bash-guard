@@ -5,7 +5,7 @@ Declarative, testable Bash permission policy for Claude Code.
 `cc-bash-guard` evaluates Claude Code Bash commands against reviewed YAML
 policy and returns `allow`, `ask`, or `deny`. It adds semantic matching for
 tools such as `git`, `aws`, `kubectl`, `gh`, `gws`, `helm`, `helmfile`,
-`argocd`, `terraform`, and `docker`, so policy can describe command intent
+`argocd`, `twg`, `terraform`, and `docker`, so policy can describe command intent
 instead of relying only on broad string patterns.
 
 `cc-bash-guard` policy evaluation never rewrites commands. Parser-backed
@@ -32,6 +32,26 @@ it as a Claude Code Bash hook.
 - manage Bash permission policy as reviewed, tested YAML
 - let coding agents propose or maintain policy rules safely with `suggest`,
   `verify`, and `explain`
+
+## Find your path
+
+If you are new, run:
+
+```sh
+cc-bash-guard setup
+```
+
+Then choose the path that matches what you are doing:
+
+| Goal | Start with |
+| --- | --- |
+| First local setup | `cc-bash-guard init --profile git-safe` |
+| Choose a starter posture | `cc-bash-guard init --list-profiles --verbose` |
+| Check installation health | `cc-bash-guard doctor` |
+| Check trust-critical policy state | `cc-bash-guard verify` |
+| Understand one command | `cc-bash-guard explain "git status"` |
+| Draft a rule | `cc-bash-guard suggest "git status"` |
+| Inspect semantic support | `cc-bash-guard semantic-schema docker --examples` |
 
 ## 30-second example
 
@@ -112,6 +132,7 @@ snippet for your environment. Add that printed snippet to Claude Code settings,
 then run:
 
 ```sh
+cc-bash-guard setup
 cc-bash-guard verify
 cc-bash-guard explain "git status"
 ```
@@ -127,8 +148,8 @@ The minimal flow is:
 4. Run `cc-bash-guard verify`.
 5. Test one command with `cc-bash-guard explain "git status"`.
 
-Use `cc-bash-guard init --list-profiles` to see starter profiles such as
-`balanced`, `strict`, `git-safe`, `aws-k8s`, and `argocd`.
+Use `cc-bash-guard init --list-profiles --verbose` to compare starter profiles
+such as `balanced`, `strict`, `git-safe`, `aws-k8s`, and `argocd`.
 
 For practical operating postures, see
 [`docs/user/OPERATIONAL_TEMPLATES.md`](docs/user/OPERATIONAL_TEMPLATES.md).
@@ -218,8 +239,8 @@ What it helps with:
 - evaluates command strings using parser-backed command plans, semantic rules,
   raw `patterns`, environment checks, Claude settings permissions, and verified
   policy artifacts
-- unwraps clearly bounded wrapper forms for evaluation, including shell `-c`
-  and `rtk proxy <command...>` with an optional `--` separator, and exposes
+- unwraps clearly bounded wrapper forms for evaluation, including `time`, shell
+  `-c`, and `rtk proxy <command...>` with an optional `--` separator, and exposes
   `xargs` inner command metadata through explicit `xargs` semantic rules
 - merges permission sources as `deny > ask > allow > abstain`, with final
   fallback to `ask` when all sources abstain
@@ -332,13 +353,17 @@ permission:
 ```
 
 Supported semantic parsers currently include `git`, `aws`, `kubectl`, `gh`,
-`gws`, `helm`, `helmfile`, `argocd`, `terraform`, `docker`, `xargs`, and
+`gws`, `helm`, `helmfile`, `argocd`, `twg`, `terraform`, `docker`, `xargs`, and
 `pup`. Treat
 `cc-bash-guard help semantic` and
 `cc-bash-guard semantic-schema --format json` as the source of truth for the
 installed binary. See
 [`docs/user/SEMANTIC_COVERAGE.md`](docs/user/SEMANTIC_COVERAGE.md) for the
 user-facing coverage matrix, fields, examples, and limitations.
+
+The `pup` parser assigns leaf verbs from a checked-in `pup` command-schema
+inventory. Refresh that inventory after upgrading `pup`; paths with no known
+leaf prefix keep `verb` empty and do not match verb-based allow rules.
 
 Complete runnable examples are listed in [`examples/README.md`](examples/README.md).
 Use the broader operational templates when you want a starting posture:
@@ -355,6 +380,7 @@ Use the focused examples when you want one parser or workflow in isolation:
 - [`examples/kubectl-readonly.yml`](examples/kubectl-readonly.yml)
 - [`examples/gws-readonly.yml`](examples/gws-readonly.yml)
 - [`examples/argocd-app-delete-deny.yml`](examples/argocd-app-delete-deny.yml)
+- [`examples/twg-readonly.yml`](examples/twg-readonly.yml)
 - [`examples/helm-readonly-upgrade.yml`](examples/helm-readonly-upgrade.yml)
 - [`examples/helmfile-diff-apply.yml`](examples/helmfile-diff-apply.yml)
 - [`examples/terraform-readonly.yml`](examples/terraform-readonly.yml)
@@ -519,15 +545,17 @@ cc-bash-guard explain --format json "git status"
 cc-bash-guard explain --why-not allow "git status > /tmp/out"
 ```
 
-The output shows the parsed command, semantic fields, matched rule, rule source
-file, Claude settings contribution, and final merged decision. It uses the same
-verified artifact as the hook. See [`docs/user/EXPLAIN.md`](docs/user/EXPLAIN.md)
-for how to read the output.
+Human output starts with the final decision and next action, then shows the
+parsed command, semantic fields, matched rule, rule source file, Claude settings
+contribution, and final merged decision. It uses the same verified artifact as
+the hook. See [`docs/user/EXPLAIN.md`](docs/user/EXPLAIN.md) for how to read
+the output.
 
 Use `--why-not allow|ask|deny` when you need a direct, agent-friendly diagnosis
 for a near miss. The output includes the requested outcome, actual policy,
 Claude settings, final outcomes, parsed shape, semantic fields, concise reasons,
-and safe suggestions.
+and safe suggestions such as an exact `cc-bash-guard suggest --decision ...`
+command.
 
 Use `suggest` to generate a pasteable starter rule without executing the command
 or mutating config:
@@ -704,13 +732,16 @@ Visible boundaries:
 Useful commands:
 
 ```sh
+cc-bash-guard setup
 cc-bash-guard init
 cc-bash-guard init --profile git-safe
 cc-bash-guard init --list-profiles
+cc-bash-guard init --list-profiles --verbose
 cc-bash-guard verify
 cc-bash-guard explain "git status"
 cc-bash-guard suggest "git status"
 cc-bash-guard doctor
+cc-bash-guard semantic-schema docker --examples
 cc-bash-guard version
 cc-bash-guard help setup
 cc-bash-guard help permission
@@ -724,8 +755,8 @@ cc-bash-guard help troubleshoot
 
 ## User documentation links
 
-- [`docs/user/QUICKSTART.md`](docs/user/QUICKSTART.md)
 - [`docs/user/START_HERE.md`](docs/user/START_HERE.md)
+- [`docs/user/QUICKSTART.md`](docs/user/QUICKSTART.md)
 - [`docs/user/OPERATIONAL_TEMPLATES.md`](docs/user/OPERATIONAL_TEMPLATES.md)
 - [`docs/user/AGENTIC_POLICY_AUTHORING.md`](docs/user/AGENTIC_POLICY_AUTHORING.md)
 - [`docs/user/EXPLAIN.md`](docs/user/EXPLAIN.md)

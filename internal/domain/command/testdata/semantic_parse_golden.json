@@ -151,6 +151,31 @@
   },
   {
     "action_path": [
+      "logs",
+      "metrics",
+      "delete"
+    ],
+    "parser": "pup",
+    "program": "pup",
+    "raw": "pup --org acme -y logs metrics delete abc",
+    "semantic": {
+      "Area": "logs",
+      "SubArea": "metrics",
+      "Verb": "delete",
+      "Org": "acme",
+      "Output": "",
+      "Yes": true,
+      "Agent": false,
+      "NoAgent": false,
+      "Flags": [
+        "--org",
+        "-y"
+      ]
+    },
+    "semantic_parser": "pup"
+  },
+  {
+    "action_path": [
       "users",
       "list"
     ],
@@ -415,5 +440,22 @@
       ]
     },
     "semantic_parser": "docker"
+  },
+  {
+    "action_path": [
+      "jira",
+      "workitem",
+      "get"
+    ],
+    "parser": "twg",
+    "program": "twg",
+    "raw": "twg -o json jira workitem get PROJ-123",
+    "semantic": {
+      "Namespace": "jira",
+      "Verb": "get",
+      "ReadOnly": true,
+      "Mutating": false
+    },
+    "semantic_parser": "twg"
   }
 ]
