@@ -52,12 +52,12 @@ jobs:
           sha256sum -c checksums.txt
 
       - name: Generate provenance attestations for release archives
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
         with:
           subject-checksums: dist/checksums.txt
 
       - name: Generate provenance attestation for checksums.txt
-        uses: actions/attest@59d89421af93a897026c735860bf21b6eb4f7b26 # v4
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
         with:
           subject-path: dist/checksums.txt
 
